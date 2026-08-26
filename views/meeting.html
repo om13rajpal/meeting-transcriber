@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meeting · Meeting Transcriber</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%236c8cff'/%3E%3Cpath d='M12 15a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V21h2v-2.07A7 7 0 0 0 19 12h-2Z' fill='white'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <a href="/" class="back-link">&larr; Back to meetings</a>
+
+    <h1
+      id="meetingTitle"
+      class="meeting-title hidden"
+      contenteditable="true"
+      spellcheck="false"
+      title="Click to rename"
+    ></h1>
+
+    <section id="notFoundBox" class="empty-state hidden">
+      <p id="notFoundText">Meeting not found.</p>
+    </section>
+
+    <section id="resultBox" class="result hidden">
+      <div class="result-header">
+        <div class="tabs">
+          <button class="tab active" data-tab="speakers">Transcript</button>
+          <button class="tab" data-tab="plain">Plain Text</button>
+        </div>
+        <div class="result-actions">
+          <button id="copyBtn" class="btn ghost small">Copy</button>
+          <select id="formatSelect" class="btn ghost small format-select" title="Download format">
+            <option value="txt">.txt</option>
+            <option value="srt">.srt</option>
+            <option value="vtt">.vtt</option>
+          </select>
+          <button id="downloadBtn" class="btn ghost small">Download</button>
+        </div>
+      </div>
+      <div class="meta-bar">
+        <div id="meta" class="meta">Loading…</div>
+        <div class="meta-bar-actions">
+          <button id="shareBtn" class="btn ghost small">Share</button>
+          <button id="deleteBtn" class="btn ghost small danger">Delete meeting</button>
+        </div>
+      </div>
+      <div id="sharePanel" class="share-panel hidden">
+        <input id="shareUrlInput" class="share-url-input" type="text" readonly />
+        <button id="copyShareBtn" class="btn ghost small">Copy link</button>
+        <button id="revokeShareBtn" class="btn ghost small danger">Revoke</button>
+      </div>
+      <div id="speakerView" class="transcript-view speaker-view"></div>
+      <pre id="plainView" class="transcript-view hidden"></pre>
+    </section>
+  </main>
+
+  <script src="/js/meeting.js" defer></script>
+</body>
+</html>

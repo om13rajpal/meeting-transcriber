@@ -4,3 +4,7 @@ uploads/*
 !uploads/.gitkeep
 ._*
 .DS_Store
+
+# Swift Package Manager build output (desktop-app native helpers)
+.build/
+.swiftpm/
