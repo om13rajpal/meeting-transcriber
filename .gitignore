@@ -8,3 +8,6 @@ uploads/*
 # Swift Package Manager build output (desktop-app native helpers)
 .build/
 .swiftpm/
+
+# Local project notes, not part of the pushed repo
+CLAUDE.md
