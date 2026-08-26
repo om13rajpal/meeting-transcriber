@@ -1,0 +1,14 @@
+{
+  "name": "meeting-transcriber",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Upload an MP4/MP3 meeting recording, extract audio if needed, transcribe Hinglish speech with Deepgram.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.0.0"
+  }
+}
