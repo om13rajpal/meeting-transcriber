@@ -22,7 +22,7 @@ async function verifyCredentials(email, password) {
   await connectToDatabase();
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const user = normalizedEmail ? await User.findOne({ email: normalizedEmail }) : null;
-  // A Google/Microsoft-only account has no passwordHash at all - falling
+  // A Google-only account has no passwordHash at all - falling
   // through to DUMMY_HASH here (rather than passing undefined to
   // bcrypt.compare, which throws) keeps that case just as "wrong
   // password" as a real mismatch, both in outcome and in timing.

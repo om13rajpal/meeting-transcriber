@@ -266,71 +266,72 @@ check before rendering the form, purely so an invalid/expired link says so
 immediately instead of only after submitting a new password - the actual
 consume-and-verify still only happens once, in `resetPassword()` itself.
 
-## Sign in with Google / Microsoft
+## Sign in with Google
 
-`app/lib/oauth.js` holds both providers' config (endpoints, scope, how to
-pull a verified email out of each one's very differently-shaped user-info
-response) plus the shared Authorization Code flow logic - both providers
-speak the same OAuth 2.0 token-exchange shape, so `exchangeCodeForToken()`
-and the URL builders aren't duplicated per provider, only the config is.
+`app/lib/oauth.js` holds Google's config (endpoints, scope) and the
+Authorization Code flow logic (`buildGoogleAuthorizationUrl`,
+`exchangeGoogleCode`, `fetchGoogleProfile`). This was originally written
+generically to cover Google and Microsoft both, but Microsoft sign-in was
+dropped (no Azure access to actually register and test it against), and a
+generic multi-provider shape for a single real provider is exactly the
+premature abstraction this codebase avoids elsewhere - it was
+deliberately de-genericized back down to Google-only rather than left
+carrying dead flexibility. If a second provider is added back for real,
+re-introduce the generic shape then, motivated by the actual second
+provider's needs, not preemptively.
 
-Flow: `GET /api/auth/[provider]` (see the Route Handler exception above)
+Flow: `GET /api/auth/google` (see the Route Handler exception above)
 generates a random `state`, stores it in a short-lived httpOnly cookie,
-and redirects to the provider's consent screen. The provider redirects
-back to `GET /api/auth/[provider]/callback` with `code` and `state` -
-mismatched or missing `state` is rejected outright (CSRF protection; the
-cookie is what proves *this browser* started the flow, not just anyone
-who can craft a callback URL). On a match, the callback exchanges the code
-for an access token, fetches the profile, and requires a *verified* email
-specifically - Google's `verified_email` flag, or Microsoft Graph's `mail`
-falling back to `userPrincipalName` (personal Microsoft accounts often
-have a null `mail`). No verified email, no login - don't relax this to
-"whatever email the provider hands back," since that would let someone
-authenticate as an address they don't actually control.
+and redirects to Google's consent screen. Google redirects back to
+`GET /api/auth/google/callback` with `code` and `state` - mismatched or
+missing `state` is rejected outright (CSRF protection; the cookie is what
+proves *this browser* started the flow, not just anyone who can craft a
+callback URL). On a match, the callback exchanges the code for an access
+token, fetches the profile, and requires `verified_email: true`
+specifically - no verified email, no login. Don't relax this to "whatever
+email Google hands back," since that would let someone authenticate as an
+address they don't actually control.
 
-Account matching is by email, not by provider id: if a `User` with that
-email already exists (created by password signup, or a different
-provider), the incoming provider's id (`googleId`/`microsoftId`) gets
-linked onto the existing account rather than creating a duplicate - signing
-in with Google using the same address as an existing password account
-should just work, not fork into two accounts. `User.passwordHash` is
-`required: false` for exactly this reason (an OAuth-only account has none),
-and `verifyCredentials()` in `app/actions/auth.js` treats a missing
-passwordHash as "wrong password" (falls through to `DUMMY_HASH`) rather
-than passing `undefined` to `bcrypt.compare`, which throws.
+Account matching is by email, not by `googleId`: if a `User` with that
+email already exists (created by password signup), the incoming
+`googleId` gets linked onto the existing account rather than creating a
+duplicate - signing in with Google using the same address as an existing
+password account should just work, not fork into two accounts.
+`User.passwordHash` is `required: false` for exactly this reason (a
+Google-only account has none), and `verifyCredentials()` in
+`app/actions/auth.js` treats a missing passwordHash as "wrong password"
+(falls through to `DUMMY_HASH`) rather than passing `undefined` to
+`bcrypt.compare`, which throws.
 
 `OAuthButtons.js` (rendered on both `/login` and `/signup`) is a Server
-Component that checks `isProviderConfigured()` - a provider's button
-simply doesn't render until its Client ID/Secret env vars are set, rather
+Component that checks `isGoogleConfigured()` - the button simply doesn't
+render until `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set, rather
 than rendering a button that would immediately fail. This is why nothing
-in the UI needs an "OAuth is unavailable" state for the common case of a
-provider not being configured yet; `oauth_unavailable` in
-`oauthErrorMessage()` only fires if `/api/auth/[provider]` is hit directly
-(a stale bookmark, or a race where env vars were removed) despite the
-button being hidden.
+in the UI needs an "OAuth is unavailable" state for the common case of it
+not being configured yet; `oauth_unavailable` in `oauthErrorMessage()`
+only fires if `/api/auth/google` is hit directly (a stale bookmark, or a
+race where env vars were removed) despite the button being hidden.
 
 Env vars (frontend only - OAuth never touches the backend):
-`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`,
-`MICROSOFT_CLIENT_SECRET`. Getting real values requires registering an
-OAuth app in Google Cloud Console (OAuth consent screen + Web application
-credentials) and Azure Portal (App registrations), with each provider's
-redirect URI set to `${APP_URL}/api/auth/<provider>/callback` - these are
-manual, account-specific steps that can't be done from this codebase, and
-were verified as far as possible without them: the redirect to each
-provider's real authorization endpoint was confirmed correct end-to-end
-(exact `client_id`/`redirect_uri`/`scope`/`state` params) using
-syntactically-valid but fake credentials, which Google/Microsoft
-correctly rejected as an unregistered client - the callback exchange and
-account-linking logic past that point is untested against a real provider
-response.
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. Getting real values requires
+registering an OAuth app in Google Cloud Console (OAuth consent screen +
+Web application credentials), with the redirect URI set to
+`${APP_URL}/api/auth/google/callback` - a manual, account-specific step
+that can't be done from this codebase. With real credentials configured,
+the redirect from `/api/auth/google` to Google's actual consent screen
+was confirmed correct (registering `http://localhost:3000/...` as a
+second authorized redirect URI made local testing reach Google's real
+sign-in page instead of a `redirect_uri_mismatch` error). The callback's
+token exchange, profile fetch, and account creation/linking still need a
+completed real sign-in to confirm end to end.
 
 ## Stack (frontend)
 
 - Next.js 16 (App Router), React 19, JavaScript (no TypeScript).
 - Server Components for reads, Server Actions for every mutation except the
   file upload itself (see above). The **only** Route Handlers in this app
-  are `app/api/auth/[provider]/route.js` and its `callback/route.js` - an
-  OAuth provider redirects the browser here with a plain GET it initiates,
+  are `app/api/auth/google/route.js` and its `callback/route.js` - Google
+  redirects the browser here with a plain GET it initiates,
   which can't be a Server Action (those only respond to POSTs this app
   itself sends, via a form or `fetch`, not a third party's redirect). Don't
   add a Route Handler for anything else without the same justification;
@@ -467,8 +468,8 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   reset".
 - `app/lib/webhook.js`: `sendMeetingWebhook()`, the frontend half of
   webhook notifications - see "Webhook notifications".
-- `app/lib/oauth.js`: provider config + Authorization Code flow helpers for
-  Google/Microsoft sign-in - see "Sign in with Google / Microsoft".
+- `app/lib/oauth.js`: Google config + Authorization Code flow helpers - see
+  "Sign in with Google".
 - `app/lib/session.js`: cookie/session primitives (`createSession`,
   `getSessionUserId`, `deleteSession`).
 - `app/lib/dal.js`: `verifySession()`, the auth boundary.
@@ -488,11 +489,11 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   one folder per route; `page.js` is the Server Component (auth check + data
   fetch), a sibling Client Component (e.g. `MeetingDetail.js`) owns the
   interactive UI.
-- `app/api/auth/[provider]/route.js`, `app/api/auth/[provider]/callback/route.js`:
-  the OAuth Route Handlers - see "Sign in with Google / Microsoft" for why
-  these are Route Handlers and everything else in `app/` isn't.
-- `app/OAuthButtons.js`: shared Server Component rendered on both
-  `/login` and `/signup`.
+- `app/api/auth/google/route.js`, `app/api/auth/google/callback/route.js`:
+  the OAuth Route Handlers - see "Sign in with Google" for why these are
+  Route Handlers and everything else in `app/` isn't.
+- `app/OAuthButtons.js`: the "Continue with Google" button, a shared
+  Server Component rendered on both `/login` and `/signup`.
 - `app/Dashboard.js`: the dashboard's Client Component, rendered by
   `app/page.js`. Owns the direct-to-backend upload call and the webhook
   settings dialog.
@@ -520,8 +521,7 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   generic message.
 - Secrets only via `.env` (frontend: `MONGODB_URI`,
   `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`, `RESEND_API_KEY`, `EMAIL_FROM`,
-  `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-  `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`; backend:
+  `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`; backend:
   `DEEPGRAM_API_KEY`, `MONGODB_URI`, `ALLOWED_ORIGINS`, `RESEND_API_KEY`,
   `EMAIL_FROM`, `FRONTEND_URL`); each `.env.example` documents its
   required vars with no values.
@@ -534,9 +534,9 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - The upload token is single-use and short-lived on purpose. Don't turn it
   into a long-lived reusable credential without a real reason to. Same for
   `PasswordResetToken` and the OAuth `state` cookie.
-- OAuth sign-in only accepts an email the provider itself marked verified,
-  and matches/links accounts by that email - never by a client-supplied
-  identifier. See "Sign in with Google / Microsoft".
+- OAuth sign-in only accepts an email Google itself marked verified, and
+  matches/links accounts by that email - never by a client-supplied
+  identifier. See "Sign in with Google".
 
 ## External API calls
 
