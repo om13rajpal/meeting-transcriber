@@ -74,17 +74,50 @@ function initialsFor(email) {
   return (email || '?').slice(0, 2).toUpperCase();
 }
 
+// fetch() has no upload progress event, which is exactly what made a large,
+// slow, or stalled upload indistinguishable from a working one - the user
+// just sees a spinner with no way to tell it apart from something actually
+// stuck. XMLHttpRequest still has upload.onprogress, so this wraps it in a
+// promise with a fetch-like { ok, status, json } result to minimize the
+// blast radius of the swap. Also returns the live xhr so the caller can
+// abort() it from a Cancel button.
+function uploadWithProgress(url, formData, onProgress) {
+  const xhr = new XMLHttpRequest();
+  const promise = new Promise((resolve, reject) => {
+    xhr.open('POST', url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let json = {};
+      try {
+        json = JSON.parse(xhr.responseText);
+      } catch {
+        // Non-JSON response body; fall through with an empty object like
+        // the existing fetch(...).json().catch(() => ({})) pattern did.
+      }
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json });
+    };
+    xhr.onerror = () => reject(new Error('Could not reach the transcription backend.'));
+    xhr.onabort = () => reject(Object.assign(new Error('Upload cancelled.'), { cancelled: true }));
+    xhr.send(formData);
+  });
+  return { xhr, promise };
+}
+
 export default function Dashboard({ userEmail, initialMeetings }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
   const searchDebounceRef = useRef(null);
   const statusTimerRef = useRef(null);
+  const xhrRef = useRef(null);
 
   const [meetings, setMeetings] = useState(initialMeetings);
   const [selectedFile, setSelectedFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -152,6 +185,7 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     if (!selectedFile) return;
 
     setUploading(true);
+    setUploadProgress(0);
     const start = Date.now();
     setElapsed(0);
     statusTimerRef.current = window.setInterval(() => {
@@ -184,11 +218,14 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       formData.append('file', selectedFile);
       formData.append('token', tokenResult.token);
 
-      const uploadResponse = await fetch(`${tokenResult.backendUrl}/api/transcribe`, {
-        method: 'POST',
-        body: formData
-      });
-      const result = await uploadResponse.json().catch(() => ({}));
+      const { xhr, promise } = uploadWithProgress(
+        `${tokenResult.backendUrl}/api/transcribe`,
+        formData,
+        (fraction) => setUploadProgress(Math.round(fraction * 100))
+      );
+      xhrRef.current = xhr;
+      const uploadResponse = await promise;
+      const result = uploadResponse.json;
 
       if (!uploadResponse.ok) {
         const message = result.error || 'Something went wrong. Please try again.';
@@ -213,16 +250,24 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       const refreshed = await searchMeetings(searchQuery);
       setMeetings(refreshed);
     } catch (err) {
-      toast.error('Something went wrong. Please try again.');
+      const message = err?.cancelled
+        ? 'Upload cancelled.'
+        : 'Something went wrong during upload. Please try again.';
+      toast[err?.cancelled ? 'message' : 'error'](message);
       if (meetingId) {
-        await markMeetingFailed(meetingId, 'Something went wrong during upload. Please try again.');
+        await markMeetingFailed(meetingId, message);
         const refreshed = await searchMeetings(searchQuery);
         setMeetings(refreshed);
       }
     } finally {
+      xhrRef.current = null;
       window.clearInterval(statusTimerRef.current);
       setUploading(false);
     }
+  }
+
+  function cancelUpload() {
+    xhrRef.current?.abort();
   }
 
   async function confirmDelete() {
@@ -315,8 +360,8 @@ export default function Dashboard({ userEmail, initialMeetings }) {
               <span className="flex-1 truncate text-sm">
                 {selectedFile.name} <span className="text-muted-foreground">({formatBytes(selectedFile.size)})</span>
               </span>
-              <Button variant="outline" size="sm" onClick={resetSelection} disabled={uploading}>
-                Clear
+              <Button variant="outline" size="sm" onClick={uploading ? cancelUpload : resetSelection}>
+                {uploading ? 'Cancel' : 'Clear'}
               </Button>
               <Button size="sm" onClick={handleTranscribe} disabled={uploading}>
                 {uploading && <Loader2 className="animate-spin" />}
@@ -334,10 +379,21 @@ export default function Dashboard({ userEmail, initialMeetings }) {
         />
 
         {uploading && (
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Uploading &amp; transcribing&hellip; {formatElapsed(elapsed)}
-          </p>
+          <div className="mt-3">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {uploadProgress < 100
+                ? `Uploading… ${uploadProgress}%`
+                : 'Upload complete, starting transcription…'}{' '}
+              &middot; {formatElapsed(elapsed)}
+            </p>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
         )}
 
         <div className="mt-10 mb-3 flex items-center justify-between gap-3">

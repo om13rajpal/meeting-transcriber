@@ -47,17 +47,27 @@ ffmpeg-based video processing is a poor fit for serverless functions at all
    sent. It returns the token, the backend's URL
    (`NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`), and the new meeting (so the
    dashboard can show the "Transcribing..." row immediately).
-2. The browser then does a plain `fetch()` directly to
-   `${backendUrl}/api/transcribe` with the file and the token in one
-   multipart form, bypassing this Next.js app entirely. This is the one
-   step that can take real time for a large recording, and it's also the
-   one step nothing here can make resumable, since the browser itself is
-   what's streaming the bytes - a reload or dropped connection during this
-   step genuinely aborts that specific transfer. What creating the Meeting
-   a step earlier buys you is that the *row* survives that abort even
-   though the *transfer* doesn't: reload afterward and you see
-   "Transcribing..." (which the stale-job sweep below will eventually mark
-   `'failed'` if the backend truly never got the file), not nothing.
+2. The browser then uploads the file directly to `${backendUrl}/api/transcribe`
+   with the file and the token in one multipart form, bypassing this
+   Next.js app entirely. This is the one step that can take real time for a
+   large recording, and it's also the one step nothing here can make
+   resumable, since the browser itself is what's streaming the bytes - a
+   reload or dropped connection during this step genuinely aborts that
+   specific transfer. What creating the Meeting a step earlier buys you is
+   that the *row* survives that abort even though the *transfer* doesn't:
+   reload afterward and you see "Transcribing..." (which the stale-job
+   sweep below will eventually mark `'failed'` if the backend truly never
+   got the file), not nothing.
+   - `Dashboard.js` uses `XMLHttpRequest` for this upload, not `fetch()`,
+     specifically so it can listen to `xhr.upload.onprogress` and show a
+     real percentage. `fetch()` has no upload-progress event, which is
+     exactly what made a slow or stalled upload indistinguishable from one
+     that was actually working - the user had no way to tell them apart.
+     The same `xhr` is stashed in a ref so the "Cancel" button (shown in
+     place of "Clear" while uploading) can call `xhr.abort()`, which
+     rejects the upload promise and immediately calls `markMeetingFailed()`
+     rather than leaving the row to sit at `'processing'` until the
+     stale-job sweep eventually notices.
 3. The backend looks up the token (`findByIdAndDelete`, so it's consumed
    immediately and can't be replayed), extracts `meetingId` from it, and
    looks up the `Meeting` document that step 1 already created (falling
