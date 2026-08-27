@@ -11,3 +11,6 @@ uploads/*
 
 # Local project notes, not part of the pushed repo
 CLAUDE.md
+
+# Parked native desktop recorder prototype, not part of the pushed repo
+desktop-app/
