@@ -18,7 +18,16 @@ const utteranceSchema = new mongoose.Schema(
 const webhookSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
-    format: { type: String, enum: ['generic', 'discord', 'slack', 'teams'], default: 'generic' }
+    format: { type: String, enum: ['generic', 'discord', 'slack', 'teams'], default: 'generic' },
+    // Set after every send attempt (the automatic one on completion/failure,
+    // or a manual resend - see resendNotifications() in
+    // app/actions/meetings.js) so the meeting page can show real delivery
+    // status instead of the notification being a total black box - this is
+    // exactly what was missing when a webhook silently failed to fire and
+    // debugging it required reading the database by hand.
+    lastAttemptAt: Date,
+    lastAttemptOk: Boolean,
+    lastAttemptStatus: Number
   },
   { _id: false }
 );
@@ -38,6 +47,10 @@ const meetingSchema = new mongoose.Schema({
   // creation time - a later change to the list doesn't retroactively apply
   // to meetings already in flight, matching how userEmail behaves.
   userWebhooks: [webhookSchema],
+  // Same delivery-status tracking as each userWebhooks entry above, for the
+  // single email channel.
+  emailLastAttemptAt: Date,
+  emailLastAttemptOk: Boolean,
   title: String,
   originalName: String,
   isVideo: Boolean,

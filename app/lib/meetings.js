@@ -53,7 +53,22 @@ export function toDetail(meeting) {
     shareToken: meeting.shareToken || null,
     status: meeting.status || 'complete',
     errorMessage: meeting.errorMessage || null,
-    createdAt: meeting.createdAt.toISOString()
+    createdAt: meeting.createdAt.toISOString(),
+    // Delivery status per notification channel, so a silently failed
+    // webhook/email is visible on the page instead of requiring a
+    // database lookup to notice - see resendNotifications() in
+    // app/actions/meetings.js. `ok: null` means never attempted yet (e.g.
+    // configured after this meeting already completed).
+    notifications: {
+      email: meeting.userEmail
+        ? { attemptedAt: meeting.emailLastAttemptAt ? meeting.emailLastAttemptAt.toISOString() : null, ok: meeting.emailLastAttemptOk ?? null }
+        : null,
+      webhooks: (meeting.userWebhooks || []).map((w) => ({
+        format: w.format,
+        attemptedAt: w.lastAttemptAt ? w.lastAttemptAt.toISOString() : null,
+        ok: w.lastAttemptOk ?? null
+      }))
+    }
   };
 }
 

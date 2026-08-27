@@ -24,6 +24,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Shareable, read only links for individual meetings that can be revoked at any time
 - Email notification (via Resend) the moment a meeting finishes transcribing or fails, so you don't have to keep a tab open watching for it
 - Optional webhooks (as many as you like): send a meeting's transcript to Discord, Slack, Microsoft Teams, or your own URL (n8n, Zapier, a custom agent) as raw JSON, the moment it finishes or fails
+- Per-notification delivery status (email and every webhook) shown on the meeting page, with a one-click Resend if any of them failed
 - Speaker rename autocomplete, suggesting names you've used in past meetings
 
 ## Tech stack

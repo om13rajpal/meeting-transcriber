@@ -40,12 +40,15 @@ async function send({ to, subject, text }) {
 // marked 'failed' by markMeetingFailed() in app/actions/meetings.js, on
 // this side. Never throws - a broken email integration should never
 // surface as a user-facing error for an unrelated action. No-ops quietly
-// if RESEND_API_KEY isn't set, so email stays fully optional.
+// if RESEND_API_KEY isn't set, so email stays fully optional. Returns
+// whether it actually sent, so callers can record delivery status on the
+// meeting (see Meeting.emailLastAttemptOk) - the whole reason this returns
+// a value now instead of being pure fire-and-forget.
 export async function sendMeetingEmail(to, meeting) {
   const appUrl = process.env.APP_URL;
   if (!appUrl) {
     console.error('sendMeetingEmail: APP_URL is not set, skipping.');
-    return;
+    return false;
   }
 
   const title = meeting.title || meeting.originalName || 'Your recording';
@@ -57,7 +60,7 @@ export async function sendMeetingEmail(to, meeting) {
     ? `Your meeting "${title}" has finished transcribing.\n\nView it here: ${link}`
     : `Your meeting "${title}" failed to transcribe.\n\n${meeting.errorMessage || 'An unknown error occurred.'}\n\nYou can delete it and try again: ${link}`;
 
-  await send({ to, subject, text });
+  return send({ to, subject, text });
 }
 
 // Best-effort like sendMeetingEmail above. requestPasswordReset() in

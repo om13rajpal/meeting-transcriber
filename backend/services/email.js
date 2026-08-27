@@ -15,15 +15,17 @@ function withTimeout(promise, ms) {
 // failed). Never throws - a broken email integration should never affect
 // the transcription pipeline itself, so any failure here is just logged.
 // No-ops quietly if RESEND_API_KEY isn't set, so email stays fully
-// optional in any environment that hasn't configured it.
+// optional in any environment that hasn't configured it. Returns whether
+// it actually sent, so callers can record delivery status on the meeting
+// (Meeting.emailLastAttemptOk).
 async function sendMeetingEmail(to, meeting) {
-  if (!resend || !to) return;
+  if (!resend || !to) return false;
 
   const from = process.env.EMAIL_FROM;
   const frontendUrl = process.env.FRONTEND_URL;
   if (!from || !frontendUrl) {
     console.error('sendMeetingEmail: EMAIL_FROM or FRONTEND_URL is not set, skipping.');
-    return;
+    return false;
   }
 
   const title = meeting.title || meeting.originalName || 'Your recording';
@@ -40,9 +42,14 @@ async function sendMeetingEmail(to, meeting) {
       resend.emails.send({ from, to, subject, text }),
       EMAIL_TIMEOUT_MS
     );
-    if (error) console.error('sendMeetingEmail: Resend returned an error:', error);
+    if (error) {
+      console.error('sendMeetingEmail: Resend returned an error:', error);
+      return false;
+    }
+    return true;
   } catch (error) {
     console.error('sendMeetingEmail failed:', error);
+    return false;
   }
 }
 

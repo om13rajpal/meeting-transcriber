@@ -71,6 +71,9 @@ function buildPayload(format, meeting, link, title) {
   return buildGenericPayload(meeting, link);
 }
 
+// Returns { url, ok, status } rather than throwing - status is the HTTP
+// response code when the endpoint answered at all (0 for a network
+// failure/timeout, which never got a response to have a status).
 async function sendOne(url, format, meeting, link, title) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
@@ -85,8 +88,10 @@ async function sendOne(url, format, meeting, link, title) {
     if (!resp.ok) {
       console.error(`sendMeetingWebhook (${format}): endpoint returned ${resp.status}`);
     }
+    return { url, ok: resp.ok, status: resp.status };
   } catch (error) {
     console.error(`sendMeetingWebhook (${format}) failed:`, error);
+    return { url, ok: false, status: 0 };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -96,15 +101,22 @@ async function sendOne(url, format, meeting, link, title) {
 // so a broken or slow webhook endpoint never surfaces as a user-facing
 // error for an unrelated action, and one destination failing doesn't stop
 // the others (Promise.allSettled, not Promise.all). No-ops quietly if the
-// user hasn't configured any webhooks.
+// user hasn't configured any webhooks. Returns one { url, ok, status } per
+// entry in `webhooks`, so callers can record delivery status on the
+// meeting (Meeting.userWebhooks[].lastAttemptOk) - the whole reason this
+// returns anything instead of being pure fire-and-forget.
 export async function sendMeetingWebhook(webhooks, meeting) {
-  if (!webhooks || !webhooks.length) return;
+  if (!webhooks || !webhooks.length) return [];
 
   const appUrl = process.env.APP_URL;
   const link = appUrl ? `${appUrl}/meeting/${meeting.id}` : undefined;
   const title = meeting.title || meeting.originalName || 'Untitled recording';
 
-  await Promise.allSettled(
+  const settled = await Promise.allSettled(
     webhooks.filter((w) => w.url).map((w) => sendOne(w.url, w.format || 'generic', meeting, link, title))
   );
+  // sendOne never rejects (it catches everything itself), so every entry
+  // here is a fulfilled promise - .map() to unwrap rather than needing to
+  // handle a 'rejected' branch that can't actually occur.
+  return settled.map((result) => result.value);
 }

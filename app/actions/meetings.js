@@ -84,6 +84,38 @@ export async function mergeSpeakers(id, fromSpeakerIds, toSpeakerId) {
   return { meeting: toDetail(meeting) };
 }
 
+// Sends the completion/failure email + webhooks, then records whether each
+// one actually succeeded back onto the meeting - this is what makes
+// delivery status visible on the meeting page (and resendable there, see
+// resendNotifications() below) instead of the notification being a total
+// black box, which is exactly what made an earlier silent webhook failure
+// impossible to self-diagnose. Mirrors sendNotifications() in
+// backend/server.js.
+async function sendNotifications(meeting) {
+  const detail = toDetail(meeting);
+  const [emailOk, webhookResults] = await Promise.all([
+    sendMeetingEmail(meeting.userEmail, detail),
+    sendMeetingWebhook(meeting.userWebhooks, detail)
+  ]);
+
+  const now = new Date();
+  meeting.emailLastAttemptAt = now;
+  meeting.emailLastAttemptOk = emailOk;
+
+  const byUrl = new Map(webhookResults.map((r) => [r.url, r]));
+  meeting.userWebhooks.forEach((w) => {
+    const result = byUrl.get(w.url);
+    if (result) {
+      w.lastAttemptAt = now;
+      w.lastAttemptOk = result.ok;
+      w.lastAttemptStatus = result.status;
+    }
+  });
+  if (meeting.userWebhooks.length) meeting.markModified('userWebhooks');
+
+  await meeting.save();
+}
+
 // Called by the dashboard right when the direct-to-backend upload request
 // itself fails (a rejected token, a network drop, a 4xx/5xx from the
 // backend) - the browser already knows this happened synchronously, so
@@ -101,10 +133,27 @@ export async function markMeetingFailed(id, message) {
   meeting.status = 'failed';
   meeting.errorMessage = typeof message === 'string' && message ? message : 'Upload failed. Please try again.';
   await meeting.save();
-  const detail = toDetail(meeting);
-  await sendMeetingEmail(meeting.userEmail, detail);
-  await sendMeetingWebhook(meeting.userWebhooks, detail);
+  await sendNotifications(meeting);
   return { ok: true };
+}
+
+// Manual retry for when the automatic notification on completion/failure
+// didn't get through - a wrong webhook URL, a temporary outage, whatever.
+// Lets the user fix and retry it themselves without re-uploading just to
+// trigger another attempt, and without needing to read the database by
+// hand to even find out it failed in the first place.
+export async function resendNotifications(id) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeeting(id, userId);
+  if (!meeting) {
+    return { error: 'Meeting not found.' };
+  }
+  if (meeting.status === 'processing') {
+    return { error: 'Still processing - nothing to resend yet.' };
+  }
+
+  await sendNotifications(meeting);
+  return { meeting: toDetail(meeting) };
 }
 
 export async function deleteMeeting(id) {

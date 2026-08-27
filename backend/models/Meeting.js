@@ -16,7 +16,10 @@ const utteranceSchema = new mongoose.Schema(
 const webhookSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
-    format: { type: String, enum: ['generic', 'discord', 'slack', 'teams'], default: 'generic' }
+    format: { type: String, enum: ['generic', 'discord', 'slack', 'teams'], default: 'generic' },
+    lastAttemptAt: Date,
+    lastAttemptOk: Boolean,
+    lastAttemptStatus: Number
   },
   { _id: false }
 );
@@ -32,6 +35,8 @@ const meetingSchema = new mongoose.Schema({
   // Same idea as userEmail, snapshotted from User.webhooks at creation
   // time (see app/lib/models/Meeting.js on the frontend side).
   userWebhooks: [webhookSchema],
+  emailLastAttemptAt: Date,
+  emailLastAttemptOk: Boolean,
   title: String,
   originalName: String,
   isVideo: Boolean,

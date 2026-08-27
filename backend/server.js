@@ -55,6 +55,44 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES }
 });
 
+// Sends the completion/failure email + webhooks, then records whether each
+// one actually succeeded back onto the meeting - this is what makes
+// delivery status visible on the meeting page (and resendable there)
+// instead of the notification being a total black box, which is exactly
+// what made an earlier silent webhook failure impossible to self-diagnose.
+// A second save() (the first already persisted status/errorMessage) rather
+// than delaying that first save until after this - notifications can take
+// up to WEBHOOK_TIMEOUT_MS each, and the dashboard/meeting page polling
+// should see 'complete'/'failed' as soon as it's true, not after every
+// notification attempt finishes.
+async function sendNotifications(meeting) {
+  try {
+    const [emailOk, webhookResults] = await Promise.all([
+      sendMeetingEmail(meeting.userEmail, meeting),
+      sendMeetingWebhook(meeting.userWebhooks, meeting)
+    ]);
+
+    const now = new Date();
+    meeting.emailLastAttemptAt = now;
+    meeting.emailLastAttemptOk = emailOk;
+
+    const byUrl = new Map(webhookResults.map((r) => [r.url, r]));
+    meeting.userWebhooks.forEach((w) => {
+      const result = byUrl.get(w.url);
+      if (result) {
+        w.lastAttemptAt = now;
+        w.lastAttemptOk = result.ok;
+        w.lastAttemptStatus = result.status;
+      }
+    });
+    if (meeting.userWebhooks.length) meeting.markModified('userWebhooks');
+
+    await meeting.save();
+  } catch (error) {
+    console.error('sendNotifications failed:', error);
+  }
+}
+
 // Marks any 'processing' meeting older than STALE_PROCESSING_MS as failed.
 // Runs once at startup (to clean up whatever was left mid-job by a previous
 // crash or deploy, since nothing else ever revisits those rows) and on a
@@ -74,8 +112,7 @@ async function sweepStaleJobs() {
       meeting.status = 'failed';
       meeting.errorMessage = 'Transcription did not finish in time. Please try uploading again.';
       await meeting.save();
-      await sendMeetingEmail(meeting.userEmail, meeting);
-      await sendMeetingWebhook(meeting.userWebhooks, meeting);
+      await sendNotifications(meeting);
     }
     console.log(`Marked ${staleMeetings.length} stale processing job(s) as failed.`);
   } catch (error) {
@@ -178,8 +215,7 @@ async function main() {
         meeting.utterances = result.utterances;
         meeting.status = 'complete';
         await meeting.save();
-        await sendMeetingEmail(meeting.userEmail, meeting);
-        await sendMeetingWebhook(meeting.userWebhooks, meeting);
+        await sendNotifications(meeting);
       } catch (error) {
         console.error(error);
         const isDeepgramError = error.message?.startsWith('Deepgram API error');
@@ -188,8 +224,7 @@ async function main() {
           ? error.message
           : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
         await meeting.save().catch((saveError) => console.error(saveError));
-        await sendMeetingEmail(meeting.userEmail, meeting);
-        await sendMeetingWebhook(meeting.userWebhooks, meeting);
+        await sendNotifications(meeting);
       }
     });
   });

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Download, Share2, Trash2, Link2, X, Loader2, AlertCircle, Users } from 'lucide-react';
+import { Copy, Download, Share2, Trash2, Link2, X, Loader2, AlertCircle, Users, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
 import {
   getMeeting,
   updateMeetingTitle,
@@ -11,7 +11,8 @@ import {
   mergeSpeakers,
   deleteMeeting,
   createShareLink,
-  revokeShareLink
+  revokeShareLink,
+  resendNotifications
 } from '@/app/actions/meetings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,6 +86,7 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
   const [mergeTarget, setMergeTarget] = useState(null);
   const [mergeSources, setMergeSources] = useState(new Set());
   const [merging, setMerging] = useState(false);
+  const [resending, setResending] = useState(false);
 
   // The backend responds before transcription finishes, so a freshly
   // uploaded meeting (or one still processing on reload, since status lives
@@ -275,6 +277,21 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
     }
   }
 
+  async function handleResendNotifications() {
+    setResending(true);
+    try {
+      const result = await resendNotifications(id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setMeeting(result.meeting);
+      toast.success('Notifications resent.');
+    } finally {
+      setResending(false);
+    }
+  }
+
   async function confirmDelete() {
     setDeleteOpen(false);
     setDeleting(true);
@@ -335,6 +352,7 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
             <AlertCircle className="size-6 text-destructive" />
             <p className="text-destructive">{meeting.errorMessage || 'Transcription failed.'}</p>
             <p className="text-sm text-muted-foreground">Delete this and try uploading the recording again.</p>
+            <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
             <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
               <Trash2 /> Delete
             </Button>
@@ -384,6 +402,10 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
               <Trash2 /> Delete
             </Button>
           </div>
+        </div>
+
+        <div className="px-4 pt-2">
+          <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
         </div>
 
         {meeting.shareToken && (
@@ -531,6 +553,49 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+const NOTIFICATION_FORMAT_LABELS = { generic: 'Generic JSON', discord: 'Discord', slack: 'Slack', teams: 'Microsoft Teams' };
+
+// Delivery status per notification channel (see Meeting.emailLastAttemptOk
+// / userWebhooks[].lastAttemptOk), so a silently failed email/webhook is
+// visible right here instead of requiring a database lookup to notice -
+// plus a manual resend for exactly that situation.
+function NotificationsPanel({ notifications, onResend, resending }) {
+  if (!notifications) return null;
+  const webhooks = notifications.webhooks || [];
+  if (!notifications.email && webhooks.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+      {notifications.email && <StatusBadge label="Email" attemptedAt={notifications.email.attemptedAt} ok={notifications.email.ok} />}
+      {webhooks.map((w, i) => (
+        <StatusBadge key={i} label={NOTIFICATION_FORMAT_LABELS[w.format] || w.format} attemptedAt={w.attemptedAt} ok={w.ok} />
+      ))}
+      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground" onClick={onResend} disabled={resending}>
+        {resending ? <Loader2 className="size-3 animate-spin" /> : <RotateCw className="size-3" />}
+        Resend
+      </Button>
+    </div>
+  );
+}
+
+function StatusBadge({ label, attemptedAt, ok }) {
+  if (!attemptedAt) {
+    return <span>{label}: not sent yet</span>;
+  }
+  if (ok) {
+    return (
+      <span className="inline-flex items-center gap-1 text-emerald-500">
+        <CheckCircle2 className="size-3" /> {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-destructive">
+      <XCircle className="size-3" /> {label} failed
+    </span>
   );
 }
 

@@ -244,6 +244,52 @@ meeting, delivered to a local catcher, with each payload's shape confirmed
 correct against its platform's documented schema (Discord embed object,
 Slack `text` field, Teams MessageCard).
 
+## Notification delivery status and resend
+
+`sendMeetingEmail()`/`sendMeetingWebhook()` used to be pure fire-and-forget
+- this was the direct cause of a real debugging session: a webhook
+silently failed to fire and the only way to find out was reading the
+database by hand. Both now return their outcome (`sendMeetingEmail` a
+boolean, `sendMeetingWebhook` one `{ url, ok, status }` per destination),
+and every call site records it back onto the meeting:
+`Meeting.emailLastAttemptAt`/`emailLastAttemptOk`, and
+`userWebhooks[].lastAttemptAt`/`lastAttemptOk`/`lastAttemptStatus` (the
+HTTP status code, or `0` for a network failure/timeout that never got a
+response).
+
+`sendNotifications(meeting)` - duplicated in `backend/server.js` and as a
+private helper in `app/actions/meetings.js`, same reasoning as the
+email/webhook services themselves being duplicated per service - wraps
+"send both channels, merge the results back onto the meeting document,
+save" as one call, used by all four places that can trigger the automatic
+notification (the backend's success/failure branches, its stale-job
+sweep, and the frontend's `markMeetingFailed()`) plus the new
+`resendNotifications(id)` Server Action for a manual retry.
+
+The status/errorMessage save always happens *before* `sendNotifications()`
+is called (a separate, second `.save()`), not folded into one save - a
+webhook can take up to its own timeout to answer, and the dashboard/
+meeting page polling should see `'complete'`/`'failed'` the instant it's
+true, not delayed behind however long notifications take to attempt.
+
+`toDetail()` in `app/lib/meetings.js` exposes this as `notifications:
+{ email, webhooks: [...] }` (format + attempt status per entry, not the
+raw webhook URLs - those stay in the settings dialog, not cluttering the
+meeting page). `MeetingDetail.js`'s `NotificationsPanel` renders one badge
+per channel (not sent yet / delivered / failed) plus a "Resend" button
+that calls `resendNotifications()` and replaces local state with the
+fresh result - shown on both the `'complete'` and `'failed'` states, since
+either can have channels to retry.
+
+Verified for real: uploaded through a real transcription with one working
+webhook (`generic`, an httpbin.org echo endpoint) and one broken one
+(`discord`, pointed at a non-resolving domain), confirmed the panel showed
+the right status for each (plus a genuinely-rejected email, from Resend's
+own `@example.com` test-domain validation - a real failure, not a test
+artifact), clicked Resend and confirmed it re-attempted, then fixed the
+broken webhook's URL and confirmed a second Resend flipped just that one
+channel to delivered while the others stayed as they were.
+
 ## Speaker merge
 
 Deepgram's diarization sometimes over-splits one person's voice into
@@ -515,9 +561,10 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   `listKnownSpeakerNames` (rename autocomplete source).
 - `app/actions/`: every Server Action (`auth.js` [signup/login/logout,
   `requestPasswordReset`, `resetPassword`], `meetings.js` [`getMeeting`,
-  title/speaker rename, `mergeSpeakers`, `markMeetingFailed`, delete, share
-  links], `settings.js` [`getWebhooks`, `saveWebhooks`],
-  `transcribe.js` [token minting, also creates the `Meeting` row - see
+  title/speaker rename, `mergeSpeakers`, `markMeetingFailed`,
+  `resendNotifications`, delete, share links], `settings.js`
+  [`getWebhooks`, `saveWebhooks`], `transcribe.js` [token minting, also
+  creates the `Meeting` row - see
   "Upload token flow"], `search.js`).
 - `app/login/`, `app/signup/`, `app/forgot-password/`,
   `app/reset-password/[token]/`, `app/meeting/[id]/`, `app/share/[token]/`:
