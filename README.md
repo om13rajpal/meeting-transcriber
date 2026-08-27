@@ -13,8 +13,10 @@ The browser uploads the recording directly to the backend, authorized by a short
 
 - Email and password authentication with sessions stored in MongoDB, plus optional Google sign-in
 - Forgot password, with a single-use emailed reset link that also signs every other device out
-- Upload an MP4 or MP3; video files have their audio automatically extracted with ffmpeg
+- Upload multiple MP4s or MP3s at once, each uploading and transcribing independently with its own progress, cancel, and retry
 - Transcription via Deepgram's Nova 3 model with `language=multi` for accurate Hindi/English code switching
+- Per meeting cost tracking: the model used and what it cost, shown right away as an estimate and automatically upgraded to Deepgram's actual billed amount once available, plus a "this month" total on the dashboard
+- Simple tags on each meeting (add/remove from the meeting page), searchable from the same dashboard search box as titles and transcripts
 - Deepgram requests opt out of their model improvement program (`mip_opt_out`), so recordings are not used for training
 - Per user meeting history with a dashboard and full text search across titles and transcripts
 - Editable meeting titles and per speaker renaming, both saved to the database
@@ -63,6 +65,8 @@ cp .env.example .env
 Fill in `.env`:
 
 - `DEEPGRAM_API_KEY`: your Deepgram API key
+- `DEEPGRAM_PROJECT_ID`: optional, from the Deepgram console - lets the backend fetch each meeting's actual billed cost instead of only an estimate
+- `DEEPGRAM_RATE_PER_MINUTE_USD`: optional, the per-minute rate used for the estimated cost shown immediately after a meeting finishes; defaults to `0.0071`
 - `MONGODB_URI`: same database the frontend uses, for example `mongodb://127.0.0.1:27017/meeting-transcriber`
 - `PORT`: defaults to `10000`
 - `ALLOWED_ORIGINS`: comma-separated origins allowed to call this backend directly from a browser, for example `http://localhost:3000`
@@ -97,7 +101,7 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 ## Deployment
 
 - **Frontend on Vercel**: deploy the repository root as a standard Next.js project. Set `MONGODB_URI`, `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL` (the backend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` (this app's own public URL), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` as environment variables.
-- **Backend on Render**: create a Docker-based web service pointed at the `backend/` directory (Render's "Root Directory" setting). Set `DEEPGRAM_API_KEY`, `MONGODB_URI`, `ALLOWED_ORIGINS` (the frontend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL` (this app's own public URL) as environment variables. Render builds and runs `backend/Dockerfile`, which installs ffmpeg.
+- **Backend on Render**: create a Docker-based web service pointed at the `backend/` directory (Render's "Root Directory" setting). Set `DEEPGRAM_API_KEY`, `MONGODB_URI`, `ALLOWED_ORIGINS` (the frontend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL` (this app's own public URL), `DEEPGRAM_PROJECT_ID`, `DEEPGRAM_RATE_PER_MINUTE_USD` as environment variables. Render builds and runs `backend/Dockerfile`, which installs ffmpeg.
 
 ## Project structure
 

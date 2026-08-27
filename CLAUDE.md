@@ -322,6 +322,98 @@ with a real form input, `contentEditable` has no equivalent. Don't convert
 the title back and forth between the two patterns without a reason; they
 coexist here because only the speaker field needed the datalist.
 
+## Cost tracking
+
+Every completed meeting shows which Deepgram model transcribed it and what
+it cost, per the app's own requirement to always know "cost of each
+transcript and what model was used." Two fields on `Meeting`:
+`deepgramModel` (always `'nova-3'` today - a real field rather than a
+hardcoded UI string so a future model change doesn't need a frontend
+deploy to show correctly) and `deepgramCostUsd` (a dollar figure, always
+present once `status: 'complete'`).
+
+`deepgramCostUsd` starts as an **estimate**, not a guess pulled from thin
+air: `transcribeFile()` in `backend/services/deepgram.js` computes it from
+the meeting's real `durationSeconds` times `DEEPGRAM_RATE_PER_MINUTE_USD`
+(env var, defaults to `0.0071` - Nova-3 batch multilingual transcription
+plus the diarization add-on on Deepgram's pay-as-you-go pricing, the
+combination this app always requests). This is stored and shown
+immediately (`"Nova-3 · $0.0002 estimated"` in `MeetingDetail.js`'s meta
+line) because Deepgram's own billing data for a request isn't necessarily
+available the instant transcription finishes.
+
+That estimate then gets **upgraded to Deepgram's actual billed amount** in
+the background: every `/v1/listen` response includes a `request_id`
+(stored as `Meeting.deepgramRequestId`), and Deepgram's Management API
+(`GET /v1/projects/:project_id/requests/:request_id`, `response.details.usd`
+in the response) returns the real number they billed for that specific
+request - not an app-side calculation at all. `sweepPendingCosts()` in
+`backend/server.js` runs on the same recurring-interval pattern as
+`sweepStaleJobs()` (5-minute interval, plus once at startup), scanning
+`'complete'` meetings where `deepgramCostExact` is still `false`, calling
+`fetchExactCost()` in `deepgram.js` for each, and flipping
+`deepgramCostExact: true` once it succeeds - at which point the "estimated"
+qualifier disappears from the UI and the number itself may also change
+slightly to match Deepgram's real billing. Gives up after
+`COST_SWEEP_LOOKBACK_MS` (6 hours) per meeting so a request Deepgram's
+billing pipeline never indexes doesn't get retried forever.
+
+This whole exact-cost path is **opt-in via `DEEPGRAM_PROJECT_ID`**
+(backend-only env var, found in the Deepgram console) and silently no-ops
+entirely if it's unset - `sweepPendingCosts()` returns immediately,
+`fetchExactCost()` never gets called, and the estimate is simply left in
+place forever, still a real and clearly-labeled number. `fetchExactCost()`
+itself also never throws: a 404 (not indexed yet), a permissions error, or
+a network failure all just return `null`, which the sweep reads as "try
+again next interval" - this is a deliberate exception to the "retry
+429/5xx, never 4xx" rule under "External API calls" below, because a 404
+here doesn't mean "this will never exist," it means "not ready yet."
+
+`app/lib/meetings.js`'s `getUsageSummary(userId)` sums `durationSeconds`/
+`deepgramCostUsd` across the current calendar month's `'complete'`
+meetings (plain Node reduce, not an aggregation pipeline, matching
+`listKnownSpeakerNames()`'s reasoning for this app's scale) and
+`Dashboard.js` shows it as "This month: N min transcribed · ~$X.XX
+estimated" next to the "Past Meetings" heading. This is an approximation
+by nature (a real usage estimate, not a live sync with Deepgram's billing
+dashboard, and "calendar month" may not match your actual billing cycle) -
+fine at this app's single-user scale.
+
+## Multi-file upload
+
+`Dashboard.js` uploads multiple files independently rather than one at a
+time: `files` state is an array of `{ key, file, status, progress, error,
+xhr }` entries (`status`: `'pending' | 'uploading' | 'done' | 'error' |
+'cancelled'`), and `uploadOneFile(key, file)` runs the exact same
+`createUploadToken()` → `uploadWithProgress()` → `markMeetingFailed()` flow
+from "Upload token flow" above, just parameterized per entry instead of
+against one `selectedFile`. `handleTranscribeAll()` fires every `'pending'`
+entry's `uploadOneFile()` concurrently (no queue/concurrency cap of its
+own - relies on the browser's normal per-origin connection limits), so
+several recordings can genuinely be uploading, and separately
+transcribing, at once, each becoming its own `'processing'` `Meeting` row
+as soon as its own token is minted. Each row has its own Cancel (while
+uploading, aborts that entry's `xhr` only) or Retry (after error/cancelled,
+re-runs `uploadOneFile()` for that same `File` object, no re-selection
+needed) - unrelated files are never affected by one file's failure or
+cancellation.
+
+## Meeting tags
+
+Simple organization, deliberately not a workflow/automation builder (that
+idea was considered and explicitly rejected in favor of this). `Meeting.tags:
+[String]`, edited via `updateMeetingTags(id, tags)` in
+`app/actions/meetings.js`, which trims, dedupes, and caps each meeting to
+`MAX_TAGS` (10) tags of `MAX_TAG_LENGTH` (30) characters each server-side -
+never trust the client-side input alone. `MeetingDetail.js` renders them as
+removable `Badge`s next to an inline "Add tag" input (`Enter` to add);
+`Dashboard.js` shows the same badges under each meeting row's preview line.
+`listMeetings()`'s existing search `$or` includes `{ tags: pattern }`
+alongside title/originalName/transcript - Mongo matches a regex against an
+array field if *any* element matches, so this needed no `$elemMatch`, and
+the dashboard's one search box doubles as the tag filter rather than a
+separate UI for it.
+
 ## Password reset
 
 `PasswordResetToken` (`app/lib/models/PasswordResetToken.js`) mirrors
@@ -555,17 +647,19 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   `getSessionUserId`, `deleteSession`).
 - `app/lib/dal.js`: `verifySession()`, the auth boundary.
 - `app/lib/meetings.js`: `toSummary`/`toDetail` (plain-object conversion,
-  see above), `listMeetings` (search), `findOwnedMeeting` (ownership-scoped,
-  live document, for mutations), `findOwnedMeetingLean` (ownership-scoped,
-  read-only), `findMeetingByShareToken` (public, unauthenticated lookup),
-  `listKnownSpeakerNames` (rename autocomplete source).
+  see above), `listMeetings` (search, incl. tags), `findOwnedMeeting`
+  (ownership-scoped, live document, for mutations), `findOwnedMeetingLean`
+  (ownership-scoped, read-only), `findMeetingByShareToken` (public,
+  unauthenticated lookup), `listKnownSpeakerNames` (rename autocomplete
+  source), `getUsageSummary` (this-month cost/minutes total - see "Cost
+  tracking").
 - `app/actions/`: every Server Action (`auth.js` [signup/login/logout,
   `requestPasswordReset`, `resetPassword`], `meetings.js` [`getMeeting`,
   title/speaker rename, `mergeSpeakers`, `markMeetingFailed`,
-  `resendNotifications`, delete, share links], `settings.js`
-  [`getWebhooks`, `saveWebhooks`], `transcribe.js` [token minting, also
-  creates the `Meeting` row - see
-  "Upload token flow"], `search.js`).
+  `resendNotifications`, `updateMeetingTags`, delete, share links],
+  `settings.js` [`getWebhooks`, `saveWebhooks`], `transcribe.js` [token
+  minting, also creates the `Meeting` row - see "Upload token flow"],
+  `search.js`).
 - `app/login/`, `app/signup/`, `app/forgot-password/`,
   `app/reset-password/[token]/`, `app/meeting/[id]/`, `app/share/[token]/`:
   one folder per route; `page.js` is the Server Component (auth check + data
@@ -577,13 +671,15 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - `app/OAuthButtons.js`: the "Continue with Google" button, a shared
   Server Component rendered on both `/login` and `/signup`.
 - `app/Dashboard.js`: the dashboard's Client Component, rendered by
-  `app/page.js`. Owns the direct-to-backend upload call and the webhook
-  settings dialog.
+  `app/page.js`. Owns the direct-to-backend multi-file upload (see
+  "Multi-file upload") and the webhook settings dialog.
 - `components/ui/`: shadcn components. Edit sparingly; prefer composing
   them from a page over changing the primitives.
-- `backend/server.js`: the whole Express app (health check + `/api/transcribe`).
-- `backend/services/deepgram.js`: extraction + `transcribeWithRetry`, kept
-  byte-for-byte equivalent in spirit to how it worked before the split.
+- `backend/server.js`: the whole Express app (health check + `/api/transcribe`),
+  plus `sweepStaleJobs()` and `sweepPendingCosts()` (see "Cost tracking").
+- `backend/services/deepgram.js`: extraction + `transcribeWithRetry` +
+  `fetchExactCost()` (see "Cost tracking"), kept byte-for-byte equivalent in
+  spirit to how it worked before the split.
 - `backend/services/email.js`: `sendMeetingEmail()`, the backend half of
   email notifications - see "Email notifications".
 - `backend/services/webhook.js`: `sendMeetingWebhook()`, the backend half
@@ -604,9 +700,12 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - Secrets only via `.env` (frontend: `MONGODB_URI`,
   `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`, `RESEND_API_KEY`, `EMAIL_FROM`,
   `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`; backend:
-  `DEEPGRAM_API_KEY`, `MONGODB_URI`, `ALLOWED_ORIGINS`, `RESEND_API_KEY`,
-  `EMAIL_FROM`, `FRONTEND_URL`); each `.env.example` documents its
-  required vars with no values.
+  `DEEPGRAM_API_KEY`, `DEEPGRAM_PROJECT_ID`, `DEEPGRAM_RATE_PER_MINUTE_USD`,
+  `MONGODB_URI`, `ALLOWED_ORIGINS`, `RESEND_API_KEY`, `EMAIL_FROM`,
+  `FRONTEND_URL`); each `.env.example` documents its required vars with no
+  values. `DEEPGRAM_API_KEY` never goes in the frontend's `.env` - all
+  Deepgram calls, including the Management API cost lookup, happen on the
+  backend only (see "Cost tracking").
 - Never build DOM content from user- or API-sourced data with `innerHTML` or
   `dangerouslySetInnerHTML`. This is React, so plain JSX children already
   escape correctly; don't introduce raw HTML injection points.
@@ -625,6 +724,14 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 Retry `429`/`5xx` with exponential backoff (respect `Retry-After`), never
 retry `4xx`. Every outbound call has a timeout. See `transcribeWithRetry` in
 `backend/services/deepgram.js` for the reference pattern.
+
+`fetchExactCost()` (also in `deepgram.js`) is a deliberate exception: it
+never retries within a single call, and treats every failure - 404, other
+non-2xx, timeout, network error - identically, as "return `null`, try
+again on the next sweep interval." A 404 there doesn't mean the resource
+doesn't exist, it means Deepgram hasn't indexed the billing data for that
+request yet; `sweepPendingCosts()`'s recurring interval already *is* the
+retry loop, so the function itself doesn't need its own.
 
 ## Conventions
 

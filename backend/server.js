@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const { connectToDatabase } = require('./db');
 const Meeting = require('./models/Meeting');
 const UploadToken = require('./models/UploadToken');
-const { transcribeFile } = require('./services/deepgram');
+const { transcribeFile, fetchExactCost } = require('./services/deepgram');
 const { sendMeetingEmail } = require('./services/email');
 const { sendMeetingWebhook } = require('./services/webhook');
 
@@ -26,6 +26,15 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
 // "Transcribing..." for hours with no way to know it's actually dead.
 const STALE_PROCESSING_MS = 30 * 60 * 1000;
 const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+// Deepgram's own billing data for a request isn't necessarily indexed the
+// instant transcription finishes, so the exact cost (see fetchExactCost())
+// is fetched on a recurring sweep rather than once right after completion.
+// Reuses the stale-job sweep's cadence; gives up after this long so a
+// request Deepgram's billing pipeline never indexes (or a wrong/missing
+// DEEPGRAM_PROJECT_ID) doesn't get retried forever.
+const COST_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+const COST_SWEEP_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 
 // Comma-separated list of origins allowed to call this backend directly
 // from the browser (the Vercel-hosted frontend, plus localhost for dev).
@@ -120,11 +129,44 @@ async function sweepStaleJobs() {
   }
 }
 
+// Upgrades deepgramCostUsd from the completion-time estimate to Deepgram's
+// actual billed amount, for every 'complete' meeting whose exact cost
+// hasn't been fetched yet. No-ops entirely if DEEPGRAM_PROJECT_ID isn't
+// configured (fetchExactCost() returns null for every meeting, so nothing
+// ever updates) - the estimate is left in place, which is still a real,
+// clearly-labeled number, just not Deepgram's own billing figure.
+async function sweepPendingCosts() {
+  if (!process.env.DEEPGRAM_PROJECT_ID) return;
+
+  const cutoff = new Date(Date.now() - COST_SWEEP_LOOKBACK_MS);
+  try {
+    const pending = await Meeting.find({
+      status: 'complete',
+      deepgramCostExact: { $ne: true },
+      deepgramRequestId: { $exists: true, $ne: null },
+      createdAt: { $gte: cutoff }
+    }).select('deepgramRequestId');
+    if (!pending.length) return;
+
+    for (const meeting of pending) {
+      const exactUsd = await fetchExactCost(meeting.deepgramRequestId);
+      if (exactUsd != null) {
+        await Meeting.updateOne({ _id: meeting._id }, { deepgramCostUsd: exactUsd, deepgramCostExact: true });
+      }
+    }
+  } catch (error) {
+    console.error('Cost sweep failed:', error);
+  }
+}
+
 async function main() {
   await connectToDatabase();
 
   await sweepStaleJobs();
   setInterval(sweepStaleJobs, STALE_SWEEP_INTERVAL_MS).unref();
+
+  await sweepPendingCosts();
+  setInterval(sweepPendingCosts, COST_SWEEP_INTERVAL_MS).unref();
 
   const app = express();
 
@@ -213,6 +255,9 @@ async function main() {
         meeting.durationSeconds = result.durationSeconds;
         meeting.transcript = result.transcript;
         meeting.utterances = result.utterances;
+        meeting.deepgramModel = result.model;
+        meeting.deepgramCostUsd = result.costUsd;
+        meeting.deepgramRequestId = result.requestId;
         meeting.status = 'complete';
         await meeting.save();
         await sendNotifications(meeting);

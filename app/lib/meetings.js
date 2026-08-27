@@ -25,7 +25,11 @@ export function toSummary(meeting) {
     createdAt: meeting.createdAt.toISOString(),
     preview: transcript.slice(0, PREVIEW_LENGTH),
     status: meeting.status || 'complete',
-    errorMessage: meeting.errorMessage || null
+    errorMessage: meeting.errorMessage || null,
+    tags: meeting.tags || [],
+    deepgramModel: meeting.deepgramModel || null,
+    deepgramCostUsd: meeting.deepgramCostUsd ?? null,
+    deepgramCostExact: Boolean(meeting.deepgramCostExact)
   };
 }
 
@@ -54,6 +58,10 @@ export function toDetail(meeting) {
     status: meeting.status || 'complete',
     errorMessage: meeting.errorMessage || null,
     createdAt: meeting.createdAt.toISOString(),
+    tags: meeting.tags || [],
+    deepgramModel: meeting.deepgramModel || null,
+    deepgramCostUsd: meeting.deepgramCostUsd ?? null,
+    deepgramCostExact: Boolean(meeting.deepgramCostExact),
     // Delivery status per notification channel, so a silently failed
     // webhook/email is visible on the page instead of requiring a
     // database lookup to notice - see resendNotifications() in
@@ -89,7 +97,10 @@ export async function listMeetings(userId, query) {
   const q = typeof query === 'string' ? query.trim() : '';
   if (q) {
     const pattern = new RegExp(escapeRegex(q), 'i');
-    filter.$or = [{ title: pattern }, { originalName: pattern }, { transcript: pattern }];
+    // Mongo matches a regex/equality against an array field if any element
+    // matches, so this needs no $elemMatch to search tags the same way as
+    // the other text fields.
+    filter.$or = [{ title: pattern }, { originalName: pattern }, { transcript: pattern }, { tags: pattern }];
   }
 
   const meetings = await Meeting.find(filter)
@@ -138,4 +149,25 @@ export async function listKnownSpeakerNames(userId) {
     }
   }
   return Array.from(names).sort((a, b) => a.localeCompare(b));
+}
+
+// Total minutes/cost transcribed this calendar month, for the "This month"
+// line on the dashboard. Approximate by nature (a rough usage estimate,
+// not a real billing sync with Deepgram, and "calendar month" may not line
+// up with your actual billing cycle) - fine at this app's scale, and small
+// enough to sum in Node rather than a database aggregation pipeline,
+// matching listKnownSpeakerNames() above.
+export async function getUsageSummary(userId) {
+  await connectToDatabase();
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const meetings = await Meeting.find({ userId, status: 'complete', createdAt: { $gte: startOfMonth } })
+    .select('durationSeconds deepgramCostUsd')
+    .lean();
+
+  const totalSeconds = meetings.reduce((sum, m) => sum + (m.durationSeconds || 0), 0);
+  const totalCostUsd = meetings.reduce((sum, m) => sum + (m.deepgramCostUsd || 0), 0);
+  return { minutes: Math.round(totalSeconds / 60), costUsd: totalCostUsd, count: meetings.length };
 }

@@ -58,6 +58,22 @@ const meetingSchema = new mongoose.Schema({
   transcript: String,
   utterances: [utteranceSchema],
   speakerNames: { type: Map, of: String, default: {} },
+  // Snapshotted from transcribeFile()'s result at completion time (see
+  // backend/server.js) rather than recomputed on read, so a later change
+  // to the per-minute rate doesn't retroactively rewrite the cost of past
+  // meetings - each meeting's cost reflects the rate that actually applied
+  // when it was transcribed.
+  deepgramModel: String,
+  deepgramCostUsd: Number,
+  // True once deepgramCostUsd holds Deepgram's actual billed amount (from
+  // their Management API - see fetchExactCost() in
+  // backend/services/deepgram.js), false while it's still the
+  // DEEPGRAM_RATE_PER_MINUTE_USD estimate computed right at completion.
+  // deepgramRequestId is what the backend's sweepPendingCosts() uses to
+  // look that up; this frontend app never calls Deepgram directly.
+  deepgramCostExact: { type: Boolean, default: false },
+  deepgramRequestId: String,
+  tags: { type: [String], default: [] },
   // No `default` here on purpose: a sparse unique index only excludes
   // documents where the field is truly absent, not ones where it's null.
   // A default of null would put every un-shared meeting in the index as

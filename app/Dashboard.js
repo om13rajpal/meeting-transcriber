@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook, Plus, X } from 'lucide-react';
+import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook, Plus, X, RotateCw } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { createUploadToken } from '@/app/actions/transcribe';
 import { deleteMeeting, markMeetingFailed } from '@/app/actions/meetings';
@@ -12,6 +12,7 @@ import { getWebhooks, saveWebhooks } from '@/app/actions/settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import {
@@ -73,11 +74,9 @@ function formatDate(iso) {
     .replace(/[  -   　]/g, ' ');
 }
 
-function formatElapsed(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+function formatCost(costUsd) {
+  if (typeof costUsd !== 'number') return null;
+  return `$${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}`;
 }
 
 function initialsFor(email) {
@@ -123,19 +122,14 @@ function uploadWithProgress(url, formData, onProgress) {
   return { xhr, promise };
 }
 
-export default function Dashboard({ userEmail, initialMeetings }) {
+export default function Dashboard({ userEmail, initialMeetings, usageSummary }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
   const searchDebounceRef = useRef(null);
-  const statusTimerRef = useRef(null);
-  const xhrRef = useRef(null);
 
   const [meetings, setMeetings] = useState(initialMeetings);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -170,12 +164,12 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     return () => window.clearInterval(interval);
   }, [meetings, searchQuery]);
 
-  // Warns before an accidental reload/close while the file is still being
+  // Warns before an accidental reload/close while any file is still being
   // sent to the backend. Nothing can make the raw byte transfer itself
   // resumable (the browser is what's streaming it), so the best available
   // protection is stopping the user from losing it by accident.
   useEffect(() => {
-    if (!uploading) return undefined;
+    if (!files.some((f) => f.status === 'uploading')) return undefined;
 
     function handleBeforeUnload(e) {
       e.preventDefault();
@@ -184,50 +178,57 @@ export default function Dashboard({ userEmail, initialMeetings }) {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [uploading]);
+  }, [files]);
 
-  function selectFile(file) {
-    if (!file) return;
-    setSelectedFile(file);
+  function updateFileEntry(key, patch) {
+    setFiles((prev) => prev.map((f) => (f.key === key ? { ...f, ...patch } : f)));
+  }
+
+  function selectFiles(fileList) {
+    const newEntries = Array.from(fileList || []).map((file, i) => ({
+      key: `${Date.now()}-${i}-${file.name}-${file.size}`,
+      file,
+      status: 'pending',
+      progress: 0,
+      error: null,
+      xhr: null
+    }));
+    if (newEntries.length) setFiles((prev) => [...prev, ...newEntries]);
   }
 
   function handleDrop(e) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (file) selectFile(file);
+    selectFiles(e.dataTransfer.files);
   }
 
-  function resetSelection() {
-    setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+  function removeFile(key) {
+    setFiles((prev) => prev.filter((f) => f.key !== key));
   }
 
-  async function handleTranscribe() {
-    if (!selectedFile) return;
+  function cancelFile(key) {
+    setFiles((prev) => {
+      prev.find((f) => f.key === key)?.xhr?.abort();
+      return prev;
+    });
+  }
 
-    setUploading(true);
-    setUploadProgress(0);
-    const start = Date.now();
-    setElapsed(0);
-    statusTimerRef.current = window.setInterval(() => {
-      setElapsed(Date.now() - start);
-    }, 1000);
+  function clearFinished() {
+    setFiles((prev) => prev.filter((f) => f.status === 'pending' || f.status === 'uploading'));
+  }
 
+  // Uploads one file independently of the others - each entry tracks its
+  // own progress/status/xhr, so several recordings can be in flight at
+  // once, each becoming its own 'processing' Meeting row as soon as its
+  // token is minted.
+  async function uploadOneFile(key, file) {
     let meetingId = null;
+    updateFileEntry(key, { status: 'uploading', progress: 0, error: null });
 
     try {
-      // Mints the token and creates the Meeting row (status 'processing')
-      // immediately, before any bytes are sent - so it shows up below right
-      // away and a reload during the raw transfer itself (which can take
-      // real time for a large recording) leaves a durable row behind
-      // instead of the job vanishing with no trace. The file itself then
-      // goes straight from this browser to the transcription backend,
-      // never through Vercel's serverless functions, which cap request
-      // bodies at ~4.5MB.
-      const tokenResult = await createUploadToken(selectedFile.name);
+      const tokenResult = await createUploadToken(file.name);
       if (tokenResult.error) {
-        toast.error(tokenResult.error);
+        updateFileEntry(key, { status: 'error', error: tokenResult.error });
         return;
       }
 
@@ -237,26 +238,27 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       }
 
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append('file', file);
       formData.append('token', tokenResult.token);
 
       const { xhr, promise } = uploadWithProgress(
         `${tokenResult.backendUrl}/api/transcribe`,
         formData,
-        (fraction) => setUploadProgress(Math.round(fraction * 100))
+        (fraction) => updateFileEntry(key, { progress: Math.round(fraction * 100) })
       );
-      xhrRef.current = xhr;
+      updateFileEntry(key, { xhr });
+
       const uploadResponse = await promise;
       const result = uploadResponse.json;
 
       if (!uploadResponse.ok) {
         const message = result.error || 'Something went wrong. Please try again.';
-        toast.error(message);
-        // The upload itself failed, so the row this dashboard already added
-        // would otherwise sit at 'processing' until the backend's 30-minute
+        // The upload itself failed, so the row already added above would
+        // otherwise sit at 'processing' until the backend's 30-minute
         // stale-job sweep notices. Fail it now instead, since the browser
         // already knows.
         if (meetingId) await markMeetingFailed(meetingId, message);
+        updateFileEntry(key, { status: 'error', error: message });
         const refreshed = await searchMeetings(searchQuery);
         setMeetings(refreshed);
         return;
@@ -264,33 +266,33 @@ export default function Dashboard({ userEmail, initialMeetings }) {
 
       // The backend responds as soon as the job is created, before ffmpeg or
       // Deepgram have run - transcription continues in the background, so
-      // the polling effect above picks it up from there. This also means
-      // the upload step itself feels much faster, since the user isn't
-      // stuck waiting for the whole pipeline before getting any feedback.
-      resetSelection();
-      toast.success('Upload received. Transcribing in the background.');
+      // the polling effect above picks it up from there.
+      updateFileEntry(key, { status: 'done', progress: 100 });
       const refreshed = await searchMeetings(searchQuery);
       setMeetings(refreshed);
     } catch (err) {
-      const message = err?.cancelled
-        ? 'Upload cancelled.'
-        : 'Something went wrong during upload. Please try again.';
-      toast[err?.cancelled ? 'message' : 'error'](message);
+      const cancelled = Boolean(err?.cancelled);
+      const message = cancelled ? 'Cancelled.' : 'Something went wrong during upload. Please try again.';
+      updateFileEntry(key, { status: cancelled ? 'cancelled' : 'error', error: message });
       if (meetingId) {
         await markMeetingFailed(meetingId, message);
         const refreshed = await searchMeetings(searchQuery);
         setMeetings(refreshed);
       }
-    } finally {
-      xhrRef.current = null;
-      window.clearInterval(statusTimerRef.current);
-      setUploading(false);
     }
   }
 
-  function cancelUpload() {
-    xhrRef.current?.abort();
+  function handleTranscribeAll() {
+    files.filter((f) => f.status === 'pending').forEach((f) => uploadOneFile(f.key, f.file));
   }
+
+  function retryFile(key) {
+    const entry = files.find((f) => f.key === key);
+    if (entry) uploadOneFile(key, entry.file);
+  }
+
+  const pendingCount = files.filter((f) => f.status === 'pending').length;
+  const hasFinished = files.some((f) => f.status === 'done' || f.status === 'error' || f.status === 'cancelled');
 
   async function confirmDelete() {
     const id = pendingDeleteId;
@@ -361,8 +363,8 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     }
   }
 
-  const showEmptyState = !uploading && !searching && meetings.length === 0 && !searchQuery.trim();
-  const showNoResultsState = !uploading && !searching && meetings.length === 0 && searchQuery.trim();
+  const showEmptyState = files.length === 0 && !searching && meetings.length === 0 && !searchQuery.trim();
+  const showNoResultsState = files.length === 0 && !searching && meetings.length === 0 && searchQuery.trim();
 
   return (
     <div className="min-h-screen">
@@ -397,72 +399,110 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       <main className="mx-auto max-w-3xl px-6 py-8">
         <h2 className="mb-3 text-sm font-semibold text-muted-foreground">New Transcription</h2>
 
-        {!selectedFile ? (
-          <Card
-            className={`cursor-pointer border-2 border-dashed py-14 text-center shadow-none transition-colors ${dragOver ? 'border-primary bg-accent/40' : 'border-border hover:border-primary/60'}`}
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-          >
-            <CardContent className="flex flex-col items-center gap-2">
-              <UploadCloud className="mb-1 size-8 text-primary" />
-              <p className="font-medium">Drop your recording here</p>
-              <p className="text-sm text-muted-foreground">MP4 or MP3 &middot; or click to browse</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="shadow-none">
-            <CardContent className="flex items-center gap-3">
-              {selectedFile.type.startsWith('video') ? (
-                <FileVideo className="size-5 shrink-0 text-muted-foreground" />
-              ) : (
-                <FileAudio className="size-5 shrink-0 text-muted-foreground" />
-              )}
-              <span className="flex-1 truncate text-sm">
-                {selectedFile.name} <span className="text-muted-foreground">({formatBytes(selectedFile.size)})</span>
-              </span>
-              <Button variant="outline" size="sm" onClick={uploading ? cancelUpload : resetSelection}>
-                {uploading ? 'Cancel' : 'Clear'}
-              </Button>
-              <Button size="sm" onClick={handleTranscribe} disabled={uploading}>
-                {uploading && <Loader2 className="animate-spin" />}
-                Transcribe
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <Card
+          className={`cursor-pointer border-2 border-dashed py-10 text-center shadow-none transition-colors ${dragOver ? 'border-primary bg-accent/40' : 'border-border hover:border-primary/60'}`}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+        >
+          <CardContent className="flex flex-col items-center gap-2">
+            <UploadCloud className="mb-1 size-8 text-primary" />
+            <p className="font-medium">Drop your recordings here</p>
+            <p className="text-sm text-muted-foreground">MP4 or MP3 &middot; multiple files at once &middot; or click to browse</p>
+          </CardContent>
+        </Card>
         <input
           ref={fileInputRef}
           type="file"
           accept="audio/*,video/*"
+          multiple
           hidden
-          onChange={(e) => selectFile(e.target.files && e.target.files[0])}
+          onChange={(e) => {
+            selectFiles(e.target.files);
+            e.target.value = '';
+          }}
         />
 
-        {uploading && (
-          <div className="mt-3">
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              {uploadProgress < 100
-                ? `Uploading… ${uploadProgress}%`
-                : 'Upload complete, starting transcription…'}{' '}
-              &middot; {formatElapsed(elapsed)}
-            </p>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-[width] duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
+        {files.length > 0 && (
+          <div className="mt-3 flex flex-col gap-2">
+            {files.map((f) => (
+              <Card key={f.key} className="shadow-none">
+                <CardContent className="flex items-center gap-3">
+                  {f.file.type.startsWith('video') ? (
+                    <FileVideo className="size-5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <FileAudio className="size-5 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="truncate">{f.file.name}</span>
+                      <span className="shrink-0 text-muted-foreground">({formatBytes(f.file.size)})</span>
+                    </div>
+                    {f.status === 'uploading' && (
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary transition-[width] duration-300"
+                          style={{ width: `${f.progress}%` }}
+                        />
+                      </div>
+                    )}
+                    {f.status === 'error' && (
+                      <div className="mt-0.5 truncate text-xs text-destructive">{f.error}</div>
+                    )}
+                    {f.status === 'cancelled' && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">Cancelled.</div>
+                    )}
+                    {f.status === 'done' && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">Uploaded &middot; transcribing in the background.</div>
+                    )}
+                  </div>
+                  {f.status === 'uploading' ? (
+                    <Button variant="outline" size="sm" className="shrink-0" onClick={() => cancelFile(f.key)}>
+                      Cancel
+                    </Button>
+                  ) : f.status === 'error' || f.status === 'cancelled' ? (
+                    <>
+                      <Button variant="outline" size="sm" className="shrink-0" onClick={() => retryFile(f.key)}>
+                        <RotateCw /> Retry
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={() => removeFile(f.key)}>
+                        <X />
+                        <span className="sr-only">Remove</span>
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={() => removeFile(f.key)}>
+                      <X />
+                      <span className="sr-only">Remove</span>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+            <div className="flex justify-end gap-2">
+              {hasFinished && (
+                <Button variant="outline" size="sm" onClick={clearFinished}>Clear finished</Button>
+              )}
+              <Button size="sm" onClick={handleTranscribeAll} disabled={pendingCount === 0}>
+                Transcribe{pendingCount > 1 ? ` all (${pendingCount})` : ''}
+              </Button>
             </div>
           </div>
         )}
 
         <div className="mt-10 mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">Past Meetings</h2>
+          <div>
+            <h2 className="text-sm font-semibold text-muted-foreground">Past Meetings</h2>
+            {usageSummary && usageSummary.count > 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                This month: {usageSummary.minutes} min transcribed &middot; ~{formatCost(usageSummary.costUsd)} estimated
+              </p>
+            )}
+          </div>
           <div className="relative w-56">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -513,6 +553,13 @@ export default function Dashboard({ userEmail, initialMeetings }) {
                       </div>
                     ) : (
                       <div className="mt-1 truncate text-sm text-muted-foreground">{meeting.preview}</div>
+                    )}
+                    {meeting.tags?.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {meeting.tags.map((tag) => (
+                          <Badge key={tag} variant="secondary">{tag}</Badge>
+                        ))}
+                      </div>
                     )}
                   </div>
                   <Button

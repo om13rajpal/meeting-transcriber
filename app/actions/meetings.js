@@ -35,6 +35,28 @@ export async function updateMeetingTitle(id, title) {
   return { meeting: toDetail(meeting) };
 }
 
+const MAX_TAGS = 10;
+const MAX_TAG_LENGTH = 30;
+
+export async function updateMeetingTags(id, tags) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeeting(id, userId);
+  if (!meeting) {
+    return { error: 'Meeting not found.' };
+  }
+
+  const cleaned = Array.from(new Set(
+    (Array.isArray(tags) ? tags : [])
+      .map((t) => (typeof t === 'string' ? t.trim().slice(0, MAX_TAG_LENGTH) : ''))
+      .filter(Boolean)
+  )).slice(0, MAX_TAGS);
+
+  meeting.tags = cleaned;
+  await meeting.save();
+
+  return { meeting: toDetail(meeting) };
+}
+
 export async function updateSpeakerName(id, speakerId, name) {
   const { userId } = await verifySession();
   const meeting = await findOwnedMeeting(id, userId);

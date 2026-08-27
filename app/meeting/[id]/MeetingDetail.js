@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Download, Share2, Trash2, Link2, X, Loader2, AlertCircle, Users, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
+import { Copy, Download, Share2, Trash2, Link2, X, Loader2, AlertCircle, Users, CheckCircle2, XCircle, RotateCw, Tag, Plus } from 'lucide-react';
 import {
   getMeeting,
   updateMeetingTitle,
@@ -12,11 +12,13 @@ import {
   deleteMeeting,
   createShareLink,
   revokeShareLink,
-  resendNotifications
+  resendNotifications,
+  updateMeetingTags
 } from '@/app/actions/meetings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -72,6 +74,13 @@ function vttTimestamp(sec) {
   return srtTimestamp(sec).replace(',', '.');
 }
 
+const MODEL_LABELS = { 'nova-3': 'Nova-3' };
+
+function formatCost(costUsd) {
+  if (typeof costUsd !== 'number') return null;
+  return `$${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}`;
+}
+
 export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = [] }) {
   const router = useRouter();
   const titleRef = useRef(null);
@@ -87,6 +96,8 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
   const [mergeSources, setMergeSources] = useState(new Set());
   const [merging, setMerging] = useState(false);
   const [resending, setResending] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [tagSaving, setTagSaving] = useState(false);
 
   // The backend responds before transcription finishes, so a freshly
   // uploaded meeting (or one still processing on reload, since status lives
@@ -125,8 +136,38 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
     meeting.isVideo ? 'video → audio extracted' : 'audio file',
     meeting.durationSeconds ? `${formatTime(meeting.durationSeconds)} duration` : null,
     `${wordCount} words`,
-    speakerCount ? `${speakerCount} speaker${speakerCount > 1 ? 's' : ''}` : null
+    speakerCount ? `${speakerCount} speaker${speakerCount > 1 ? 's' : ''}` : null,
+    meeting.deepgramModel ? MODEL_LABELS[meeting.deepgramModel] || meeting.deepgramModel : null,
+    formatCost(meeting.deepgramCostUsd)
+      ? `${formatCost(meeting.deepgramCostUsd)}${meeting.deepgramCostExact ? '' : ' estimated'}`
+      : null
   ].filter(Boolean).join(' · ');
+
+  async function commitTags(nextTags) {
+    setTagSaving(true);
+    try {
+      const result = await updateMeetingTags(id, nextTags);
+      if (result.meeting) {
+        setMeeting(result.meeting);
+      } else {
+        toast.error(result.error || 'Could not update tags.');
+      }
+    } finally {
+      setTagSaving(false);
+    }
+  }
+
+  function handleAddTag(e) {
+    e.preventDefault();
+    const trimmed = tagInput.trim();
+    setTagInput('');
+    if (!trimmed || (meeting.tags || []).includes(trimmed)) return;
+    commitTags([...(meeting.tags || []), trimmed]);
+  }
+
+  function handleRemoveTag(tag) {
+    commitTags((meeting.tags || []).filter((t) => t !== tag));
+  }
 
   async function commitTitle() {
     const trimmed = (titleRef.current?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -406,6 +447,39 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
 
         <div className="px-4 pt-2">
           <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2.5">
+          <Tag className="size-3.5 shrink-0 text-muted-foreground" />
+          {(meeting.tags || []).map((tag) => (
+            <Badge key={tag} variant="secondary" className="gap-1 pr-1">
+              {tag}
+              <button
+                type="button"
+                onClick={() => handleRemoveTag(tag)}
+                disabled={tagSaving}
+                className="rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+              >
+                <X className="size-2.5" />
+                <span className="sr-only">Remove tag</span>
+              </button>
+            </Badge>
+          ))}
+          <form onSubmit={handleAddTag} className="inline-flex items-center">
+            <Input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="Add tag"
+              disabled={tagSaving}
+              className="h-6 w-24 border-none bg-transparent px-1.5 text-xs shadow-none focus-visible:ring-0"
+            />
+            {tagInput.trim() && (
+              <Button type="submit" variant="ghost" size="icon-sm" className="size-6" disabled={tagSaving}>
+                <Plus className="size-3.5" />
+                <span className="sr-only">Add tag</span>
+              </Button>
+            )}
+          </form>
         </div>
 
         {meeting.shareToken && (

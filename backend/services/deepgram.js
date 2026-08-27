@@ -8,6 +8,19 @@ const DEEPGRAM_TIMEOUT_MS = 20 * 60 * 1000; // generous ceiling for very long re
 const DEEPGRAM_MAX_RETRIES = 3;
 const FFMPEG_MAX_BUFFER_BYTES = 1024 * 1024 * 20;
 
+const DEEPGRAM_MODEL = 'nova-3';
+// Nova-3 batch, multilingual transcription (~$0.0051/min) plus the
+// diarization add-on ($0.0020/min) on Deepgram's pay-as-you-go pricing -
+// the one combined rate that actually applies here, since this app always
+// requests language=multi and diarize=true (see the request params below).
+// This is only ever a fallback shown the moment a meeting finishes, before
+// Deepgram's own billing data for that request has had time to appear -
+// see fetchExactCost() below, which replaces it with the real billed
+// amount once available. Configurable via env so a pricing change doesn't
+// need a code deploy.
+const DEEPGRAM_RATE_PER_MINUTE_USD = Number(process.env.DEEPGRAM_RATE_PER_MINUTE_USD) || 0.0071;
+const DEEPGRAM_MANAGEMENT_TIMEOUT_MS = 10 * 1000;
+
 function execFileP(cmd, args) {
   return new Promise((resolve, reject) => {
     execFile(cmd, args, { maxBuffer: FFMPEG_MAX_BUFFER_BYTES }, (err, stdout, stderr) => {
@@ -166,11 +179,19 @@ async function transcribeFile(uploadedPath) {
       transcript: u.transcript
     }));
 
+    const durationSeconds = data?.metadata?.duration ?? null;
+    const costUsd = durationSeconds != null
+      ? Number(((durationSeconds / 60) * DEEPGRAM_RATE_PER_MINUTE_USD).toFixed(4))
+      : null;
+
     return {
       isVideo,
-      durationSeconds: data?.metadata?.duration ?? null,
+      durationSeconds,
       transcript,
-      utterances
+      utterances,
+      model: DEEPGRAM_MODEL,
+      costUsd,
+      requestId: data?.metadata?.request_id ?? null
     };
   } finally {
     await Promise.allSettled([
@@ -180,4 +201,39 @@ async function transcribeFile(uploadedPath) {
   }
 }
 
-module.exports = { transcribeFile };
+// Looks up the actual amount Deepgram billed for one request, via their
+// Management API (not the /v1/listen endpoint used to transcribe) - this
+// is the real number from Deepgram's own billing pipeline, not our
+// DEEPGRAM_RATE_PER_MINUTE_USD estimate. Their billing data isn't
+// necessarily indexed the instant a transcription finishes, so this can
+// legitimately 404/return nothing for a while after a job completes -
+// that's not an error, it just means "not ready yet, try again later" (see
+// sweepPendingCosts() in server.js, which calls this on a recurring
+// interval until it succeeds). Requires DEEPGRAM_PROJECT_ID, which isn't
+// needed for transcription itself - if it's not set, this quietly no-ops
+// and the estimate from transcribeFile() is simply left in place forever.
+async function fetchExactCost(requestId) {
+  const apiKey = process.env.DEEPGRAM_API_KEY;
+  const projectId = process.env.DEEPGRAM_PROJECT_ID;
+  if (!apiKey || !projectId || !requestId) return null;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEEPGRAM_MANAGEMENT_TIMEOUT_MS);
+
+  try {
+    const resp = await fetch(
+      `https://api.deepgram.com/v1/projects/${projectId}/requests/${requestId}`,
+      { headers: { Authorization: `Token ${apiKey}` }, signal: controller.signal }
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const usd = data?.response?.details?.usd;
+    return typeof usd === 'number' ? usd : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+module.exports = { transcribeFile, fetchExactCost };
