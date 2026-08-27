@@ -11,7 +11,8 @@ The browser uploads the recording directly to the backend, authorized by a short
 
 ## Features
 
-- Email and password authentication with sessions stored in MongoDB
+- Email and password authentication with sessions stored in MongoDB, plus optional Google/Microsoft sign-in
+- Forgot password, with a single-use emailed reset link that also signs every other device out
 - Upload an MP4 or MP3; video files have their audio automatically extracted with ffmpeg
 - Transcription via Deepgram's Nova 3 model with `language=multi` for accurate Hindi/English code switching
 - Deepgram requests opt out of their model improvement program (`mip_opt_out`), so recordings are not used for training
@@ -23,7 +24,6 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Shareable, read only links for individual meetings that can be revoked at any time
 - Email notification (via Resend) the moment a meeting finishes transcribing or fails, so you don't have to keep a tab open watching for it
 - Optional webhook: POST the full transcript and speaker-labeled utterances to your own URL (n8n, Zapier, a custom agent) the moment a meeting finishes or fails
-- Forgot password, with a single-use emailed reset link that also signs every other device out
 - Speaker rename autocomplete, suggesting names you've used in past meetings
 
 ## Tech stack
@@ -44,6 +44,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - ffmpeg and ffprobe available on your PATH (only needed to run the backend locally; production uses the Dockerfile, which installs them)
 - A Deepgram API key
 - A Resend API key and a verified sending domain (optional - email notifications are skipped quietly if `RESEND_API_KEY` isn't set)
+- A Google Cloud Console OAuth client and/or an Azure Portal app registration (optional - each sign-in button simply doesn't render until its Client ID/Secret are set)
 - Docker, if you want to build the backend's production image locally
 
 ## Local setup
@@ -83,7 +84,10 @@ Fill in `.env`:
 
 - `MONGODB_URI`: the same connection string as the backend
 - `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`: where the backend is running, for example `http://localhost:10000`
-- `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`: optional, for the notification email sent when an upload fails before ever reaching the backend; leave `RESEND_API_KEY` blank to skip it entirely
+- `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`: optional, for the notification email sent when an upload fails before ever reaching the backend, and for password reset emails; leave `RESEND_API_KEY` blank to skip email entirely
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: optional, for "Continue with Google". Create an OAuth client (Web application) in Google Cloud Console, with `${APP_URL}/api/auth/google/callback` as an authorized redirect URI
+- `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`: optional, for "Continue with Microsoft". Register an app in Azure Portal, with `${APP_URL}/api/auth/microsoft/callback` as a redirect URI
+- Leave any of the four blank to leave that sign-in button off
 
 ```
 npm run dev
@@ -93,7 +97,7 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 
 ## Deployment
 
-- **Frontend on Vercel**: deploy the repository root as a standard Next.js project. Set `MONGODB_URI`, `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL` (the backend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` (this app's own public URL) as environment variables.
+- **Frontend on Vercel**: deploy the repository root as a standard Next.js project. Set `MONGODB_URI`, `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL` (the backend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` (this app's own public URL), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET` as environment variables.
 - **Backend on Render**: create a Docker-based web service pointed at the `backend/` directory (Render's "Root Directory" setting). Set `DEEPGRAM_API_KEY`, `MONGODB_URI`, `ALLOWED_ORIGINS` (the frontend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL` (this app's own public URL) as environment variables. Render builds and runs `backend/Dockerfile`, which installs ffmpeg.
 
 ## Project structure
@@ -101,11 +105,13 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 ```
 app/
   actions/            Server Actions: auth.js (incl. password reset), meetings.js (rename, merge speakers, share links, delete), settings.js (webhook URL), transcribe.js (token minting), search.js
-  lib/                 db.js, session.js, dal.js, meetings.js, email.js, webhook.js, models/
+  api/auth/[provider]/  The only Route Handlers in the app: OAuth redirect + callback
+  lib/                 db.js, session.js, dal.js, meetings.js, email.js, webhook.js, oauth.js, models/
   login/, signup/, forgot-password/, reset-password/[token]/  Public auth pages
   meeting/[id]/         Meeting detail page (protected)
   share/[token]/        Public, read only shared meeting view
   page.js, Dashboard.js Dashboard (protected); uploads directly to the backend, webhook settings dialog
+  OAuthButtons.js       "Continue with Google/Microsoft" buttons, shown when configured
 components/ui/         shadcn UI primitives
 
 backend/
@@ -126,3 +132,4 @@ backend/
 - Share links use a long random token and can be revoked at any time
 - Password reset links are single-use, expire after an hour, and never reveal whether an email is registered; completing a reset signs out every other active session
 - Webhook URLs are checked against localhost, private/link-local IPs, and non-http(s) schemes before being saved (a basic deterrent appropriate for a single-user app, not a hardened SSRF defense)
+- Google/Microsoft sign-in only accepts an email the provider itself marked verified, and links to an existing account by that email rather than trusting any client-supplied identifier; the OAuth flow is CSRF-protected with a random `state` value in a short-lived httpOnly cookie
