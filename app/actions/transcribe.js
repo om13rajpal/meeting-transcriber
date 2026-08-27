@@ -30,7 +30,7 @@ export async function createUploadToken(fileName) {
 
   await connectToDatabase();
 
-  const user = await User.findById(userId).select('email webhookUrl').lean();
+  const user = await User.findById(userId).select('email webhooks').lean();
   if (!user) {
     return { error: 'Your session is no longer valid. Please log in again.' };
   }
@@ -39,7 +39,7 @@ export async function createUploadToken(fileName) {
   const meeting = await Meeting.create({
     userId,
     userEmail: user.email,
-    userWebhookUrl: user.webhookUrl || undefined,
+    userWebhooks: user.webhooks || [],
     title,
     originalName: title,
     speakerNames: {},

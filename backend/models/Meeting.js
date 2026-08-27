@@ -13,6 +13,14 @@ const utteranceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const webhookSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    format: { type: String, enum: ['generic', 'discord', 'slack', 'teams'], default: 'generic' }
+  },
+  { _id: false }
+);
+
 const meetingSchema = new mongoose.Schema({
   // Indexed via the compound index below, not standalone here - every real
   // query on this field also sorts by createdAt, so one compound index
@@ -21,9 +29,9 @@ const meetingSchema = new mongoose.Schema({
   // Denormalized from User.email at creation time, so this backend can
   // send the completion/failure email without a User model or lookup.
   userEmail: String,
-  // Same idea as userEmail, snapshotted from User.webhookUrl at creation
+  // Same idea as userEmail, snapshotted from User.webhooks at creation
   // time (see app/lib/models/Meeting.js on the frontend side).
-  userWebhookUrl: String,
+  userWebhooks: [webhookSchema],
   title: String,
   originalName: String,
   isVideo: Boolean,

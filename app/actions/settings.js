@@ -4,6 +4,8 @@ import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import User from '@/app/lib/models/User';
 
+const VALID_FORMATS = ['generic', 'discord', 'slack', 'teams'];
+
 // A basic deterrent, not a hardened SSRF defense: this app is single/
 // few-user and the person setting the URL is the account owner pointing
 // at their own destination (same trust level as "export my own
@@ -35,37 +37,44 @@ function isBlockedWebhookHost(hostname) {
   return false;
 }
 
-export async function updateWebhookUrl(rawUrl) {
+// Replaces the whole list atomically - simpler than granular add/remove
+// actions, and the dashboard's dialog already manages the list as local
+// state before saving it in one call.
+export async function saveWebhooks(rawWebhooks) {
   const { userId } = await verifySession();
   await connectToDatabase();
 
-  const trimmed = typeof rawUrl === 'string' ? rawUrl.trim() : '';
-  if (!trimmed) {
-    await User.findByIdAndUpdate(userId, { $unset: { webhookUrl: '' } });
-    return { ok: true };
+  const list = Array.isArray(rawWebhooks) ? rawWebhooks : [];
+  const cleaned = [];
+
+  for (const entry of list) {
+    const url = typeof entry?.url === 'string' ? entry.url.trim() : '';
+    if (!url) continue;
+
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return { error: `"${url}" is not a valid URL.` };
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return { error: `"${url}" must start with http:// or https://.` };
+    }
+    if (isBlockedWebhookHost(parsed.hostname)) {
+      return { error: `"${url}": this host is not allowed.` };
+    }
+
+    const format = VALID_FORMATS.includes(entry?.format) ? entry.format : 'generic';
+    cleaned.push({ url: parsed.toString(), format });
   }
 
-  let parsed;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return { error: 'Enter a valid URL.' };
-  }
-
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    return { error: 'The URL must start with http:// or https://.' };
-  }
-  if (isBlockedWebhookHost(parsed.hostname)) {
-    return { error: 'This host is not allowed.' };
-  }
-
-  await User.findByIdAndUpdate(userId, { webhookUrl: parsed.toString() });
+  await User.findByIdAndUpdate(userId, { webhooks: cleaned });
   return { ok: true };
 }
 
-export async function getWebhookUrl() {
+export async function getWebhooks() {
   const { userId } = await verifySession();
   await connectToDatabase();
-  const user = await User.findById(userId).select('webhookUrl').lean();
-  return { webhookUrl: user?.webhookUrl || '' };
+  const user = await User.findById(userId).select('webhooks').lean();
+  return { webhooks: user?.webhooks || [] };
 }

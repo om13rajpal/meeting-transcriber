@@ -103,7 +103,7 @@ export async function markMeetingFailed(id, message) {
   await meeting.save();
   const detail = toDetail(meeting);
   await sendMeetingEmail(meeting.userEmail, detail);
-  await sendMeetingWebhook(meeting.userWebhookUrl, detail);
+  await sendMeetingWebhook(meeting.userWebhooks, detail);
   return { ok: true };
 }
 

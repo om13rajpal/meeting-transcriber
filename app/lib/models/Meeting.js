@@ -11,6 +11,18 @@ const utteranceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Duplicated from app/lib/models/User.js's webhookSchema rather than
+// imported, so this file's shape stays obviously in sync with
+// backend/models/Meeting.js's copy at a glance - both already duplicate
+// the whole schema, one more duplicated sub-schema doesn't add real risk.
+const webhookSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    format: { type: String, enum: ['generic', 'discord', 'slack', 'teams'], default: 'generic' }
+  },
+  { _id: false }
+);
+
 const meetingSchema = new mongoose.Schema({
   // Indexed via the compound index below, not standalone here - every real
   // query on this field also sorts by createdAt, so one compound index
@@ -22,10 +34,10 @@ const meetingSchema = new mongoose.Schema({
   // the stale-job sweep's failures too, long after the UploadToken this
   // meeting was created from is gone.
   userEmail: String,
-  // Same denormalization as userEmail, snapshotted from User.webhookUrl at
-  // creation time - a later change to the setting doesn't retroactively
-  // apply to meetings already in flight, matching how userEmail behaves.
-  userWebhookUrl: String,
+  // Same denormalization as userEmail, snapshotted from User.webhooks at
+  // creation time - a later change to the list doesn't retroactively apply
+  // to meetings already in flight, matching how userEmail behaves.
+  userWebhooks: [webhookSchema],
   title: String,
   originalName: String,
   isVideo: Boolean,

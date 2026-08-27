@@ -23,7 +23,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Export a transcript as `.txt`, `.srt`, or `.vtt`
 - Shareable, read only links for individual meetings that can be revoked at any time
 - Email notification (via Resend) the moment a meeting finishes transcribing or fails, so you don't have to keep a tab open watching for it
-- Optional webhook: POST the full transcript and speaker-labeled utterances to your own URL (n8n, Zapier, a custom agent) the moment a meeting finishes or fails
+- Optional webhooks (as many as you like): send a meeting's transcript to Discord, Slack, Microsoft Teams, or your own URL (n8n, Zapier, a custom agent) as raw JSON, the moment it finishes or fails
 - Speaker rename autocomplete, suggesting names you've used in past meetings
 
 ## Tech stack
@@ -102,13 +102,13 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 
 ```
 app/
-  actions/            Server Actions: auth.js (incl. password reset), meetings.js (rename, merge speakers, share links, delete), settings.js (webhook URL), transcribe.js (token minting), search.js
+  actions/            Server Actions: auth.js (incl. password reset), meetings.js (rename, merge speakers, share links, delete), settings.js (webhooks), transcribe.js (token minting), search.js
   api/auth/google/      The only Route Handlers in the app: OAuth redirect + callback
   lib/                 db.js, session.js, dal.js, meetings.js, email.js, webhook.js, oauth.js, models/
   login/, signup/, forgot-password/, reset-password/[token]/  Public auth pages
   meeting/[id]/         Meeting detail page (protected)
   share/[token]/        Public, read only shared meeting view
-  page.js, Dashboard.js Dashboard (protected); uploads directly to the backend, webhook settings dialog
+  page.js, Dashboard.js Dashboard (protected); uploads directly to the backend, webhooks settings dialog
   OAuthButtons.js       "Continue with Google" button, shown when configured
 components/ui/         shadcn UI primitives
 
@@ -116,7 +116,7 @@ backend/
   server.js             Express app: health check and POST /api/transcribe
   services/deepgram.js   ffmpeg extraction + Deepgram call with retry
   services/email.js      Completion/failure notification email via Resend
-  services/webhook.js    Completion/failure notification webhook POST
+  services/webhook.js    Completion/failure notification webhooks (generic JSON, Discord, Slack, Teams)
   models/                Meeting.js and UploadToken.js, kept schema-identical to the frontend's copies
   Dockerfile              Installs ffmpeg, runs the service
 ```
@@ -130,4 +130,5 @@ backend/
 - Share links use a long random token and can be revoked at any time
 - Password reset links are single-use, expire after an hour, and never reveal whether an email is registered; completing a reset signs out every other active session
 - Webhook URLs are checked against localhost, private/link-local IPs, and non-http(s) schemes before being saved (a basic deterrent appropriate for a single-user app, not a hardened SSRF defense)
+- Discord/Slack/Teams webhook formats are picked explicitly per URL, not auto-detected from the URL itself, since a Teams Workflows webhook URL isn't distinguishable from any other Power Automate flow
 - Google sign-in only accepts an email Google itself marked verified, and links to an existing account by that email rather than trusting any client-supplied identifier; the OAuth flow is CSRF-protected with a random `state` value in a short-lived httpOnly cookie

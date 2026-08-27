@@ -184,30 +184,61 @@ Same trigger points as email notifications above, same
 two-implementations-because-failures-can-originate-on-either-side
 structure (`app/lib/webhook.js` frontend, `backend/services/webhook.js`
 backend, both best-effort and never throw), same reasoning for not
-retrying - this one POSTs the full JSON payload (transcript,
-speaker-labeled utterances, status, link) to a URL the user sets, instead
-of emailing a summary. Meant for piping a finished transcript straight
-into the user's own automation (n8n, Zapier, a custom agent) without them
-having to copy-paste it.
+retrying. Unlike email, this is a *list* of destinations
+(`User.webhooks: [{ url, format }]`) sent to in parallel
+(`Promise.allSettled`, so one bad endpoint doesn't block the others) -
+each entry's `format` picks how the meeting gets reshaped for that
+destination:
 
-`User.webhookUrl` is the setting (a dialog off the dashboard's avatar menu,
-`updateWebhookUrl`/`getWebhookUrl` in `app/actions/settings.js`), and like
-`userEmail` it's denormalized onto `Meeting.userWebhookUrl` at creation
-time in `createUploadToken()` for the same reason (available to the
-backend and the stale-job sweep without a lookup, snapshotted so a later
-change to the setting doesn't retroactively apply to a meeting already in
-flight).
+- `'generic'`: the full raw JSON payload (transcript, speaker-labeled
+  utterances, status, link) - meant for piping a finished transcript
+  straight into the user's own automation (n8n, Zapier, a custom agent)
+  without them having to copy-paste it. No size limit, since nothing
+  displays it directly.
+- `'discord'`, `'slack'`, `'teams'`: reshaped into that platform's actual
+  expected message format (Discord's `{embeds: [...]}`, Slack's
+  `{text: "..."}`, Teams' MessageCard `{"@type": "MessageCard", ...}`),
+  with the transcript truncated to a fixed preview length - these
+  platforms reject or mangle oversized messages, and a real meeting
+  transcript can be far larger than any of them will render sensibly.
+  Pasting a raw webhook URL for one of these directly into the `'generic'`
+  format would likely fail outright, since none of these platforms accept
+  arbitrary JSON.
 
-`updateWebhookUrl` rejects `localhost`, loopback/private/link-local IPs,
-and non-http(s) schemes at save time - a deliberate but deliberately
-*basic* SSRF deterrent, not a hardened one (it doesn't resolve DNS or
-follow redirects, so it can't catch a rebinding attack). That's a
-proportionate call for this app's actual trust model - the person setting
-the URL is the account owner pointing at their own destination, same trust
-level as exporting their own transcript, not an untrusted third party
-choosing a target on a shared multi-tenant service. Don't quietly relax
-this list; if you need to allow something like `192.168.x.x` for local
-testing, do it consciously and say why.
+There's no auto-detection of which format a URL needs - the user picks it
+explicitly in the dialog. This was a deliberate choice, not an oversight:
+Discord's and Slack's webhook URLs are unambiguous
+(`discord.com`/`discordapp.com`, `hooks.slack.com`), but Teams' current
+webhook mechanism (Workflows, via Power Automate - the old Office 365
+connector webhooks this used to be were retired in Teams in May 2026)
+goes through Azure Logic Apps' generic domain, which is used for countless
+Power Automate flows unrelated to Teams. URL-sniffing would work for two
+of three and silently misfire for the third; explicit is simpler and more
+honest than partial magic.
+
+`User.webhooks` is the setting (a dialog off the dashboard's avatar menu,
+`saveWebhooks`/`getWebhooks` in `app/actions/settings.js`, replacing the
+whole list atomically rather than granular add/remove actions), and like
+`userEmail` it's denormalized onto `Meeting.userWebhooks` at creation time
+in `createUploadToken()` for the same reason (available to the backend and
+the stale-job sweep without a lookup, snapshotted so a later change to the
+list doesn't retroactively apply to a meeting already in flight).
+
+`saveWebhooks` rejects `localhost`, loopback/private/link-local IPs, and
+non-http(s) schemes for *every* entry at save time - a deliberate but
+deliberately *basic* SSRF deterrent, not a hardened one (it doesn't
+resolve DNS or follow redirects, so it can't catch a rebinding attack).
+That's a proportionate call for this app's actual trust model - the
+person setting these URLs is the account owner pointing at their own
+destinations, same trust level as exporting their own transcript, not an
+untrusted third party choosing a target on a shared multi-tenant service.
+Don't quietly relax this list; if you need to allow something like
+`192.168.x.x` for local testing, do it consciously and say why.
+
+Verified for real: all four formats fired in parallel from one completed
+meeting, delivered to a local catcher, with each payload's shape confirmed
+correct against its platform's documented schema (Discord embed object,
+Slack `text` field, Teams MessageCard).
 
 ## Speaker merge
 
@@ -481,7 +512,7 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - `app/actions/`: every Server Action (`auth.js` [signup/login/logout,
   `requestPasswordReset`, `resetPassword`], `meetings.js` [`getMeeting`,
   title/speaker rename, `mergeSpeakers`, `markMeetingFailed`, delete, share
-  links], `settings.js` [`getWebhookUrl`, `updateWebhookUrl`],
+  links], `settings.js` [`getWebhooks`, `saveWebhooks`],
   `transcribe.js` [token minting, also creates the `Meeting` row - see
   "Upload token flow"], `search.js`).
 - `app/login/`, `app/signup/`, `app/forgot-password/`,

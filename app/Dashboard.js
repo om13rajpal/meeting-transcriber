@@ -3,16 +3,17 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook } from 'lucide-react';
+import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook, Plus, X } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { createUploadToken } from '@/app/actions/transcribe';
 import { deleteMeeting, markMeetingFailed } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
-import { getWebhookUrl, updateWebhookUrl } from '@/app/actions/settings';
+import { getWebhooks, saveWebhooks } from '@/app/actions/settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,6 +84,14 @@ function initialsFor(email) {
   return (email || '?').slice(0, 2).toUpperCase();
 }
 
+const WEBHOOK_FORMATS = [
+  { value: 'generic', label: 'Generic JSON' },
+  { value: 'discord', label: 'Discord' },
+  { value: 'slack', label: 'Slack' },
+  { value: 'teams', label: 'Microsoft Teams' }
+];
+const EMPTY_WEBHOOK = { url: '', format: 'generic' };
+
 // fetch() has no upload progress event, which is exactly what made a large,
 // slow, or stalled upload indistinguishable from a working one - the user
 // just sees a spinner with no way to tell it apart from something actually
@@ -134,7 +143,7 @@ export default function Dashboard({ userEmail, initialMeetings }) {
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [webhookLoading, setWebhookLoading] = useState(false);
   const [webhookSaving, setWebhookSaving] = useState(false);
-  const [webhookUrlInput, setWebhookUrlInput] = useState('');
+  const [webhooks, setWebhooks] = useState([]);
 
   // Polls while any meeting is still 'processing', so a job kicked off by
   // this tab (or one still running when the page was reloaded, since status
@@ -318,23 +327,35 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     setWebhookOpen(true);
     setWebhookLoading(true);
     try {
-      const result = await getWebhookUrl();
-      setWebhookUrlInput(result.webhookUrl || '');
+      const result = await getWebhooks();
+      setWebhooks(result.webhooks.length ? result.webhooks : [{ ...EMPTY_WEBHOOK }]);
     } finally {
       setWebhookLoading(false);
     }
   }
 
-  async function saveWebhook() {
+  function updateWebhookField(index, field, value) {
+    setWebhooks((prev) => prev.map((w, i) => (i === index ? { ...w, [field]: value } : w)));
+  }
+
+  function addWebhookRow() {
+    setWebhooks((prev) => [...prev, { ...EMPTY_WEBHOOK }]);
+  }
+
+  function removeWebhookRow(index) {
+    setWebhooks((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleSaveWebhooks() {
     setWebhookSaving(true);
     try {
-      const result = await updateWebhookUrl(webhookUrlInput);
+      const result = await saveWebhooks(webhooks);
       if (result.error) {
         toast.error(result.error);
         return;
       }
       setWebhookOpen(false);
-      toast.success(webhookUrlInput.trim() ? 'Webhook saved.' : 'Webhook removed.');
+      toast.success('Webhooks saved.');
     } finally {
       setWebhookSaving(false);
     }
@@ -542,22 +563,60 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       <Dialog open={webhookOpen} onOpenChange={setWebhookOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Webhook</DialogTitle>
+            <DialogTitle>Webhooks</DialogTitle>
             <DialogDescription>
-              When a meeting finishes or fails, the transcript and speaker-labeled utterances are POSTed
-              as JSON to this URL. Leave it blank to turn this off.
+              When a meeting finishes or fails, the transcript is sent to each URL below. Pick a format
+              to match where it's going &mdash; Discord and Slack post a readable message, Microsoft Teams
+              posts a card (via a Workflows webhook), and Generic JSON sends the full raw data for your
+              own automation.
             </DialogDescription>
           </DialogHeader>
-          <Input
-            type="url"
-            placeholder="https://..."
-            value={webhookUrlInput}
-            onChange={(e) => setWebhookUrlInput(e.target.value)}
-            disabled={webhookLoading}
-          />
+          <div className="flex flex-col gap-2">
+            {webhooks.map((webhook, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <Input
+                  type="url"
+                  placeholder="https://..."
+                  value={webhook.url}
+                  onChange={(e) => updateWebhookField(index, 'url', e.target.value)}
+                  disabled={webhookLoading}
+                  className="flex-1"
+                />
+                <Select
+                  value={webhook.format}
+                  onValueChange={(value) => updateWebhookField(index, 'format', value)}
+                  disabled={webhookLoading}
+                >
+                  <SelectTrigger className="w-40 shrink-0">
+                    <SelectValue>
+                      {(value) => WEBHOOK_FORMATS.find((f) => f.value === value)?.label || value}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEBHOOK_FORMATS.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeWebhookRow(index)}
+                  disabled={webhookLoading}
+                >
+                  <X />
+                  <span className="sr-only">Remove</span>
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" className="self-start" onClick={addWebhookRow} disabled={webhookLoading}>
+              <Plus /> Add webhook
+            </Button>
+          </div>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button onClick={saveWebhook} disabled={webhookLoading || webhookSaving}>
+            <Button onClick={handleSaveWebhooks} disabled={webhookLoading || webhookSaving}>
               {webhookSaving && <Loader2 className="animate-spin" />}
               Save
             </Button>

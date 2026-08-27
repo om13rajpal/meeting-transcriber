@@ -75,7 +75,7 @@ async function sweepStaleJobs() {
       meeting.errorMessage = 'Transcription did not finish in time. Please try uploading again.';
       await meeting.save();
       await sendMeetingEmail(meeting.userEmail, meeting);
-      await sendMeetingWebhook(meeting.userWebhookUrl, meeting);
+      await sendMeetingWebhook(meeting.userWebhooks, meeting);
     }
     console.log(`Marked ${staleMeetings.length} stale processing job(s) as failed.`);
   } catch (error) {
@@ -179,7 +179,7 @@ async function main() {
         meeting.status = 'complete';
         await meeting.save();
         await sendMeetingEmail(meeting.userEmail, meeting);
-        await sendMeetingWebhook(meeting.userWebhookUrl, meeting);
+        await sendMeetingWebhook(meeting.userWebhooks, meeting);
       } catch (error) {
         console.error(error);
         const isDeepgramError = error.message?.startsWith('Deepgram API error');
@@ -189,7 +189,7 @@ async function main() {
           : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
         await meeting.save().catch((saveError) => console.error(saveError));
         await sendMeetingEmail(meeting.userEmail, meeting);
-        await sendMeetingWebhook(meeting.userWebhookUrl, meeting);
+        await sendMeetingWebhook(meeting.userWebhooks, meeting);
       }
     });
   });
