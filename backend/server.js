@@ -27,7 +27,16 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${path.extname(file.originalname) || ''}`)
+  filename: (req, file, cb) => {
+    const generatedName = `${crypto.randomUUID()}${path.extname(file.originalname) || ''}`;
+    // multer only populates req.file after the field finishes streaming, so
+    // if the client disconnects mid-upload (e.g. a page reload), req.file
+    // stays undefined even though diskStorage already wrote a partial file
+    // to disk. Stash the path here, before streaming starts, so the error
+    // handler below can still find and clean it up.
+    req.pendingUploadPath = path.join(UPLOAD_DIR, generatedName);
+    cb(null, generatedName);
+  }
 });
 
 const upload = multer({
@@ -52,6 +61,11 @@ async function main() {
   app.post('/api/transcribe', (req, res) => {
     upload.single('file')(req, res, async (err) => {
       if (err) {
+        // A partial file may have been written to disk even though req.file
+        // was never populated (see the filename() comment above).
+        if (req.pendingUploadPath) {
+          await fs.promises.unlink(req.pendingUploadPath).catch(() => {});
+        }
         return res.status(400).json({ error: err.message || 'Upload failed.' });
       }
       if (!req.file) {
