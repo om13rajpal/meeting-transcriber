@@ -12,6 +12,41 @@ function truncate(text) {
   return `${text.slice(0, PREVIEW_LENGTH)}… (truncated - see the full transcript at the link below)`;
 }
 
+function formatTimestamp(sec) {
+  if (sec == null) return '';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function speakerLabel(speakerId, speakerNames) {
+  return (speakerNames && speakerNames[String(speakerId)]) || `Speaker ${speakerId + 1}`;
+}
+
+// Groups consecutive utterances from the same speaker into one line, same
+// as buildSpeakerText() in MeetingDetail.js, so the chat notification reads
+// the same way the "Transcript" tab does - not the flat wall of text
+// meeting.transcript is.
+function buildSpeakerTranscript(meeting) {
+  const utterances = meeting.utterances || [];
+  if (!utterances.length) return meeting.transcript || '';
+
+  const speakerNames = meeting.speakerNames || {};
+  const groups = [];
+  for (const u of utterances) {
+    const last = groups[groups.length - 1];
+    if (last && last.speaker === u.speaker) {
+      last.transcript += ` ${u.transcript}`;
+    } else {
+      groups.push({ speaker: u.speaker, start: u.start, transcript: u.transcript });
+    }
+  }
+
+  return groups
+    .map((g) => `${speakerLabel(g.speaker, speakerNames)} [${formatTimestamp(g.start)}]: ${g.transcript}`)
+    .join('\n');
+}
+
 function buildGenericPayload(meeting, link) {
   return {
     id: meeting.id,
@@ -31,7 +66,7 @@ function buildGenericPayload(meeting, link) {
 function buildDiscordPayload(meeting, link, title) {
   const isComplete = meeting.status === 'complete';
   const body = isComplete
-    ? (truncate(meeting.transcript) || '(no speech detected)')
+    ? (truncate(buildSpeakerTranscript(meeting)) || '(no speech detected)')
     : (meeting.errorMessage || 'An unknown error occurred.');
   return {
     embeds: [{
@@ -47,7 +82,7 @@ function buildDiscordPayload(meeting, link, title) {
 function buildSlackPayload(meeting, link, title) {
   const isComplete = meeting.status === 'complete';
   const body = isComplete
-    ? (truncate(meeting.transcript) || '(no speech detected)')
+    ? (truncate(buildSpeakerTranscript(meeting)) || '(no speech detected)')
     : (meeting.errorMessage || 'An unknown error occurred.');
   const heading = isComplete ? `*"${title}" is ready*` : `*"${title}" failed to transcribe*`;
   return { text: [heading, body, link].filter(Boolean).join('\n') };
@@ -60,7 +95,7 @@ function buildSlackPayload(meeting, link, title) {
 function buildTeamsPayload(meeting, link, title) {
   const isComplete = meeting.status === 'complete';
   const text = isComplete
-    ? (truncate(meeting.transcript) || '(no speech detected)')
+    ? (truncate(buildSpeakerTranscript(meeting)) || '(no speech detected)')
     : (meeting.errorMessage || 'An unknown error occurred.');
   return {
     '@type': 'MessageCard',
