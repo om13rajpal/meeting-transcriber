@@ -258,6 +258,23 @@ in the browser during hydration, throwing a hydration mismatch. Always pass
 an explicit locale (e.g. `'en-US'`) in any Client Component that formats a
 date, time, or number that also gets server-rendered.
 
+Pinning the locale isn't always sufficient by itself, though - this
+actually happened in production (`formatDate` in `Dashboard.js`), reliably
+reproducible on the deployed Vercel build but never locally (`next dev`
+*or* `next build && next start`), which was the tell that it wasn't the
+`undefined`-locale mistake above. The real cause: even with the same
+pinned locale, `toLocaleString`'s exact output can still differ by the
+*specific whitespace character* it uses before "AM"/"PM" (a plain space
+vs. U+202F NARROW NO-BREAK SPACE), depending on the ICU/CLDR data bundled
+with whatever Node version rendered the server HTML versus whatever
+browser hydrates it - invisible to the eye, but still a byte-for-byte
+mismatch to React (error #418). `formatDate` now strips every Unicode
+space variant to a plain `' '` after formatting, so the output is
+byte-identical no matter which ICU produced it. If a similar
+"only-in-production, self-recovering, no visible glitch" hydration error
+shows up again, check for this exact pattern before assuming it's the
+`undefined`-locale mistake.
+
 ## Database query patterns
 
 - `Meeting` has one compound index, `{ userId: 1, createdAt: -1 }`. Every

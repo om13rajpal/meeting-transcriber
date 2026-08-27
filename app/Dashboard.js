@@ -59,8 +59,16 @@ function formatDate(iso) {
   // Pin the locale explicitly: this renders on the server (Node's locale)
   // then hydrates on the client (the browser's locale) - if they differ,
   // `undefined` here produces different text in each environment and
-  // React throws a hydration mismatch.
-  return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+  // React throws a hydration mismatch. Pinning the locale alone isn't
+  // quite enough, though: depending on the exact ICU/CLDR data bundled
+  // with each runtime, `toLocaleString` can put a regular space or a
+  // narrow no-break space (U+202F) before "AM"/"PM" - invisible to the
+  // eye, but a genuine character-for-character mismatch to React. Collapse
+  // every space-like character to a normal space so server and client
+  // produce byte-identical output regardless of which ICU version ran.
+  return date
+    .toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    .replace(/[  -   　]/g, ' ');
 }
 
 function formatElapsed(ms) {
