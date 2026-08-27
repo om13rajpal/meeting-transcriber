@@ -82,6 +82,26 @@ export async function mergeSpeakers(id, fromSpeakerIds, toSpeakerId) {
   return { meeting: toDetail(meeting) };
 }
 
+// Called by the dashboard right when the direct-to-backend upload request
+// itself fails (a rejected token, a network drop, a 4xx/5xx from the
+// backend) - the browser already knows this happened synchronously, so
+// there's no reason to make the user wait for the 30-minute stale-job
+// sweep in backend/server.js to notice. That sweep still exists as a
+// backstop for failures the browser never finds out about (the backend
+// process dying mid-job after already accepting the file).
+export async function markMeetingFailed(id, message) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeeting(id, userId);
+  if (!meeting || meeting.status !== 'processing') {
+    return { ok: false };
+  }
+
+  meeting.status = 'failed';
+  meeting.errorMessage = typeof message === 'string' && message ? message : 'Upload failed. Please try again.';
+  await meeting.save();
+  return { ok: true };
+}
+
 export async function deleteMeeting(id) {
   const { userId } = await verifySession();
   const meeting = await findOwnedMeeting(id, userId);

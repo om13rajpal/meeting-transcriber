@@ -10,6 +10,10 @@ const mongoose = require('mongoose');
 const uploadTokenSchema = new mongoose.Schema({
   _id: { type: String, default: () => crypto.randomBytes(24).toString('hex') },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  // Set by the frontend at mint time - the Meeting row already exists with
+  // status 'processing' before any bytes are uploaded. See the matching
+  // comment in app/lib/models/UploadToken.js.
+  meetingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Meeting', required: true },
   createdAt: { type: Date, default: Date.now },
   // TTL index: Mongo auto-deletes the document once this passes, so an
   // unused token can't be replayed after expiry.

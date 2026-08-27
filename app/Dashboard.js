@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { createUploadToken } from '@/app/actions/transcribe';
-import { deleteMeeting } from '@/app/actions/meetings';
+import { deleteMeeting, markMeetingFailed } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,6 +115,22 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     return () => window.clearInterval(interval);
   }, [meetings, searchQuery]);
 
+  // Warns before an accidental reload/close while the file is still being
+  // sent to the backend. Nothing can make the raw byte transfer itself
+  // resumable (the browser is what's streaming it), so the best available
+  // protection is stopping the user from losing it by accident.
+  useEffect(() => {
+    if (!uploading) return undefined;
+
+    function handleBeforeUnload(e) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [uploading]);
+
   function selectFile(file) {
     if (!file) return;
     setSelectedFile(file);
@@ -142,14 +158,26 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       setElapsed(Date.now() - start);
     }, 1000);
 
+    let meetingId = null;
+
     try {
-      // The token authorizes one upload; the file itself goes straight from
-      // this browser to the transcription backend, never through Vercel's
-      // serverless functions, which cap request bodies at ~4.5MB.
-      const tokenResult = await createUploadToken();
+      // Mints the token and creates the Meeting row (status 'processing')
+      // immediately, before any bytes are sent - so it shows up below right
+      // away and a reload during the raw transfer itself (which can take
+      // real time for a large recording) leaves a durable row behind
+      // instead of the job vanishing with no trace. The file itself then
+      // goes straight from this browser to the transcription backend,
+      // never through Vercel's serverless functions, which cap request
+      // bodies at ~4.5MB.
+      const tokenResult = await createUploadToken(selectedFile.name);
       if (tokenResult.error) {
         toast.error(tokenResult.error);
         return;
+      }
+
+      if (tokenResult.meeting) {
+        meetingId = tokenResult.meeting.id;
+        setMeetings((prev) => [tokenResult.meeting, ...prev]);
       }
 
       const formData = new FormData();
@@ -163,22 +191,34 @@ export default function Dashboard({ userEmail, initialMeetings }) {
       const result = await uploadResponse.json().catch(() => ({}));
 
       if (!uploadResponse.ok) {
-        toast.error(result.error || 'Something went wrong. Please try again.');
+        const message = result.error || 'Something went wrong. Please try again.';
+        toast.error(message);
+        // The upload itself failed, so the row this dashboard already added
+        // would otherwise sit at 'processing' until the backend's 30-minute
+        // stale-job sweep notices. Fail it now instead, since the browser
+        // already knows.
+        if (meetingId) await markMeetingFailed(meetingId, message);
+        const refreshed = await searchMeetings(searchQuery);
+        setMeetings(refreshed);
         return;
       }
 
       // The backend responds as soon as the job is created, before ffmpeg or
       // Deepgram have run - transcription continues in the background, so
-      // the new meeting shows up below with status 'processing' and the
-      // polling effect picks it up from there. This also means the upload
-      // step itself feels much faster, since the user isn't stuck waiting
-      // for the whole pipeline before getting any feedback.
+      // the polling effect above picks it up from there. This also means
+      // the upload step itself feels much faster, since the user isn't
+      // stuck waiting for the whole pipeline before getting any feedback.
       resetSelection();
       toast.success('Upload received. Transcribing in the background.');
       const refreshed = await searchMeetings(searchQuery);
       setMeetings(refreshed);
     } catch (err) {
       toast.error('Something went wrong. Please try again.');
+      if (meetingId) {
+        await markMeetingFailed(meetingId, 'Something went wrong during upload. Please try again.');
+        const refreshed = await searchMeetings(searchQuery);
+        setMeetings(refreshed);
+      }
     } finally {
       window.clearInterval(statusTimerRef.current);
       setUploading(false);

@@ -12,6 +12,12 @@ import mongoose from 'mongoose';
 const uploadTokenSchema = new mongoose.Schema({
   _id: { type: String, default: () => crypto.randomBytes(24).toString('hex') },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  // The Meeting row is created up front, at mint time, with status
+  // 'processing' - not by the backend after it receives the file. That way
+  // a reload during the raw upload transfer (before the backend has even
+  // received the whole file) still leaves a durable row behind instead of
+  // the job vanishing with no trace.
+  meetingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Meeting', required: true },
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, required: true, index: { expires: 0 } }
 });

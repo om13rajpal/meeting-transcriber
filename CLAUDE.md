@@ -38,25 +38,44 @@ ffmpeg-based video processing is a poor fit for serverless functions at all
 
 ## Upload token flow
 
-1. The dashboard calls `createUploadToken()` (a Server Action, behind
-   `verifySession()`, so it's a real authenticated call) which mints a
-   random, single-use, 15-minute token in the `uploadtokens` collection and
-   returns it plus the backend's URL
-   (`NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`).
+1. The dashboard calls `createUploadToken(fileName)` (a Server Action,
+   behind `verifySession()`, so it's a real authenticated call), passing
+   the file name straight from the already-selected `File` object. This
+   mints a random, single-use, 15-minute token in the `uploadtokens`
+   collection, **and creates the `Meeting` document right then with
+   `status: 'processing'`**, before a single byte of the file has been
+   sent. It returns the token, the backend's URL
+   (`NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`), and the new meeting (so the
+   dashboard can show the "Transcribing..." row immediately).
 2. The browser then does a plain `fetch()` directly to
    `${backendUrl}/api/transcribe` with the file and the token in one
-   multipart form, bypassing this Next.js app entirely.
+   multipart form, bypassing this Next.js app entirely. This is the one
+   step that can take real time for a large recording, and it's also the
+   one step nothing here can make resumable, since the browser itself is
+   what's streaming the bytes - a reload or dropped connection during this
+   step genuinely aborts that specific transfer. What creating the Meeting
+   a step earlier buys you is that the *row* survives that abort even
+   though the *transfer* doesn't: reload afterward and you see
+   "Transcribing..." (which the stale-job sweep below will eventually mark
+   `'failed'` if the backend truly never got the file), not nothing.
 3. The backend looks up the token (`findByIdAndDelete`, so it's consumed
-   immediately and can't be replayed), extracts the `userId`, and creates
-   the `Meeting` document immediately with `status: 'processing'`, **before**
-   ffmpeg or Deepgram run. It responds `202` with `{ id }` right away, then
-   keeps running ffmpeg + Deepgram in the background on the same request
-   handler (Render is a normal long-lived process, unlike a serverless
-   function, so work after `res.json()` keeps running). See "Job status:
-   surviving reloads and upload failures" below for why this shape exists.
+   immediately and can't be replayed), extracts `meetingId` from it, and
+   looks up the `Meeting` document that step 1 already created (falling
+   back to creating one itself only if `meetingId` is missing - a rolling
+   deploy where the frontend hasn't picked up this flow yet - or returning
+   404 if the meeting was deleted by the user while the upload was still in
+   flight, honoring that deletion rather than resurrecting the row). It
+   responds `202` with `{ id }` right away, then keeps running ffmpeg +
+   Deepgram in the background on the same request handler (Render is a
+   normal long-lived process, unlike a serverless function, so work after
+   `res.json()` keeps running). See "Job status: surviving reloads and
+   upload failures" below for why this shape exists.
 4. The browser gets back `{ id }`, then just calls the normal
-   `searchMeetings()` Server Action to refresh the dashboard list, where the
-   new meeting shows up with a "Transcribing..." row.
+   `searchMeetings()` Server Action to refresh the dashboard list. If the
+   upload request itself failed (bad token, network drop, backend 4xx/5xx),
+   the dashboard calls `markMeetingFailed()` right away instead of leaving
+   the row it already added stuck at `'processing'` until the stale-job
+   sweep eventually notices.
 
 The `UploadToken` model (`app/lib/models/UploadToken.js` here,
 `backend/models/UploadToken.js` on the backend) and the `Meeting` model
@@ -70,12 +89,13 @@ MongoDB database. If you change one, change the other.
 failure resilience, and it's deliberately just a DB field, not anything
 held in client or server memory:
 
-- The backend creates the `Meeting` row with `status: 'processing'` before
-  any ffmpeg/Deepgram work starts, so the job's existence and state live in
-  MongoDB from the first moment, not in the HTTP request/response cycle. A
-  dropped connection, a closed tab, or a page reload mid-upload can't lose
-  it, because nothing about resuming depends on the browser still being
-  connected.
+- The `Meeting` row is created with `status: 'processing'` by
+  `createUploadToken()` before the file upload even starts (see "Upload
+  token flow" above), so the job's existence and state live in MongoDB from
+  the first moment, not in the HTTP request/response cycle. A dropped
+  connection, a closed tab, or a page reload can't lose the *row* even when
+  it does interrupt the raw file transfer itself, because nothing about
+  resuming depends on the browser still being connected.
 - On success the backend sets `status: 'complete'` and fills in the
   transcript/utterances/duration fields. On failure it sets
   `status: 'failed'` and a client-safe `errorMessage` (Deepgram errors pass
@@ -241,8 +261,9 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   live document, for mutations), `findOwnedMeetingLean` (ownership-scoped,
   read-only), `findMeetingByShareToken` (public, unauthenticated lookup).
 - `app/actions/`: every Server Action (`auth.js`, `meetings.js`
-  [`getMeeting`, title/speaker rename, `mergeSpeakers`, delete, share links],
-  `transcribe.js` [token minting only], `search.js`).
+  [`getMeeting`, title/speaker rename, `mergeSpeakers`, `markMeetingFailed`,
+  delete, share links], `transcribe.js` [token minting, also creates the
+  `Meeting` row - see "Upload token flow"], `search.js`).
 - `app/login/`, `app/signup/`, `app/meeting/[id]/`, `app/share/[token]/`:
   one folder per route; `page.js` is the Server Component (auth check + data
   fetch), a sibling Client Component (e.g. `MeetingDetail.js`) owns the

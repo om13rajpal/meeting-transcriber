@@ -125,23 +125,38 @@ async function main() {
         return res.status(401).json({ error: 'This upload link has expired. Please try again.' });
       }
 
-      // Create the durable record before any ffmpeg/Deepgram work starts.
-      // From this point on, the job's state lives in the database, not in
-      // this request/response cycle - a reload, a dropped connection, or
-      // the browser tab closing can't lose it.
-      let meeting;
-      try {
-        meeting = await Meeting.create({
-          userId: tokenDoc.userId,
-          title: req.file.originalname,
-          originalName: req.file.originalname,
-          speakerNames: {},
-          status: 'processing'
-        });
-      } catch (error) {
-        console.error(error);
-        await fs.promises.unlink(req.file.path).catch(() => {});
-        return res.status(500).json({ error: 'Could not start transcription.' });
+      // The Meeting row already exists (created by createUploadToken() at
+      // mint time, before any bytes were sent), so a reload during the raw
+      // upload transfer itself - which nothing here can make resumable,
+      // since the browser is what's streaming the bytes - already left a
+      // durable 'processing' row behind. Just find it.
+      let meeting = tokenDoc.meetingId
+        ? await Meeting.findById(tokenDoc.meetingId).catch(() => null)
+        : null;
+
+      if (!meeting) {
+        // Falls back to the old create-here behavior if the token predates
+        // this field (a rolling deploy where the frontend hasn't picked up
+        // the new createUploadToken() yet), or if the meeting was deleted
+        // by the user while the upload was still in flight - in the latter
+        // case, honor the deletion rather than resurrecting the row.
+        if (tokenDoc.meetingId) {
+          await fs.promises.unlink(req.file.path).catch(() => {});
+          return res.status(404).json({ error: 'This meeting was deleted. Please try uploading again.' });
+        }
+        try {
+          meeting = await Meeting.create({
+            userId: tokenDoc.userId,
+            title: req.file.originalname,
+            originalName: req.file.originalname,
+            speakerNames: {},
+            status: 'processing'
+          });
+        } catch (error) {
+          console.error(error);
+          await fs.promises.unlink(req.file.path).catch(() => {});
+          return res.status(500).json({ error: 'Could not start transcription.' });
+        }
       }
 
       // Respond immediately rather than making the client hold this
