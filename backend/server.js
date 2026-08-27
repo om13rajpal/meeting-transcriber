@@ -16,6 +16,15 @@ const PORT = process.env.PORT || 10000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
 
+// A meeting stuck in 'processing' past this long almost certainly means the
+// backend process died or restarted mid-job (a crash, a Render deploy, an
+// out-of-memory kill) rather than a genuinely slow transcription - ffmpeg
+// and Deepgram are fast relative to this. Generous enough not to false
+// positive on a real large file, short enough that a user isn't staring at
+// "Transcribing..." for hours with no way to know it's actually dead.
+const STALE_PROCESSING_MS = 30 * 60 * 1000;
+const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
 // Comma-separated list of origins allowed to call this backend directly
 // from the browser (the Vercel-hosted frontend, plus localhost for dev).
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
@@ -44,8 +53,37 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES }
 });
 
+// Marks any 'processing' meeting older than STALE_PROCESSING_MS as failed.
+// Runs once at startup (to clean up whatever was left mid-job by a previous
+// crash or deploy, since nothing else ever revisits those rows) and on a
+// recurring interval (to catch a job that hangs without the process itself
+// restarting). This is the only thing that can ever un-stick a 'processing'
+// row if the request handler running it never gets to its own catch block.
+async function sweepStaleJobs() {
+  const cutoff = new Date(Date.now() - STALE_PROCESSING_MS);
+  try {
+    const result = await Meeting.updateMany(
+      { status: 'processing', createdAt: { $lt: cutoff } },
+      {
+        $set: {
+          status: 'failed',
+          errorMessage: 'Transcription did not finish in time. Please try uploading again.'
+        }
+      }
+    );
+    if (result.modifiedCount) {
+      console.log(`Marked ${result.modifiedCount} stale processing job(s) as failed.`);
+    }
+  } catch (error) {
+    console.error('Stale job sweep failed:', error);
+  }
+}
+
 async function main() {
   await connectToDatabase();
+
+  await sweepStaleJobs();
+  setInterval(sweepStaleJobs, STALE_SWEEP_INTERVAL_MS).unref();
 
   const app = express();
 

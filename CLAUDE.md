@@ -100,6 +100,15 @@ If you add a new failure path in `backend/server.js`, set `status: 'failed'`
 and a client-safe `errorMessage` on the way out, don't just `console.error`
 and leave the row stuck in `'processing'` forever.
 
+The one failure mode that pattern alone doesn't cover is the backend
+process itself dying mid-job (a crash, a Render deploy, an OOM kill) -
+nothing ever runs the code that would set `status: 'failed'` in that case.
+`sweepStaleJobs()` in `backend/server.js` handles this: it marks any
+`'processing'` row older than `STALE_PROCESSING_MS` (30 minutes) as
+`'failed'`, and runs once at startup (to clean up whatever a previous crash
+left behind) plus on a `STALE_SWEEP_INTERVAL_MS` (5 minute) interval, so a
+hang doesn't need a restart to be noticed either.
+
 ## Speaker merge
 
 Deepgram's diarization sometimes over-splits one person's voice into
