@@ -1,52 +1,23 @@
 // Mirrors app/lib/webhook.js on the frontend.
 
 const WEBHOOK_TIMEOUT_MS = 10 * 1000;
-const PREVIEW_LENGTH = 1800;
-
-function truncate(text) {
-  if (!text) return '';
-  if (text.length <= PREVIEW_LENGTH) return text;
-  return `${text.slice(0, PREVIEW_LENGTH)}… (truncated - see the full transcript at the link below)`;
-}
 
 function speakerNamesToPlainObject(speakerNames) {
   if (speakerNames instanceof Map) return Object.fromEntries(speakerNames);
   return speakerNames || {};
 }
 
-function formatTimestamp(sec) {
-  if (sec == null) return '';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
-}
-
-function speakerLabel(speakerId, speakerNames) {
-  return (speakerNames && speakerNames[String(speakerId)]) || `Speaker ${speakerId + 1}`;
-}
-
-// Groups consecutive utterances from the same speaker into one line, same
-// as buildSpeakerText() in MeetingDetail.js, so the chat notification reads
-// the same way the "Transcript" tab does - not the flat wall of text
-// meeting.transcript is.
-function buildSpeakerTranscript(meeting) {
-  const utterances = meeting.utterances || [];
-  if (!utterances.length) return meeting.transcript || '';
-
-  const speakerNames = speakerNamesToPlainObject(meeting.speakerNames);
-  const groups = [];
-  for (const u of utterances) {
-    const last = groups[groups.length - 1];
-    if (last && last.speaker === u.speaker) {
-      last.transcript += ` ${u.transcript}`;
-    } else {
-      groups.push({ speaker: u.speaker, start: u.start, transcript: u.transcript });
-    }
+// The chat formats (Discord/Slack/Teams) are a notification, not a
+// transcript dump - just enough to know it's ready and a link to go read
+// it in the app. Only 'generic' carries the actual transcript/utterances,
+// since that one's for the user's own automation, not for a human to read
+// in a chat window.
+function chatMessageBody(meeting, title, link) {
+  if (meeting.status === 'complete') {
+    return `Hi! Your transcript for "${title}" is ready.${link ? ` ${link}` : ''}`;
   }
-
-  return groups
-    .map((g) => `${speakerLabel(g.speaker, speakerNames)} [${formatTimestamp(g.start)}]: ${g.transcript}`)
-    .join('\n');
+  const reason = meeting.errorMessage || 'An unknown error occurred.';
+  return `Hi! Your transcript for "${title}" failed to generate.\n${reason}${link ? ` ${link}` : ''}`;
 }
 
 function buildGenericPayload(meeting, link) {
@@ -67,13 +38,10 @@ function buildGenericPayload(meeting, link) {
 // https://discord.com/developers/docs/resources/webhook#execute-webhook
 function buildDiscordPayload(meeting, link, title) {
   const isComplete = meeting.status === 'complete';
-  const body = isComplete
-    ? (truncate(buildSpeakerTranscript(meeting)) || '(no speech detected)')
-    : (meeting.errorMessage || 'An unknown error occurred.');
   return {
     embeds: [{
       title: isComplete ? `"${title}" is ready` : `"${title}" failed to transcribe`,
-      description: body,
+      description: chatMessageBody(meeting, title, link),
       url: link,
       color: isComplete ? 0x22c55e : 0xef4444
     }]
@@ -82,12 +50,7 @@ function buildDiscordPayload(meeting, link, title) {
 
 // https://api.slack.com/messaging/webhooks
 function buildSlackPayload(meeting, link, title) {
-  const isComplete = meeting.status === 'complete';
-  const body = isComplete
-    ? (truncate(buildSpeakerTranscript(meeting)) || '(no speech detected)')
-    : (meeting.errorMessage || 'An unknown error occurred.');
-  const heading = isComplete ? `*"${title}" is ready*` : `*"${title}" failed to transcribe*`;
-  return { text: [heading, body, link].filter(Boolean).join('\n') };
+  return { text: chatMessageBody(meeting, title, link) };
 }
 
 // MessageCard format: the Office 365 connector webhooks this originally
@@ -96,15 +59,12 @@ function buildSlackPayload(meeting, link, title) {
 // payload shape without any reformatting.
 function buildTeamsPayload(meeting, link, title) {
   const isComplete = meeting.status === 'complete';
-  const text = isComplete
-    ? (truncate(buildSpeakerTranscript(meeting)) || '(no speech detected)')
-    : (meeting.errorMessage || 'An unknown error occurred.');
   return {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
     themeColor: isComplete ? '22c55e' : 'ef4444',
     summary: isComplete ? `"${title}" is ready` : `"${title}" failed to transcribe`,
-    sections: [{ activityTitle: title, text }],
+    sections: [{ activityTitle: title, text: chatMessageBody(meeting, title, link) }],
     potentialAction: link ? [{ '@type': 'OpenUri', name: 'View meeting', targets: [{ os: 'default', uri: link }] }] : []
   };
 }

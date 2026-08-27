@@ -197,16 +197,17 @@ destination:
   displays it directly.
 - `'discord'`, `'slack'`, `'teams'`: reshaped into that platform's actual
   expected message format (Discord's `{embeds: [...]}`, Slack's
-  `{text: "..."}`, Teams' MessageCard `{"@type": "MessageCard", ...}`).
-  The message body is `buildSpeakerTranscript()`'s output - the same
-  consecutive-utterances-grouped-by-speaker text as `buildSpeakerText()` in
-  `MeetingDetail.js` (`Speaker Name [0:35]: text`, one line per speaker
-  turn), not the flat `meeting.transcript` string - then truncated to a
-  fixed preview length. These platforms reject or mangle oversized
-  messages, and a real meeting transcript can be far larger than any of
-  them will render sensibly. Pasting a raw webhook URL for one of these
-  directly into the `'generic'` format would likely fail outright, since
-  none of these platforms accept arbitrary JSON.
+  `{text: "..."}`, Teams' MessageCard `{"@type": "MessageCard", ...}`), but
+  deliberately just a notification, not a transcript dump -
+  `chatMessageBody()` returns `Hi! Your transcript for "<title>" is
+  ready.` (or the failure equivalent, with `errorMessage`) plus the link,
+  nothing else. This was a real design decision, not the original
+  behavior: it used to send a speaker/timestamp-formatted transcript
+  preview into the chat message itself, which the user explicitly asked
+  to drop in favor of "just tell me it's ready and link me to it." Pasting
+  a raw webhook URL for one of these directly into the `'generic'` format
+  would likely fail outright regardless, since none of these platforms
+  accept arbitrary JSON.
 
 There's no auto-detection of which format a URL needs - the user picks it
 explicitly in the dialog. This was a deliberate choice, not an oversight:
