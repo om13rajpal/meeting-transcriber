@@ -261,6 +261,20 @@ async function main() {
         meeting.status = 'complete';
         await meeting.save();
         await sendNotifications(meeting);
+
+        // Best-effort: Deepgram's billing data for this exact request is
+        // sometimes already indexed by the time transcription finishes, so
+        // this can upgrade the estimate to the real billed amount right
+        // away instead of waiting for the next sweepPendingCosts() tick.
+        // Usually it isn't ready yet - fetchExactCost() just returns null
+        // in that case, which is fine, since the sweep is what actually
+        // guarantees this eventually happens either way.
+        const exactUsd = await fetchExactCost(result.requestId);
+        if (exactUsd != null) {
+          meeting.deepgramCostUsd = exactUsd;
+          meeting.deepgramCostExact = true;
+          await meeting.save().catch((saveError) => console.error(saveError));
+        }
       } catch (error) {
         console.error(error);
         const isDeepgramError = error.message?.startsWith('Deepgram API error');

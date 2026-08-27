@@ -347,16 +347,27 @@ the background: every `/v1/listen` response includes a `request_id`
 (stored as `Meeting.deepgramRequestId`), and Deepgram's Management API
 (`GET /v1/projects/:project_id/requests/:request_id`, `response.details.usd`
 in the response) returns the real number they billed for that specific
-request - not an app-side calculation at all. `sweepPendingCosts()` in
-`backend/server.js` runs on the same recurring-interval pattern as
-`sweepStaleJobs()` (5-minute interval, plus once at startup), scanning
-`'complete'` meetings where `deepgramCostExact` is still `false`, calling
-`fetchExactCost()` in `deepgram.js` for each, and flipping
-`deepgramCostExact: true` once it succeeds - at which point the "estimated"
-qualifier disappears from the UI and the number itself may also change
-slightly to match Deepgram's real billing. Gives up after
-`COST_SWEEP_LOOKBACK_MS` (6 hours) per meeting so a request Deepgram's
-billing pipeline never indexes doesn't get retried forever.
+request - not an app-side calculation at all. Two things try this lookup:
+
+- **Immediately after transcription finishes**, right after
+  `sendNotifications()` in the `/api/transcribe` success branch - Deepgram's
+  billing data for a request is sometimes already indexed by the time the
+  job completes, so this can upgrade the estimate the moment a meeting goes
+  `'complete'` instead of making every meeting wait for a sweep tick.
+  Usually it isn't ready yet, in which case `fetchExactCost()` just returns
+  `null` here and this is a no-op - the sweep below is what actually
+  guarantees the upgrade eventually happens regardless of whether this
+  first attempt succeeds.
+- **`sweepPendingCosts()`** in `backend/server.js`, on the same
+  recurring-interval pattern as `sweepStaleJobs()` (5-minute interval, plus
+  once at startup), scanning `'complete'` meetings where `deepgramCostExact`
+  is still `false` and retrying `fetchExactCost()` for each. Gives up after
+  `COST_SWEEP_LOOKBACK_MS` (6 hours) per meeting so a request Deepgram's
+  billing pipeline never indexes doesn't get retried forever.
+
+Either path flips `deepgramCostExact: true` once it succeeds - at which
+point the "estimated" qualifier disappears from the UI and the number
+itself may also change slightly to match Deepgram's real billing.
 
 This whole exact-cost path is **opt-in via `DEEPGRAM_PROJECT_ID`**
 (backend-only env var, found in the Deepgram console) and silently no-ops
