@@ -1,16 +1,51 @@
-node_modules/
-.env
-uploads/*
-!uploads/.gitkeep
-._*
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
 .DS_Store
+*.pem
 
-# Swift Package Manager build output (desktop-app native helpers)
-.build/
-.swiftpm/
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Local project notes, not part of the pushed repo
-CLAUDE.md
+# env files (.env.example is intentionally NOT ignored, it has no secrets)
+.env
+.env.local
+.env.*.local
 
-# Parked native desktop recorder prototype, not part of the pushed repo
-desktop-app/
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# scratch space for in-flight transcription uploads
+/uploads/*
+!/uploads/.gitkeep
+
+# macOS AppleDouble sidecar files (this project lives on an exFAT/APFS
+# external drive that generates them constantly)
+._*

@@ -1,6 +1,6 @@
 # Meeting Transcriber
 
-A private, self-hosted web app for transcribing meeting recordings that mix Hindi and English (Hinglish). Upload an MP4 or MP3, and it extracts the audio if needed, transcribes it with Deepgram, and keeps a private, searchable history of every meeting per user.
+A private, self-hosted Next.js app for transcribing meeting recordings that mix Hindi and English (Hinglish). Upload an MP4 or MP3, and it extracts the audio if needed, transcribes it with Deepgram, and keeps a private, searchable history of every meeting per user.
 
 ## Features
 
@@ -13,15 +13,15 @@ A private, self-hosted web app for transcribing meeting recordings that mix Hind
 - Speaker diarized transcript view alongside a plain text view
 - Export a transcript as `.txt`, `.srt`, or `.vtt`
 - Shareable, read only links for individual meetings that can be revoked at any time
-- Optional personal access tokens for authenticating non browser clients
 
 ## Tech stack
 
-- Node.js and Express, no frontend framework, no build step
+- Next.js 16 (App Router) and React 19, plain JavaScript, no build config beyond what Next.js provides
+- Server Components for data reads and Server Actions for every mutation; no separate API layer
 - MongoDB with Mongoose for users, meetings, and sessions
+- shadcn/ui (built on Base UI) and Tailwind CSS v4 for the interface
 - Deepgram for speech to text
 - ffmpeg and ffprobe for audio extraction and normalization
-- Vanilla HTML, CSS, and JavaScript on the client
 
 ## Requirements
 
@@ -48,36 +48,41 @@ A private, self-hosted web app for transcribing meeting recordings that mix Hind
 
    - `DEEPGRAM_API_KEY`: your Deepgram API key
    - `MONGODB_URI`: MongoDB connection string, for example `mongodb://127.0.0.1:27017/meeting-transcriber`
-   - `SESSION_SECRET`: a long random string used to sign session cookies
-   - `PORT`: the port to run the server on, for example `3210`
 
 3. Start MongoDB if it is not already running.
 
 4. Start the app:
 
    ```
-   npm start
+   npm run dev
    ```
 
-5. Open `http://localhost:3210` in your browser, sign up, and upload a recording.
+5. Open `http://localhost:3000` in your browser, sign up, and upload a recording.
+
+To build and run a production instance:
+
+```
+npm run build
+npm start
+```
 
 ## Project structure
 
 ```
-server.js              Entry point: session setup and route mounting
-db.js                   MongoDB connection
-models/                 Mongoose schemas for User and Meeting
-middleware/auth.js      Session and personal access token authentication
-routes/                 Auth, meetings, transcription, and share endpoints
-services/deepgram.js    Audio extraction and the Deepgram integration
-public/                 Static assets, client scripts, and the login and signup pages
-views/                  Server rendered pages that require authentication
+app/
+  actions/            Server Actions: auth.js, meetings.js, transcribe.js, search.js
+  lib/                 db.js, session.js, dal.js, meetings.js, deepgram.js, models/
+  login/, signup/      Public auth pages
+  meeting/[id]/         Meeting detail page (protected)
+  share/[token]/        Public, read only shared meeting view
+  page.js, Dashboard.js Dashboard (protected)
+components/ui/         shadcn UI primitives
 uploads/                Scratch space for files during transcription
 ```
 
 ## Security notes
 
 - Passwords are hashed with bcrypt
-- Session cookies are HTTP only and use the `secure` flag in production
+- Sessions are a random token stored in MongoDB, referenced by an httpOnly cookie; the cookie itself carries no data
 - Every meeting lookup is scoped to the signed in user, and requests for another user's meeting return a generic not found response
 - Share links use a long random token and can be revoked at any time
