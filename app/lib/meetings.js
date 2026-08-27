@@ -106,3 +106,21 @@ export async function findMeetingByShareToken(token) {
   await connectToDatabase();
   return Meeting.findOne({ shareToken: token }).lean().catch(() => null);
 }
+
+// Every name this user has typed into a speaker-rename box across all
+// their meetings, deduplicated - purely for autocomplete suggestions on
+// the next meeting's rename input, not automatic recognition (nothing here
+// knows which speaker in a new recording is which person, it just saves
+// retyping a name you've used before). Small enough at this app's scale to
+// aggregate in Node rather than a database pipeline.
+export async function listKnownSpeakerNames(userId) {
+  await connectToDatabase();
+  const meetings = await Meeting.find({ userId }).select('speakerNames').lean();
+  const names = new Set();
+  for (const meeting of meetings) {
+    for (const name of Object.values(meeting.speakerNames || {})) {
+      if (name) names.add(name);
+    }
+  }
+  return Array.from(names).sort((a, b) => a.localeCompare(b));
+}

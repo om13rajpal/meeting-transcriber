@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle } from 'lucide-react';
+import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { createUploadToken } from '@/app/actions/transcribe';
 import { deleteMeeting, markMeetingFailed } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
+import { getWebhookUrl, updateWebhookUrl } from '@/app/actions/settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -130,6 +131,10 @@ export default function Dashboard({ userEmail, initialMeetings }) {
   const [searching, setSearching] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [, startLogoutTransition] = useTransition();
+  const [webhookOpen, setWebhookOpen] = useState(false);
+  const [webhookLoading, setWebhookLoading] = useState(false);
+  const [webhookSaving, setWebhookSaving] = useState(false);
+  const [webhookUrlInput, setWebhookUrlInput] = useState('');
 
   // Polls while any meeting is still 'processing', so a job kicked off by
   // this tab (or one still running when the page was reloaded, since status
@@ -309,6 +314,32 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     });
   }
 
+  async function openWebhookDialog() {
+    setWebhookOpen(true);
+    setWebhookLoading(true);
+    try {
+      const result = await getWebhookUrl();
+      setWebhookUrlInput(result.webhookUrl || '');
+    } finally {
+      setWebhookLoading(false);
+    }
+  }
+
+  async function saveWebhook() {
+    setWebhookSaving(true);
+    try {
+      const result = await updateWebhookUrl(webhookUrlInput);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setWebhookOpen(false);
+      toast.success(webhookUrlInput.trim() ? 'Webhook saved.' : 'Webhook removed.');
+    } finally {
+      setWebhookSaving(false);
+    }
+  }
+
   const showEmptyState = !uploading && !searching && meetings.length === 0 && !searchQuery.trim();
   const showNoResultsState = !uploading && !searching && meetings.length === 0 && searchQuery.trim();
 
@@ -327,6 +358,11 @@ export default function Dashboard({ userEmail, initialMeetings }) {
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="font-normal text-muted-foreground">{userEmail}</DropdownMenuLabel>
               </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openWebhookDialog}>
+                <Webhook />
+                Webhook
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} variant="destructive">
                 <LogOut />
@@ -499,6 +535,32 @@ export default function Dashboard({ userEmail, initialMeetings }) {
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={webhookOpen} onOpenChange={setWebhookOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Webhook</DialogTitle>
+            <DialogDescription>
+              When a meeting finishes or fails, the transcript and speaker-labeled utterances are POSTed
+              as JSON to this URL. Leave it blank to turn this off.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            type="url"
+            placeholder="https://..."
+            value={webhookUrlInput}
+            onChange={(e) => setWebhookUrlInput(e.target.value)}
+            disabled={webhookLoading}
+          />
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button onClick={saveWebhook} disabled={webhookLoading || webhookSaving}>
+              {webhookSaving && <Loader2 className="animate-spin" />}
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

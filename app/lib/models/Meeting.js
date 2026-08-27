@@ -22,6 +22,10 @@ const meetingSchema = new mongoose.Schema({
   // the stale-job sweep's failures too, long after the UploadToken this
   // meeting was created from is gone.
   userEmail: String,
+  // Same denormalization as userEmail, snapshotted from User.webhookUrl at
+  // creation time - a later change to the setting doesn't retroactively
+  // apply to meetings already in flight, matching how userEmail behaves.
+  userWebhookUrl: String,
   title: String,
   originalName: String,
   isVideo: Boolean,

@@ -1,5 +1,5 @@
 import { verifySession } from '@/app/lib/dal';
-import { findOwnedMeetingLean, toDetail } from '@/app/lib/meetings';
+import { findOwnedMeetingLean, listKnownSpeakerNames, toDetail } from '@/app/lib/meetings';
 import { Button } from '@/components/ui/button';
 import MeetingDetail from './MeetingDetail';
 
@@ -30,5 +30,7 @@ export default async function MeetingPage({ params }) {
     );
   }
 
-  return <MeetingDetail id={id} initialMeeting={toDetail(meeting)} />;
+  const knownSpeakerNames = await listKnownSpeakerNames(userId);
+
+  return <MeetingDetail id={id} initialMeeting={toDetail(meeting)} knownSpeakerNames={knownSpeakerNames} />;
 }

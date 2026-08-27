@@ -21,6 +21,9 @@ const meetingSchema = new mongoose.Schema({
   // Denormalized from User.email at creation time, so this backend can
   // send the completion/failure email without a User model or lookup.
   userEmail: String,
+  // Same idea as userEmail, snapshotted from User.webhookUrl at creation
+  // time (see app/lib/models/Meeting.js on the frontend side).
+  userWebhookUrl: String,
   title: String,
   originalName: String,
   isVideo: Boolean,

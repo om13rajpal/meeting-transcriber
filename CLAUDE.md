@@ -178,6 +178,37 @@ Resend) on both services; `FRONTEND_URL` on the backend and `APP_URL` on
 the frontend (same value, different names, since they're separate `.env`
 files) to build the link back to the meeting.
 
+## Webhook notifications
+
+Same trigger points as email notifications above, same
+two-implementations-because-failures-can-originate-on-either-side
+structure (`app/lib/webhook.js` frontend, `backend/services/webhook.js`
+backend, both best-effort and never throw), same reasoning for not
+retrying - this one POSTs the full JSON payload (transcript,
+speaker-labeled utterances, status, link) to a URL the user sets, instead
+of emailing a summary. Meant for piping a finished transcript straight
+into the user's own automation (n8n, Zapier, a custom agent) without them
+having to copy-paste it.
+
+`User.webhookUrl` is the setting (a dialog off the dashboard's avatar menu,
+`updateWebhookUrl`/`getWebhookUrl` in `app/actions/settings.js`), and like
+`userEmail` it's denormalized onto `Meeting.userWebhookUrl` at creation
+time in `createUploadToken()` for the same reason (available to the
+backend and the stale-job sweep without a lookup, snapshotted so a later
+change to the setting doesn't retroactively apply to a meeting already in
+flight).
+
+`updateWebhookUrl` rejects `localhost`, loopback/private/link-local IPs,
+and non-http(s) schemes at save time - a deliberate but deliberately
+*basic* SSRF deterrent, not a hardened one (it doesn't resolve DNS or
+follow redirects, so it can't catch a rebinding attack). That's a
+proportionate call for this app's actual trust model - the person setting
+the URL is the account owner pointing at their own destination, same trust
+level as exporting their own transcript, not an untrusted third party
+choosing a target on a shared multi-tenant service. Don't quietly relax
+this list; if you need to allow something like `192.168.x.x` for local
+testing, do it consciously and say why.
+
 ## Speaker merge
 
 Deepgram's diarization sometimes over-splits one person's voice into
@@ -187,6 +218,53 @@ away ids onto the target id and drops their `speakerNames` entries. The UI
 is a small dialog in `MeetingDetail.js` (a "Keep as" `Select` plus checkboxes
 for the others), reachable from a "Merge speakers" button that only shows
 when there's more than one speaker.
+
+### Speaker rename autocomplete
+
+`listKnownSpeakerNames()` in `app/lib/meetings.js` collects every name a
+user has ever typed into a speaker-rename box, deduplicated across all
+their meetings, and `MeetingDetail.js`'s `page.js` passes it down as a
+`<datalist id="known-speaker-names">` that each `SpeakerLine`'s rename
+`<input>` references via `list=`. This is autocomplete, not recognition -
+nothing here knows which speaker in a *new* meeting corresponds to which
+suggested name; it just saves retyping "Om" for the fifth time and avoids
+near-duplicate names ("Om" vs "om" vs "OM"). Real cross-meeting speaker
+identification would need actual voice fingerprinting (a separate
+biometrics pipeline; Deepgram's diarization doesn't expose portable
+embeddings across separate API calls) and was deliberately not built -
+disproportionate for what this bought.
+
+This is also why the rename field became a real `<input>` instead of the
+`contentEditable` span used everywhere else in this app (the meeting
+title, and this same field before this change) - `<datalist>` only works
+with a real form input, `contentEditable` has no equivalent. Don't convert
+the title back and forth between the two patterns without a reason; they
+coexist here because only the speaker field needed the datalist.
+
+## Password reset
+
+`PasswordResetToken` (`app/lib/models/PasswordResetToken.js`) mirrors
+`UploadToken`'s shape - a random `_id` doubling as the token, a TTL index
+for auto-expiry (1 hour here vs. 15 minutes for uploads) - and lives only
+on the frontend, since resetting a password never touches the backend.
+`requestPasswordReset()` in `app/actions/auth.js` always returns the same
+generic "if that email has an account..." message and only actually
+creates a token/sends an email when the account exists, same
+don't-leak-existence rule as login's `verifyCredentials()`. Both the
+result *and* Resend delivery failures stay silent to the caller for this
+reason - see `sendPasswordResetEmail()` in `app/lib/email.js`.
+
+`resetPassword()` consumes the token with `findByIdAndDelete` (single-use,
+same pattern as `UploadToken`), then deletes every existing `Session` for
+that user before creating a fresh one for the tab completing the reset - a
+password reset is often a response to a compromised account, so every
+other logged-in device has to log in again with the new password rather
+than staying signed in on the old one.
+
+`/reset-password/[token]/page.js` does a read-only `PasswordResetToken.exists()`
+check before rendering the form, purely so an invalid/expired link says so
+immediately instead of only after submitting a new password - the actual
+consume-and-verify still only happens once, in `resetPassword()` itself.
 
 ## Stack (frontend)
 
@@ -318,26 +396,35 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 ## File layout
 
 - `app/lib/db.js`: mongoose connection.
-- `app/lib/models/User.js`, `Meeting.js`, `Session.js`, `UploadToken.js`
-- `app/lib/email.js`: `sendMeetingEmail()`, the frontend half of email
-  notifications - see "Email notifications".
+- `app/lib/models/User.js`, `Meeting.js`, `Session.js`, `UploadToken.js`,
+  `PasswordResetToken.js`
+- `app/lib/email.js`: `sendMeetingEmail()` and `sendPasswordResetEmail()`,
+  the frontend half of email - see "Email notifications" and "Password
+  reset".
+- `app/lib/webhook.js`: `sendMeetingWebhook()`, the frontend half of
+  webhook notifications - see "Webhook notifications".
 - `app/lib/session.js`: cookie/session primitives (`createSession`,
   `getSessionUserId`, `deleteSession`).
 - `app/lib/dal.js`: `verifySession()`, the auth boundary.
 - `app/lib/meetings.js`: `toSummary`/`toDetail` (plain-object conversion,
   see above), `listMeetings` (search), `findOwnedMeeting` (ownership-scoped,
   live document, for mutations), `findOwnedMeetingLean` (ownership-scoped,
-  read-only), `findMeetingByShareToken` (public, unauthenticated lookup).
-- `app/actions/`: every Server Action (`auth.js`, `meetings.js`
-  [`getMeeting`, title/speaker rename, `mergeSpeakers`, `markMeetingFailed`,
-  delete, share links], `transcribe.js` [token minting, also creates the
-  `Meeting` row - see "Upload token flow"], `search.js`).
-- `app/login/`, `app/signup/`, `app/meeting/[id]/`, `app/share/[token]/`:
+  read-only), `findMeetingByShareToken` (public, unauthenticated lookup),
+  `listKnownSpeakerNames` (rename autocomplete source).
+- `app/actions/`: every Server Action (`auth.js` [signup/login/logout,
+  `requestPasswordReset`, `resetPassword`], `meetings.js` [`getMeeting`,
+  title/speaker rename, `mergeSpeakers`, `markMeetingFailed`, delete, share
+  links], `settings.js` [`getWebhookUrl`, `updateWebhookUrl`],
+  `transcribe.js` [token minting, also creates the `Meeting` row - see
+  "Upload token flow"], `search.js`).
+- `app/login/`, `app/signup/`, `app/forgot-password/`,
+  `app/reset-password/[token]/`, `app/meeting/[id]/`, `app/share/[token]/`:
   one folder per route; `page.js` is the Server Component (auth check + data
   fetch), a sibling Client Component (e.g. `MeetingDetail.js`) owns the
   interactive UI.
 - `app/Dashboard.js`: the dashboard's Client Component, rendered by
-  `app/page.js`. Owns the direct-to-backend upload call.
+  `app/page.js`. Owns the direct-to-backend upload call and the webhook
+  settings dialog.
 - `components/ui/`: shadcn components. Edit sparingly; prefer composing
   them from a page over changing the primitives.
 - `backend/server.js`: the whole Express app (health check + `/api/transcribe`).
@@ -345,6 +432,8 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   byte-for-byte equivalent in spirit to how it worked before the split.
 - `backend/services/email.js`: `sendMeetingEmail()`, the backend half of
   email notifications - see "Email notifications".
+- `backend/services/webhook.js`: `sendMeetingWebhook()`, the backend half
+  of webhook notifications - see "Webhook notifications".
 - `backend/uploads/`, `uploads/` (frontend, currently unused but kept for
   parity): scratch space, always cleaned up in a `finally`.
 

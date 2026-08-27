@@ -22,6 +22,9 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Export a transcript as `.txt`, `.srt`, or `.vtt`
 - Shareable, read only links for individual meetings that can be revoked at any time
 - Email notification (via Resend) the moment a meeting finishes transcribing or fails, so you don't have to keep a tab open watching for it
+- Optional webhook: POST the full transcript and speaker-labeled utterances to your own URL (n8n, Zapier, a custom agent) the moment a meeting finishes or fails
+- Forgot password, with a single-use emailed reset link that also signs every other device out
+- Speaker rename autocomplete, suggesting names you've used in past meetings
 
 ## Tech stack
 
@@ -97,18 +100,19 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 
 ```
 app/
-  actions/            Server Actions: auth.js, meetings.js (rename, merge speakers, share links, delete), transcribe.js (token minting), search.js
-  lib/                 db.js, session.js, dal.js, meetings.js, email.js, models/
-  login/, signup/      Public auth pages
+  actions/            Server Actions: auth.js (incl. password reset), meetings.js (rename, merge speakers, share links, delete), settings.js (webhook URL), transcribe.js (token minting), search.js
+  lib/                 db.js, session.js, dal.js, meetings.js, email.js, webhook.js, models/
+  login/, signup/, forgot-password/, reset-password/[token]/  Public auth pages
   meeting/[id]/         Meeting detail page (protected)
   share/[token]/        Public, read only shared meeting view
-  page.js, Dashboard.js Dashboard (protected); uploads directly to the backend
+  page.js, Dashboard.js Dashboard (protected); uploads directly to the backend, webhook settings dialog
 components/ui/         shadcn UI primitives
 
 backend/
   server.js             Express app: health check and POST /api/transcribe
   services/deepgram.js   ffmpeg extraction + Deepgram call with retry
   services/email.js      Completion/failure notification email via Resend
+  services/webhook.js    Completion/failure notification webhook POST
   models/                Meeting.js and UploadToken.js, kept schema-identical to the frontend's copies
   Dockerfile              Installs ffmpeg, runs the service
 ```
@@ -120,3 +124,5 @@ backend/
 - Every meeting lookup is scoped to the signed in user, and requests for another user's meeting return a generic not found response
 - Uploads are authorized by a random, single-use token that expires after 15 minutes; the backend's CORS policy only allows the configured frontend origin
 - Share links use a long random token and can be revoked at any time
+- Password reset links are single-use, expire after an hour, and never reveal whether an email is registered; completing a reset signs out every other active session
+- Webhook URLs are checked against localhost, private/link-local IPs, and non-http(s) schemes before being saved (a basic deterrent appropriate for a single-user app, not a hardened SSRF defense)

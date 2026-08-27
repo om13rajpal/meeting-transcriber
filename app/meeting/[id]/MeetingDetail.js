@@ -71,7 +71,7 @@ function vttTimestamp(sec) {
   return srtTimestamp(sec).replace(',', '.');
 }
 
-export default function MeetingDetail({ id, initialMeeting }) {
+export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = [] }) {
   const router = useRouter();
   const titleRef = useRef(null);
 
@@ -415,6 +415,7 @@ export default function MeetingDetail({ id, initialMeeting }) {
                         label={speakerLabel(g.speaker)}
                         colorClass={SPEAKER_COLORS[g.speaker % SPEAKER_COLORS.length]}
                         onRename={(name) => commitSpeakerName(g.speaker, name)}
+                        knownNamesListId="known-speaker-names"
                       />
                     ))}
                   </div>
@@ -422,6 +423,11 @@ export default function MeetingDetail({ id, initialMeeting }) {
                   <p className="text-sm text-muted-foreground">No speaker segments returned.</p>
                 )}
               </ScrollArea>
+              <datalist id="known-speaker-names">
+                {knownSpeakerNames.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
             </TabsContent>
             <TabsContent value="plain">
               <ScrollArea className="h-[60vh]">
@@ -528,39 +534,27 @@ export default function MeetingDetail({ id, initialMeeting }) {
   );
 }
 
-function SpeakerLine({ group, label, colorClass, onRename }) {
-  const nameRef = useRef(null);
-
-  function selectAllTextIn(el) {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-
+function SpeakerLine({ group, label, colorClass, onRename, knownNamesListId }) {
   return (
     <div className="flex flex-wrap items-baseline gap-3.5">
       <span className={`inline-flex shrink-0 min-w-[90px] items-baseline gap-1.5 text-[13px] font-semibold ${colorClass}`}>
         <span className="self-center size-2 shrink-0 rounded-full bg-current" />
-        <span
-          ref={nameRef}
-          className="cursor-text rounded px-1 -mx-1 outline-none hover:border hover:border-border hover:bg-accent/40 focus:border focus:border-primary focus:bg-accent/40"
-          contentEditable
-          suppressContentEditableWarning
+        <input
+          key={label}
+          defaultValue={label}
+          list={knownNamesListId}
+          className={`w-24 rounded border border-transparent bg-transparent px-1 -mx-1 text-[13px] font-semibold outline-none hover:border-border hover:bg-accent/40 focus:border-primary focus:bg-accent/40 ${colorClass}`}
           spellCheck={false}
-          title="Click to rename this speaker"
-          onFocus={(e) => selectAllTextIn(e.target)}
+          title="Click to rename this speaker (suggestions from names you've used before)"
+          onFocus={(e) => e.target.select()}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
               e.target.blur();
             }
           }}
-          onBlur={(e) => onRename(e.target.textContent)}
-        >
-          {label}
-        </span>
+          onBlur={(e) => onRename(e.target.value)}
+        />
         <span className="text-[11.5px] font-normal text-muted-foreground">{formatTime(group.start)}</span>
       </span>
       <span className="flex-1 basis-80 text-foreground">{group.transcript}</span>
