@@ -18,6 +18,9 @@ const meetingSchema = new mongoose.Schema({
   // query on this field also sorts by createdAt, so one compound index
   // covers both instead of maintaining two indexes on every write.
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // Denormalized from User.email at creation time, so this backend can
+  // send the completion/failure email without a User model or lookup.
+  userEmail: String,
   title: String,
   originalName: String,
   isVideo: Boolean,

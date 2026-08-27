@@ -16,6 +16,12 @@ const meetingSchema = new mongoose.Schema({
   // query on this field also sorts by createdAt, so one compound index
   // covers both instead of maintaining two indexes on every write.
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  // Denormalized from User.email at creation time (in createUploadToken())
+  // so the backend can send the completion/failure notification email
+  // without its own User model or lookup, and so it's still available for
+  // the stale-job sweep's failures too, long after the UploadToken this
+  // meeting was created from is gone.
+  userEmail: String,
   title: String,
   originalName: String,
   isVideo: Boolean,

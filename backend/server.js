@@ -11,6 +11,7 @@ const { connectToDatabase } = require('./db');
 const Meeting = require('./models/Meeting');
 const UploadToken = require('./models/UploadToken');
 const { transcribeFile } = require('./services/deepgram');
+const { sendMeetingEmail } = require('./services/email');
 
 const PORT = process.env.PORT || 10000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -62,18 +63,19 @@ const upload = multer({
 async function sweepStaleJobs() {
   const cutoff = new Date(Date.now() - STALE_PROCESSING_MS);
   try {
-    const result = await Meeting.updateMany(
-      { status: 'processing', createdAt: { $lt: cutoff } },
-      {
-        $set: {
-          status: 'failed',
-          errorMessage: 'Transcription did not finish in time. Please try uploading again.'
-        }
-      }
-    );
-    if (result.modifiedCount) {
-      console.log(`Marked ${result.modifiedCount} stale processing job(s) as failed.`);
+    // find() + individual updates rather than updateMany(), since sending
+    // the failure email needs each meeting's userEmail - fine at this
+    // app's scale (stale jobs are rare; this isn't a hot path).
+    const staleMeetings = await Meeting.find({ status: 'processing', createdAt: { $lt: cutoff } });
+    if (!staleMeetings.length) return;
+
+    for (const meeting of staleMeetings) {
+      meeting.status = 'failed';
+      meeting.errorMessage = 'Transcription did not finish in time. Please try uploading again.';
+      await meeting.save();
+      await sendMeetingEmail(meeting.userEmail, meeting);
     }
+    console.log(`Marked ${staleMeetings.length} stale processing job(s) as failed.`);
   } catch (error) {
     console.error('Stale job sweep failed:', error);
   }
@@ -174,6 +176,7 @@ async function main() {
         meeting.utterances = result.utterances;
         meeting.status = 'complete';
         await meeting.save();
+        await sendMeetingEmail(meeting.userEmail, meeting);
       } catch (error) {
         console.error(error);
         const isDeepgramError = error.message?.startsWith('Deepgram API error');
@@ -182,6 +185,7 @@ async function main() {
           ? error.message
           : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
         await meeting.save().catch((saveError) => console.error(saveError));
+        await sendMeetingEmail(meeting.userEmail, meeting);
       }
     });
   });

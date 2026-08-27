@@ -4,6 +4,7 @@ import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import UploadToken from '@/app/lib/models/UploadToken';
 import Meeting from '@/app/lib/models/Meeting';
+import User from '@/app/lib/models/User';
 import { toSummary } from '@/app/lib/meetings';
 
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes: long enough to start an upload, short enough to bound exposure
@@ -29,9 +30,15 @@ export async function createUploadToken(fileName) {
 
   await connectToDatabase();
 
+  const user = await User.findById(userId).select('email').lean();
+  if (!user) {
+    return { error: 'Your session is no longer valid. Please log in again.' };
+  }
+
   const title = typeof fileName === 'string' && fileName.trim() ? fileName.trim() : undefined;
   const meeting = await Meeting.create({
     userId,
+    userEmail: user.email,
     title,
     originalName: title,
     speakerNames: {},

@@ -139,6 +139,45 @@ nothing ever runs the code that would set `status: 'failed'` in that case.
 left behind) plus on a `STALE_SWEEP_INTERVAL_MS` (5 minute) interval, so a
 hang doesn't need a restart to be noticed either.
 
+## Email notifications
+
+A meeting sends an email (via Resend) the moment its `status` leaves
+`'processing'`, so you don't have to keep a tab open watching for a job to
+finish. `Meeting.userEmail` is denormalized from `User.email` at creation
+time in `createUploadToken()`, since the backend has no `User` model of its
+own and the stale-job sweep needs it long after the originating
+`UploadToken` is gone.
+
+Every path that can set `status: 'processing'` to `'complete'` or
+`'failed'` sends this email, and there are genuinely two separate
+implementations of `sendMeetingEmail()` (`app/lib/email.js` on the
+frontend, `backend/services/email.js` on the backend) because failures can
+originate on either side:
+
+- **Backend** (`backend/server.js`): the ffmpeg/Deepgram success or failure
+  branch in `/api/transcribe`, and `sweepStaleJobs()` for a job whose
+  backend process died mid-work.
+- **Frontend** (`app/actions/meetings.js`): `markMeetingFailed()`, called
+  by `Dashboard.js` when the upload request itself never reaches the
+  backend at all (bad token, network drop, backend unreachable) - this
+  failure is caught entirely client-side and never touches
+  `backend/server.js`, so only the frontend can send this one.
+
+Both implementations are deliberately best-effort and can never throw: a
+broken Resend integration should never surface as a user-facing error for
+an unrelated action, and both no-op quietly (logging, not throwing) if
+`RESEND_API_KEY` isn't set, so email stays fully optional in any
+environment that hasn't configured it. Neither retries on failure (unlike
+`transcribeWithRetry` for Deepgram) - a missed notification email is a
+minor inconvenience, not a correctness problem, since the meeting's real
+status is always sitting in the database regardless of whether the email
+got through.
+
+Env vars: `RESEND_API_KEY`, `EMAIL_FROM` (must be `@` a domain verified in
+Resend) on both services; `FRONTEND_URL` on the backend and `APP_URL` on
+the frontend (same value, different names, since they're separate `.env`
+files) to build the link back to the meeting.
+
 ## Speaker merge
 
 Deepgram's diarization sometimes over-splits one person's voice into
@@ -263,6 +302,8 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 
 - `app/lib/db.js`: mongoose connection.
 - `app/lib/models/User.js`, `Meeting.js`, `Session.js`, `UploadToken.js`
+- `app/lib/email.js`: `sendMeetingEmail()`, the frontend half of email
+  notifications - see "Email notifications".
 - `app/lib/session.js`: cookie/session primitives (`createSession`,
   `getSessionUserId`, `deleteSession`).
 - `app/lib/dal.js`: `verifySession()`, the auth boundary.
@@ -285,6 +326,8 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - `backend/server.js`: the whole Express app (health check + `/api/transcribe`).
 - `backend/services/deepgram.js`: extraction + `transcribeWithRetry`, kept
   byte-for-byte equivalent in spirit to how it worked before the split.
+- `backend/services/email.js`: `sendMeetingEmail()`, the backend half of
+  email notifications - see "Email notifications".
 - `backend/uploads/`, `uploads/` (frontend, currently unused but kept for
   parity): scratch space, always cleaned up in a `finally`.
 
@@ -299,9 +342,10 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   its message is safe to show; log everything else server-side and return a
   generic message.
 - Secrets only via `.env` (frontend: `MONGODB_URI`,
-  `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`; backend: `DEEPGRAM_API_KEY`,
-  `MONGODB_URI`, `ALLOWED_ORIGINS`); each `.env.example` documents its
-  required vars with no values.
+  `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`, `RESEND_API_KEY`, `EMAIL_FROM`,
+  `APP_URL`; backend: `DEEPGRAM_API_KEY`, `MONGODB_URI`,
+  `ALLOWED_ORIGINS`, `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`); each
+  `.env.example` documents its required vars with no values.
 - Never build DOM content from user- or API-sourced data with `innerHTML` or
   `dangerouslySetInnerHTML`. This is React, so plain JSX children already
   escape correctly; don't introduce raw HTML injection points.

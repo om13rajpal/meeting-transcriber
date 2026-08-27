@@ -21,6 +21,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Merge speakers that diarization split apart (or that were otherwise miscounted) into one
 - Export a transcript as `.txt`, `.srt`, or `.vtt`
 - Shareable, read only links for individual meetings that can be revoked at any time
+- Email notification (via Resend) the moment a meeting finishes transcribing or fails, so you don't have to keep a tab open watching for it
 
 ## Tech stack
 
@@ -31,6 +32,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - shadcn/ui (built on Base UI) and Tailwind CSS v4 for the interface
 - Deepgram for speech to text
 - ffmpeg and ffprobe for audio extraction and normalization
+- Resend for outbound email notifications
 
 ## Requirements
 
@@ -38,6 +40,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - MongoDB running locally or a connection string to a hosted instance (for example MongoDB Atlas)
 - ffmpeg and ffprobe available on your PATH (only needed to run the backend locally; production uses the Dockerfile, which installs them)
 - A Deepgram API key
+- A Resend API key and a verified sending domain (optional - email notifications are skipped quietly if `RESEND_API_KEY` isn't set)
 - Docker, if you want to build the backend's production image locally
 
 ## Local setup
@@ -58,6 +61,7 @@ Fill in `.env`:
 - `MONGODB_URI`: same database the frontend uses, for example `mongodb://127.0.0.1:27017/meeting-transcriber`
 - `PORT`: defaults to `10000`
 - `ALLOWED_ORIGINS`: comma-separated origins allowed to call this backend directly from a browser, for example `http://localhost:3000`
+- `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL`: optional, for the completion/failure notification email; leave `RESEND_API_KEY` blank to skip it entirely
 
 ```
 npm start
@@ -76,6 +80,7 @@ Fill in `.env`:
 
 - `MONGODB_URI`: the same connection string as the backend
 - `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL`: where the backend is running, for example `http://localhost:10000`
+- `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`: optional, for the notification email sent when an upload fails before ever reaching the backend; leave `RESEND_API_KEY` blank to skip it entirely
 
 ```
 npm run dev
@@ -85,15 +90,15 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 
 ## Deployment
 
-- **Frontend on Vercel**: deploy the repository root as a standard Next.js project. Set `MONGODB_URI` and `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL` (the backend's public URL) as environment variables.
-- **Backend on Render**: create a Docker-based web service pointed at the `backend/` directory (Render's "Root Directory" setting). Set `DEEPGRAM_API_KEY`, `MONGODB_URI`, and `ALLOWED_ORIGINS` (the frontend's public URL) as environment variables. Render builds and runs `backend/Dockerfile`, which installs ffmpeg.
+- **Frontend on Vercel**: deploy the repository root as a standard Next.js project. Set `MONGODB_URI`, `NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL` (the backend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` (this app's own public URL) as environment variables.
+- **Backend on Render**: create a Docker-based web service pointed at the `backend/` directory (Render's "Root Directory" setting). Set `DEEPGRAM_API_KEY`, `MONGODB_URI`, `ALLOWED_ORIGINS` (the frontend's public URL), and optionally `RESEND_API_KEY`, `EMAIL_FROM`, `FRONTEND_URL` (this app's own public URL) as environment variables. Render builds and runs `backend/Dockerfile`, which installs ffmpeg.
 
 ## Project structure
 
 ```
 app/
   actions/            Server Actions: auth.js, meetings.js (rename, merge speakers, share links, delete), transcribe.js (token minting), search.js
-  lib/                 db.js, session.js, dal.js, meetings.js, models/
+  lib/                 db.js, session.js, dal.js, meetings.js, email.js, models/
   login/, signup/      Public auth pages
   meeting/[id]/         Meeting detail page (protected)
   share/[token]/        Public, read only shared meeting view
@@ -103,6 +108,7 @@ components/ui/         shadcn UI primitives
 backend/
   server.js             Express app: health check and POST /api/transcribe
   services/deepgram.js   ffmpeg extraction + Deepgram call with retry
+  services/email.js      Completion/failure notification email via Resend
   models/                Meeting.js and UploadToken.js, kept schema-identical to the frontend's copies
   Dockerfile              Installs ffmpeg, runs the service
 ```

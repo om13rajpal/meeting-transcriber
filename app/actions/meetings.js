@@ -3,6 +3,7 @@
 import crypto from 'crypto';
 import { verifySession } from '@/app/lib/dal';
 import { findOwnedMeeting, findOwnedMeetingLean, toDetail } from '@/app/lib/meetings';
+import { sendMeetingEmail } from '@/app/lib/email';
 
 // Read-only refetch for the meeting detail page's processing-status polling.
 // Uses the lean path since nothing here mutates the document.
@@ -99,6 +100,7 @@ export async function markMeetingFailed(id, message) {
   meeting.status = 'failed';
   meeting.errorMessage = typeof message === 'string' && message ? message : 'Upload failed. Please try again.';
   await meeting.save();
+  await sendMeetingEmail(meeting.userEmail, toDetail(meeting));
   return { ok: true };
 }
 
