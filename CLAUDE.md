@@ -47,16 +47,68 @@ ffmpeg-based video processing is a poor fit for serverless functions at all
    `${backendUrl}/api/transcribe` with the file and the token in one
    multipart form, bypassing this Next.js app entirely.
 3. The backend looks up the token (`findByIdAndDelete`, so it's consumed
-   immediately and can't be replayed), extracts the `userId`, runs the
-   ffmpeg + Deepgram pipeline, and writes the `Meeting` document straight to
-   MongoDB.
+   immediately and can't be replayed), extracts the `userId`, and creates
+   the `Meeting` document immediately with `status: 'processing'`, **before**
+   ffmpeg or Deepgram run. It responds `202` with `{ id }` right away, then
+   keeps running ffmpeg + Deepgram in the background on the same request
+   handler (Render is a normal long-lived process, unlike a serverless
+   function, so work after `res.json()` keeps running). See "Job status:
+   surviving reloads and upload failures" below for why this shape exists.
 4. The browser gets back `{ id }`, then just calls the normal
-   `searchMeetings()` Server Action to refresh the dashboard list.
+   `searchMeetings()` Server Action to refresh the dashboard list, where the
+   new meeting shows up with a "Transcribing..." row.
 
 The `UploadToken` model (`app/lib/models/UploadToken.js` here,
 `backend/models/UploadToken.js` on the backend) and the `Meeting` model
 must stay schema-identical between the two services since they share one
 MongoDB database. If you change one, change the other.
+
+## Job status: surviving reloads and upload failures
+
+`Meeting.status` is `'processing' | 'complete' | 'failed'` (plus
+`errorMessage` when failed). This is the entire mechanism behind reload and
+failure resilience, and it's deliberately just a DB field, not anything
+held in client or server memory:
+
+- The backend creates the `Meeting` row with `status: 'processing'` before
+  any ffmpeg/Deepgram work starts, so the job's existence and state live in
+  MongoDB from the first moment, not in the HTTP request/response cycle. A
+  dropped connection, a closed tab, or a page reload mid-upload can't lose
+  it, because nothing about resuming depends on the browser still being
+  connected.
+- On success the backend sets `status: 'complete'` and fills in the
+  transcript/utterances/duration fields. On failure it sets
+  `status: 'failed'` and a client-safe `errorMessage` (Deepgram errors pass
+  their message through since Deepgram's own errors are already safe to
+  show; anything else, including raw ffmpeg failures, collapses to a
+  generic message, per the no-internals-leaked rule below).
+- `Dashboard.js` and `MeetingDetail.js` each run a `useEffect` that polls
+  (`searchMeetings`/`getMeeting`) every 4 seconds **only while** a
+  `'processing'` row is present in their own state, and that check runs on
+  every mount, not just after an upload the same tab initiated. That's what
+  makes reload-resilience automatic: reload the dashboard while a job is
+  running, the server-rendered initial data already has `status:
+  'processing'` (nothing was lost), and the polling effect notices that and
+  starts on its own with zero client-side memory of the upload ever having
+  happened.
+- A `'processing'` or `'failed'` meeting can still be deleted. If a job is
+  deleted while the backend is still working on it, the backend's eventual
+  `meeting.save()` just matches zero documents and no-ops, no error, no
+  zombie record recreated, no crash.
+
+If you add a new failure path in `backend/server.js`, set `status: 'failed'`
+and a client-safe `errorMessage` on the way out, don't just `console.error`
+and leave the row stuck in `'processing'` forever.
+
+## Speaker merge
+
+Deepgram's diarization sometimes over-splits one person's voice into
+multiple speaker ids (or, rarer, merges two people into one). `mergeSpeakers`
+in `app/actions/meetings.js` rewrites `utterances[].speaker` for the merged-
+away ids onto the target id and drops their `speakerNames` entries. The UI
+is a small dialog in `MeetingDetail.js` (a "Keep as" `Select` plus checkboxes
+for the others), reachable from a "Merge speakers" button that only shows
+when there's more than one speaker.
 
 ## Stack (frontend)
 
@@ -128,6 +180,38 @@ in the browser during hydration, throwing a hydration mismatch. Always pass
 an explicit locale (e.g. `'en-US'`) in any Client Component that formats a
 date, time, or number that also gets server-rendered.
 
+## Database query patterns
+
+- `Meeting` has one compound index, `{ userId: 1, createdAt: -1 }`. Every
+  real query on this collection filters by `userId` and sorts by
+  `createdAt`, so one compound index covers both instead of maintaining a
+  separate standalone `userId` index. Don't add a standalone `userId` index
+  back; it would be redundant (a compound index's leading field already
+  serves lookups on that field alone) and just cost extra write overhead.
+- Read-only queries use `.lean()`: `listMeetings` and
+  `findOwnedMeetingLean` (used by both meeting page loads and the polling
+  `getMeeting` action). `.lean()` skips Mongoose document hydration (faster)
+  and returns plain objects with no circular parent references and no
+  Map-wrapping on `speakerNames`, which is what makes `toDetail`/`toSummary`
+  simple pass-throughs instead of needing manual `.map()`/
+  `Object.fromEntries()` gymnastics to survive the Server-to-Client
+  Component boundary (see "The Mongoose-to-Client-Component trap" below).
+  `findOwnedMeeting` (non-lean) still exists and is still what every
+  *mutating* Server Action uses, since those need a real document to call
+  `.save()`/`.markModified()`/Map methods on.
+- `listMeetings` excludes `utterances` (`.select('-utterances')`): the
+  dashboard list only ever shows a short preview, so there's no reason to
+  pull potentially large transcript-timing arrays over the wire for every
+  row.
+- The share page (`findMeetingByShareToken`) intentionally has **no**
+  time-based caching (no `revalidate`, no `unstable_cache`). Revoking a
+  share link needs to take effect immediately - that's a real security
+  guarantee this app makes ("Revoke" in the UI) - and caching this lookup
+  even briefly would mean a revoked link could keep working until the cache
+  expired. At this app's real scale (a single user's private meetings, not
+  public high-traffic content) the query is cheap enough that this
+  isn't a real performance tradeoff, just a correctness one.
+
 ## Sparse unique indexes need no `default`
 
 `Meeting.shareToken` and `UploadToken`'s own expiry pattern both rely on a
@@ -144,9 +228,11 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   `getSessionUserId`, `deleteSession`).
 - `app/lib/dal.js`: `verifySession()`, the auth boundary.
 - `app/lib/meetings.js`: `toSummary`/`toDetail` (plain-object conversion,
-  see above), `listMeetings` (search), `findOwnedMeeting` (ownership-scoped),
-  `findMeetingByShareToken` (public, unauthenticated lookup).
-- `app/actions/`: every Server Action (`auth.js`, `meetings.js`,
+  see above), `listMeetings` (search), `findOwnedMeeting` (ownership-scoped,
+  live document, for mutations), `findOwnedMeetingLean` (ownership-scoped,
+  read-only), `findMeetingByShareToken` (public, unauthenticated lookup).
+- `app/actions/`: every Server Action (`auth.js`, `meetings.js`
+  [`getMeeting`, title/speaker rename, `mergeSpeakers`, delete, share links],
   `transcribe.js` [token minting only], `search.js`).
 - `app/login/`, `app/signup/`, `app/meeting/[id]/`, `app/share/[token]/`:
   one folder per route; `page.js` is the Server Component (auth check + data

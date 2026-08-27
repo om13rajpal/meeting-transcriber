@@ -1,5 +1,5 @@
 import { verifySession } from '@/app/lib/dal';
-import { findOwnedMeeting, toDetail } from '@/app/lib/meetings';
+import { findOwnedMeetingLean, toDetail } from '@/app/lib/meetings';
 import { Button } from '@/components/ui/button';
 import MeetingDetail from './MeetingDetail';
 
@@ -9,7 +9,7 @@ export default async function MeetingPage({ params }) {
   const { id } = await params;
   const { userId } = await verifySession();
 
-  const meeting = await findOwnedMeeting(id, userId);
+  const meeting = await findOwnedMeetingLean(id, userId);
 
   if (!meeting) {
     return (

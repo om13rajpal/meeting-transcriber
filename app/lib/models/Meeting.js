@@ -12,7 +12,10 @@ const utteranceSchema = new mongoose.Schema(
 );
 
 const meetingSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  // Indexed via the compound index below, not standalone here - every real
+  // query on this field also sorts by createdAt, so one compound index
+  // covers both instead of maintaining two indexes on every write.
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   title: String,
   originalName: String,
   isVideo: Boolean,
@@ -25,7 +28,21 @@ const meetingSchema = new mongoose.Schema({
   // A default of null would put every un-shared meeting in the index as
   // shareToken: null and collide on the second one.
   shareToken: { type: String, index: true, unique: true, sparse: true },
+  // The record is created with status 'processing' the instant the backend
+  // accepts the upload, before ffmpeg/Deepgram ever run, and is updated in
+  // place when the job finishes or fails. This is what makes a page reload
+  // (or a dropped connection, or closing the tab) safe: the dashboard just
+  // reads live DB state, it never depends on the browser remembering an
+  // in-flight request. Defaults to 'complete' for backward compatibility
+  // with rows created before this field existed.
+  status: { type: String, enum: ['processing', 'complete', 'failed'], default: 'complete' },
+  errorMessage: String,
   createdAt: { type: Date, default: Date.now }
 });
+
+// Every dashboard load runs Meeting.find({ userId }).sort({ createdAt: -1 }).
+// A compound index lets MongoDB satisfy the filter and the sort from a
+// single index scan instead of scanning by userId then sorting in memory.
+meetingSchema.index({ userId: 1, createdAt: -1 });
 
 export default mongoose.models.Meeting || mongoose.model('Meeting', meetingSchema);

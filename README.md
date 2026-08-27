@@ -7,7 +7,7 @@ The app is two separately deployed services:
 - **Frontend**: a Next.js app (this repository's root) for auth, the dashboard, meeting history, search, and share links. Meant to run on Vercel.
 - **Backend** (`backend/`): a small Express service that handles file uploads, audio extraction with ffmpeg, and the Deepgram call. It exists as a separate service because Vercel's serverless functions cap request bodies at about 4.5MB, which a meeting recording will almost always exceed, and because ffmpeg needs a real filesystem and isn't available in that runtime. Meant to run on Render (or any host that supports a long-running Docker container).
 
-The browser uploads the recording directly to the backend, authorized by a short-lived, single-use token minted by the frontend, so the file itself never passes through Vercel.
+The browser uploads the recording directly to the backend, authorized by a short-lived, single-use token minted by the frontend, so the file itself never passes through Vercel. The backend responds as soon as the job is recorded in MongoDB and keeps transcribing in the background; the dashboard and meeting page show a "Transcribing..." state and poll until it finishes, so a page reload or a dropped connection during transcription never loses the job.
 
 ## Features
 
@@ -18,6 +18,7 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Per user meeting history with a dashboard and full text search across titles and transcripts
 - Editable meeting titles and per speaker renaming, both saved to the database
 - Speaker diarized transcript view alongside a plain text view
+- Merge speakers that diarization split apart (or that were otherwise miscounted) into one
 - Export a transcript as `.txt`, `.srt`, or `.vtt`
 - Shareable, read only links for individual meetings that can be revoked at any time
 
@@ -91,7 +92,7 @@ Open `http://localhost:3000`, sign up, and upload a recording.
 
 ```
 app/
-  actions/            Server Actions: auth.js, meetings.js, transcribe.js (token minting), search.js
+  actions/            Server Actions: auth.js, meetings.js (rename, merge speakers, share links, delete), transcribe.js (token minting), search.js
   lib/                 db.js, session.js, dal.js, meetings.js, models/
   login/, signup/      Public auth pages
   meeting/[id]/         Meeting detail page (protected)

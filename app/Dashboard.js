@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2 } from 'lucide-react';
+import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { createUploadToken } from '@/app/actions/transcribe';
 import { deleteMeeting } from '@/app/actions/meetings';
@@ -90,6 +90,31 @@ export default function Dashboard({ userEmail, initialMeetings }) {
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [, startLogoutTransition] = useTransition();
 
+  // Polls while any meeting is still 'processing', so a job kicked off by
+  // this tab (or one still running when the page was reloaded, since status
+  // lives in the database, not component state) always resolves to
+  // 'complete'/'failed' without the user having to refresh manually. Runs
+  // on every meetings/searchQuery change but only does anything when a
+  // processing row actually exists.
+  useEffect(() => {
+    if (!meetings.some((m) => m.status === 'processing')) return undefined;
+
+    const interval = window.setInterval(async () => {
+      const refreshed = await searchMeetings(searchQuery);
+      setMeetings((prev) => {
+        const wasProcessing = new Set(prev.filter((m) => m.status === 'processing').map((m) => m.id));
+        for (const m of refreshed) {
+          if (!wasProcessing.has(m.id)) continue;
+          if (m.status === 'complete') toast.success(`"${m.title}" finished transcribing.`);
+          else if (m.status === 'failed') toast.error(`"${m.title}" failed: ${m.errorMessage || 'unknown error'}`);
+        }
+        return refreshed;
+      });
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [meetings, searchQuery]);
+
   function selectFile(file) {
     if (!file) return;
     setSelectedFile(file);
@@ -142,8 +167,14 @@ export default function Dashboard({ userEmail, initialMeetings }) {
         return;
       }
 
+      // The backend responds as soon as the job is created, before ffmpeg or
+      // Deepgram have run - transcription continues in the background, so
+      // the new meeting shows up below with status 'processing' and the
+      // polling effect picks it up from there. This also means the upload
+      // step itself feels much faster, since the user isn't stuck waiting
+      // for the whole pipeline before getting any feedback.
       resetSelection();
-      toast.success('Transcription complete.');
+      toast.success('Upload received. Transcribing in the background.');
       const refreshed = await searchMeetings(searchQuery);
       setMeetings(refreshed);
     } catch (err) {
@@ -309,7 +340,19 @@ export default function Dashboard({ userEmail, initialMeetings }) {
                         formatDate(meeting.createdAt)
                       ].filter(Boolean).join(' · ')}
                     </div>
-                    <div className="mt-1 truncate text-sm text-muted-foreground">{meeting.preview}</div>
+                    {meeting.status === 'processing' ? (
+                      <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Loader2 className="size-3.5 animate-spin" />
+                        Transcribing&hellip;
+                      </div>
+                    ) : meeting.status === 'failed' ? (
+                      <div className="mt-1 flex items-center gap-1.5 truncate text-sm text-destructive">
+                        <AlertCircle className="size-3.5 shrink-0" />
+                        <span className="truncate">{meeting.errorMessage || 'Transcription failed.'}</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1 truncate text-sm text-muted-foreground">{meeting.preview}</div>
+                    )}
                   </div>
                   <Button
                     variant="ghost"

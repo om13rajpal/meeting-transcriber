@@ -1,18 +1,21 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Download, Share2, Trash2, Link2, X } from 'lucide-react';
+import { Copy, Download, Share2, Trash2, Link2, X, Loader2, AlertCircle, Users } from 'lucide-react';
 import {
+  getMeeting,
   updateMeetingTitle,
   updateSpeakerName,
+  mergeSpeakers,
   deleteMeeting,
   createShareLink,
   revokeShareLink
 } from '@/app/actions/meetings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -78,11 +81,39 @@ export default function MeetingDetail({ id, initialMeeting }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState(null);
+  const [mergeSources, setMergeSources] = useState(new Set());
+  const [merging, setMerging] = useState(false);
+
+  // The backend responds before transcription finishes, so a freshly
+  // uploaded meeting (or one still processing on reload, since status lives
+  // in the database) needs to poll until the job resolves.
+  useEffect(() => {
+    if (meeting.status !== 'processing') return undefined;
+
+    const interval = window.setInterval(async () => {
+      const result = await getMeeting(id);
+      if (result.meeting) {
+        setMeeting(result.meeting);
+        if (result.meeting.status === 'complete') toast.success('Transcription finished.');
+        else if (result.meeting.status === 'failed') {
+          toast.error(`Transcription failed: ${result.meeting.errorMessage || 'unknown error'}`);
+        }
+      }
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [id, meeting.status]);
 
   const lastTranscript = meeting.transcript || '(no speech detected)';
   const speakerNames = meeting.speakerNames || {};
   const currentGroups = useMemo(() => groupUtterances(meeting.utterances || []), [meeting.utterances]);
-  const speakerCount = useMemo(() => new Set(currentGroups.map((g) => g.speaker)).size, [currentGroups]);
+  const speakerIds = useMemo(
+    () => Array.from(new Set(currentGroups.map((g) => g.speaker))).sort((a, b) => a - b),
+    [currentGroups]
+  );
+  const speakerCount = speakerIds.length;
   const wordCount = lastTranscript.trim() ? lastTranscript.trim().split(/\s+/).length : 0;
 
   const speakerLabel = (speakerId) => speakerNames[speakerId] || `Speaker ${speakerId + 1}`;
@@ -215,6 +246,35 @@ export default function MeetingDetail({ id, initialMeeting }) {
     }
   }
 
+  function openMergeDialog() {
+    setMergeTarget(speakerIds[0] ?? null);
+    setMergeSources(new Set());
+    setMergeOpen(true);
+  }
+
+  function toggleMergeSource(speakerId) {
+    setMergeSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(speakerId)) next.delete(speakerId);
+      else next.add(speakerId);
+      return next;
+    });
+  }
+
+  async function confirmMerge() {
+    if (mergeTarget == null || mergeSources.size === 0) return;
+    setMerging(true);
+    const result = await mergeSpeakers(id, Array.from(mergeSources), mergeTarget);
+    setMerging(false);
+    if (result.meeting) {
+      setMeeting(result.meeting);
+      setMergeOpen(false);
+      toast.success('Speakers merged.');
+    } else {
+      toast.error(result.error || 'Could not merge speakers.');
+    }
+  }
+
   async function confirmDelete() {
     setDeleteOpen(false);
     setDeleting(true);
@@ -258,6 +318,29 @@ export default function MeetingDetail({ id, initialMeeting }) {
         {meeting.title}
       </h1>
 
+      {meeting.status === 'processing' ? (
+        <Card className="border-dashed py-14 text-center shadow-none">
+          <CardContent className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Loader2 className="size-6 animate-spin" />
+            <p>Transcribing&hellip; this can take a few minutes depending on the recording's length.</p>
+            <p className="text-xs">This page updates automatically, no need to refresh.</p>
+            <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+              <Trash2 /> Cancel &amp; delete
+            </Button>
+          </CardContent>
+        </Card>
+      ) : meeting.status === 'failed' ? (
+        <Card className="border-dashed py-14 text-center shadow-none">
+          <CardContent className="flex flex-col items-center gap-3">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-destructive">{meeting.errorMessage || 'Transcription failed.'}</p>
+            <p className="text-sm text-muted-foreground">Delete this and try uploading the recording again.</p>
+            <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+              <Trash2 /> Delete
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
       <Card className="gap-0 py-0 shadow-none">
         <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -289,6 +372,11 @@ export default function MeetingDetail({ id, initialMeeting }) {
         <div className="flex items-center justify-between gap-3 px-4 pt-3">
           <p className="text-xs text-muted-foreground">{metaLine}</p>
           <div className="flex shrink-0 gap-2">
+            {speakerCount > 1 && (
+              <Button variant="outline" size="sm" onClick={openMergeDialog}>
+                <Users /> Merge speakers
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 /> Share
             </Button>
@@ -343,6 +431,7 @@ export default function MeetingDetail({ id, initialMeeting }) {
           </Tabs>
         </CardContent>
       </Card>
+      )}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
@@ -366,6 +455,72 @@ export default function MeetingDetail({ id, initialMeeting }) {
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button variant="destructive" onClick={confirmRevokeShare}>Revoke</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mergeOpen} onOpenChange={setMergeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge speakers</DialogTitle>
+            <DialogDescription>
+              If Deepgram split one person's voice into multiple speakers, merge them here. Choose which
+              speaker to keep, then check the others to fold into it.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="merge-keep-as">Keep as</Label>
+              <Select
+                value={mergeTarget != null ? String(mergeTarget) : ''}
+                onValueChange={(v) => {
+                  const next = Number(v);
+                  setMergeTarget(next);
+                  setMergeSources((prev) => {
+                    if (!prev.has(next)) return prev;
+                    const copy = new Set(prev);
+                    copy.delete(next);
+                    return copy;
+                  });
+                }}
+              >
+                <SelectTrigger id="merge-keep-as" className="w-full">
+                  <SelectValue>{(value) => (value != null ? speakerLabel(Number(value)) : '')}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {speakerIds.map((sid) => (
+                    <SelectItem key={sid} value={String(sid)}>{speakerLabel(sid)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Merge into it</Label>
+              {speakerIds.filter((sid) => sid !== mergeTarget).map((sid) => (
+                <label key={sid} className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent/40">
+                  <input
+                    type="checkbox"
+                    checked={mergeSources.has(sid)}
+                    onChange={() => toggleMergeSource(sid)}
+                    className="size-4 accent-primary"
+                  />
+                  {speakerLabel(sid)}
+                </label>
+              ))}
+              {speakerIds.filter((sid) => sid !== mergeTarget).length === 0 && (
+                <p className="text-sm text-muted-foreground">No other speakers to merge.</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button onClick={confirmMerge} disabled={merging || mergeSources.size === 0}>
+              {merging && <Loader2 className="animate-spin" />}
+              Merge
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

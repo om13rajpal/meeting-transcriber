@@ -2,7 +2,18 @@
 
 import crypto from 'crypto';
 import { verifySession } from '@/app/lib/dal';
-import { findOwnedMeeting, toDetail } from '@/app/lib/meetings';
+import { findOwnedMeeting, findOwnedMeetingLean, toDetail } from '@/app/lib/meetings';
+
+// Read-only refetch for the meeting detail page's processing-status polling.
+// Uses the lean path since nothing here mutates the document.
+export async function getMeeting(id) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeetingLean(id, userId);
+  if (!meeting) {
+    return { error: 'Meeting not found.' };
+  }
+  return { meeting: toDetail(meeting) };
+}
 
 export async function updateMeetingTitle(id, title) {
   const { userId } = await verifySession();
@@ -38,6 +49,36 @@ export async function updateSpeakerName(id, speakerId, name) {
   meeting.markModified('speakerNames');
   await meeting.save();
 
+  return { meeting: toDetail(meeting) };
+}
+
+// Deepgram's diarization sometimes over-splits a single speaker into
+// multiple speaker ids (or, less often, merges two people into one). This
+// folds every utterance and speaker name for `fromSpeakerIds` into
+// `toSpeakerId`, so a user who notices "4 speakers" but only 2 people
+// actually spoke can fix it without re-uploading.
+export async function mergeSpeakers(id, fromSpeakerIds, toSpeakerId) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeeting(id, userId);
+  if (!meeting) {
+    return { error: 'Meeting not found.' };
+  }
+
+  const target = Number(toSpeakerId);
+  const sources = new Set((fromSpeakerIds || []).map(Number).filter((n) => Number.isInteger(n) && n !== target));
+  if (!Number.isInteger(target) || sources.size === 0) {
+    return { error: 'Select at least one speaker to merge.' };
+  }
+
+  meeting.utterances.forEach((u) => {
+    if (sources.has(u.speaker)) u.speaker = target;
+  });
+  meeting.markModified('utterances');
+
+  sources.forEach((speakerId) => meeting.speakerNames.delete(String(speakerId)));
+  meeting.markModified('speakerNames');
+
+  await meeting.save();
   return { meeting: toDetail(meeting) };
 }
 

@@ -23,16 +23,12 @@ export default async function SharePage({ params }) {
             isVideo: meeting.isVideo,
             durationSeconds: meeting.durationSeconds,
             transcript: meeting.transcript,
-            // Plain objects only: Mongoose subdocuments carry a circular
-            // reference back to their parent and can't cross the
-            // Server-to-Client Component boundary as-is.
-            utterances: (meeting.utterances || []).map((u) => ({
-              speaker: u.speaker,
-              start: u.start,
-              end: u.end,
-              transcript: u.transcript
-            })),
-            speakerNames: Object.fromEntries(meeting.speakerNames || [])
+            // findMeetingByShareToken uses .lean(), so utterances and
+            // speakerNames already arrive as plain objects/arrays with no
+            // Mongoose document wrapper - no mapping needed to cross the
+            // Server-to-Client Component boundary safely.
+            utterances: meeting.utterances || [],
+            speakerNames: meeting.speakerNames || {}
           }}
         />
       ) : (

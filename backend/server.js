@@ -87,28 +87,48 @@ async function main() {
         return res.status(401).json({ error: 'This upload link has expired. Please try again.' });
       }
 
+      // Create the durable record before any ffmpeg/Deepgram work starts.
+      // From this point on, the job's state lives in the database, not in
+      // this request/response cycle - a reload, a dropped connection, or
+      // the browser tab closing can't lose it.
+      let meeting;
       try {
-        const result = await transcribeFile(req.file.path);
-
-        const meeting = await Meeting.create({
+        meeting = await Meeting.create({
           userId: tokenDoc.userId,
           title: req.file.originalname,
           originalName: req.file.originalname,
-          isVideo: result.isVideo,
-          durationSeconds: result.durationSeconds,
-          transcript: result.transcript,
-          utterances: result.utterances,
-          speakerNames: {}
+          speakerNames: {},
+          status: 'processing'
         });
+      } catch (error) {
+        console.error(error);
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(500).json({ error: 'Could not start transcription.' });
+      }
 
-        res.status(200).json({ id: String(meeting._id) });
+      // Respond immediately rather than making the client hold this
+      // connection open for the whole pipeline. Render runs a normal
+      // long-lived process (unlike a serverless function, which would be
+      // frozen once a response is sent), so the work below keeps running
+      // regardless of whether the client is still connected.
+      res.status(202).json({ id: String(meeting._id) });
+
+      try {
+        const result = await transcribeFile(req.file.path);
+        meeting.isVideo = result.isVideo;
+        meeting.durationSeconds = result.durationSeconds;
+        meeting.transcript = result.transcript;
+        meeting.utterances = result.utterances;
+        meeting.status = 'complete';
+        await meeting.save();
       } catch (error) {
         console.error(error);
         const isDeepgramError = error.message?.startsWith('Deepgram API error');
-        const clientMessage = error.clientSafe || isDeepgramError
+        meeting.status = 'failed';
+        meeting.errorMessage = error.clientSafe || isDeepgramError
           ? error.message
           : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
-        res.status(500).json({ error: clientMessage });
+        await meeting.save().catch((saveError) => console.error(saveError));
       }
     });
   });
