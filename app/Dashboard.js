@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2 } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
-import { uploadAndTranscribe } from '@/app/actions/transcribe';
+import { createUploadToken } from '@/app/actions/transcribe';
 import { deleteMeeting } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
 import { Button } from '@/components/ui/button';
@@ -118,12 +118,27 @@ export default function Dashboard({ userEmail, initialMeetings }) {
     }, 1000);
 
     try {
+      // The token authorizes one upload; the file itself goes straight from
+      // this browser to the transcription backend, never through Vercel's
+      // serverless functions, which cap request bodies at ~4.5MB.
+      const tokenResult = await createUploadToken();
+      if (tokenResult.error) {
+        toast.error(tokenResult.error);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('token', tokenResult.token);
 
-      const result = await uploadAndTranscribe(formData);
-      if (result.error) {
-        toast.error(result.error);
+      const uploadResponse = await fetch(`${tokenResult.backendUrl}/api/transcribe`, {
+        method: 'POST',
+        body: formData
+      });
+      const result = await uploadResponse.json().catch(() => ({}));
+
+      if (!uploadResponse.ok) {
+        toast.error(result.error || 'Something went wrong. Please try again.');
         return;
       }
 

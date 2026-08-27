@@ -1,0 +1,110 @@
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const { connectToDatabase } = require('./db');
+const Meeting = require('./models/Meeting');
+const UploadToken = require('./models/UploadToken');
+const { transcribeFile } = require('./services/deepgram');
+
+const PORT = process.env.PORT || 10000;
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
+
+// Comma-separated list of origins allowed to call this backend directly
+// from the browser (the Vercel-hosted frontend, plus localhost for dev).
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${path.extname(file.originalname) || ''}`)
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_UPLOAD_BYTES }
+});
+
+async function main() {
+  await connectToDatabase();
+
+  const app = express();
+
+  app.use(cors({
+    origin: allowedOrigins.length ? allowedOrigins : false,
+    methods: ['POST', 'GET', 'OPTIONS']
+  }));
+
+  app.get('/', (req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
+  app.post('/api/transcribe', (req, res) => {
+    upload.single('file')(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || 'Upload failed.' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+      }
+
+      // The token is a required text field alongside the file in the same
+      // multipart form. It's minted by the Next.js app (already behind a
+      // real session) and authorizes exactly one upload for one user.
+      const token = req.body.token;
+      if (!token) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(401).json({ error: 'Missing upload authorization.' });
+      }
+
+      const tokenDoc = await UploadToken.findByIdAndDelete(token).catch(() => null);
+      if (!tokenDoc) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(401).json({ error: 'This upload link has expired. Please try again.' });
+      }
+
+      try {
+        const result = await transcribeFile(req.file.path);
+
+        const meeting = await Meeting.create({
+          userId: tokenDoc.userId,
+          title: req.file.originalname,
+          originalName: req.file.originalname,
+          isVideo: result.isVideo,
+          durationSeconds: result.durationSeconds,
+          transcript: result.transcript,
+          utterances: result.utterances,
+          speakerNames: {}
+        });
+
+        res.status(200).json({ id: String(meeting._id) });
+      } catch (error) {
+        console.error(error);
+        const isDeepgramError = error.message?.startsWith('Deepgram API error');
+        const clientMessage = error.clientSafe || isDeepgramError
+          ? error.message
+          : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
+        res.status(500).json({ error: clientMessage });
+      }
+    });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`Transcription backend running on port ${PORT}`);
+  });
+}
+
+main().catch((error) => {
+  console.error('Failed to start the server:', error);
+  process.exit(1);
+});

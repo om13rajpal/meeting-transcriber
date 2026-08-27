@@ -1,6 +1,5 @@
-import 'server-only';
-import fs from 'fs';
-import { execFile } from 'child_process';
+const fs = require('fs');
+const { execFile } = require('child_process');
 
 const fsp = fs.promises;
 
@@ -117,13 +116,13 @@ async function transcribeWithRetry(url, headers, body) {
 // video/audio streams, normalize to mono 16kHz mp3, guard against
 // Deepgram's payload size limit, call Deepgram, and parse the response.
 // Always cleans up the uploaded and normalized temp files, even on failure.
-export async function transcribeFile(uploadedPath) {
+async function transcribeFile(uploadedPath) {
   let normalizedPath = null;
 
   try {
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
-      throw new Error('Server is missing DEEPGRAM_API_KEY. Add it to .env and restart the server.');
+      throw new Error('Server is missing DEEPGRAM_API_KEY.');
     }
 
     const isVideo = await hasVideoStream(uploadedPath);
@@ -180,3 +179,5 @@ export async function transcribeFile(uploadedPath) {
     ]);
   }
 }
+
+module.exports = { transcribeFile };
