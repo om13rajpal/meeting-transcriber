@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Download, Share2, Trash2, Link2, X, Loader2, Users, RotateCw, Tag, Plus } from 'lucide-react';
+import { Copy, Download, Share2, Trash2, X, Loader2, Users, Tag, Plus, Mail, Webhook as WebhookIcon } from 'lucide-react';
 import {
   getMeeting,
   updateMeetingTitle,
@@ -21,6 +21,7 @@ import StatusPill from '@/components/brand/StatusPill';
 import SpeakerTag from '@/components/brand/SpeakerTag';
 import TimeRail from '@/components/brand/TimeRail';
 import MetaLine from '@/components/brand/MetaLine';
+import NotificationBadges from '@/components/brand/NotificationBadges';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +30,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverDescription
+} from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
@@ -80,6 +89,7 @@ function vttTimestamp(sec) {
 }
 
 const MODEL_LABELS = { 'nova-3': 'Nova-3' };
+const NOTIFICATION_FORMAT_LABELS = { generic: 'Generic JSON', discord: 'Discord', slack: 'Slack', teams: 'Microsoft Teams' };
 
 function formatCost(costUsd) {
   if (typeof costUsd !== 'number') return null;
@@ -170,6 +180,25 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
       ? `${formatCost(meeting.deepgramCostUsd)}${meeting.deepgramCostExact ? '' : ' estimated'}`
       : null
   ].filter(Boolean);
+
+  // One flat list of { icon, label, attemptedAt, ok } regardless of channel,
+  // so NotificationBadges never has to know email and webhooks are shaped
+  // differently server-side.
+  const notificationItems = meeting.notifications
+    ? [
+        ...(meeting.notifications.email
+          ? [{ icon: Mail, label: 'Email', attemptedAt: meeting.notifications.email.attemptedAt, ok: meeting.notifications.email.ok }]
+          : []),
+        ...(meeting.notifications.webhooks || []).map((w) => ({
+          icon: WebhookIcon,
+          label: NOTIFICATION_FORMAT_LABELS[w.format] || w.format,
+          attemptedAt: w.attemptedAt,
+          ok: w.ok
+        }))
+      ]
+    : [];
+
+  const shareUrl = typeof window !== 'undefined' && meeting.shareToken ? `${window.location.origin}/share/${meeting.shareToken}` : '';
 
   async function commitTags(nextTags) {
     setTagSaving(true);
@@ -395,10 +424,16 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
       />
 
       <main className="mx-auto px-6 py-8" style={{ maxWidth: 'var(--cr-measure-app)' }}>
+        {/* Not uppercase, and a size ceiling well under --cr-type-h2: unlike
+            "Past Meetings" (copy this app controls), this title is often a
+            raw, unrenamed filename, underscores, extension and all. Shouting
+            an arbitrary filename in 30px uppercase display type reads as
+            broken, not bold. Big Shoulders still carries the page-title
+            weight in mixed case, it just stops fighting the content. */}
         <h1
           ref={titleRef}
-          className="font-display -ml-2 mb-5 cursor-text rounded-[var(--cr-radius-md)] border border-transparent px-2 py-1 break-words uppercase outline-none transition-colors duration-[var(--cr-dur-hover)] ease-[var(--cr-ease-out)] hover:border-[var(--cr-rule-soft)] hover:bg-[var(--cr-ink-raised)] focus:border-primary focus:bg-[var(--cr-ink-raised)] focus-visible:ring-2 focus-visible:ring-ring/50"
-          style={{ fontSize: 'var(--cr-type-h2)', fontWeight: 'var(--cr-weight-heavy)' }}
+          className="font-display -ml-2 mb-5 cursor-text rounded-[var(--cr-radius-md)] border border-transparent px-2 py-1 break-words outline-none transition-colors duration-[var(--cr-dur-hover)] ease-[var(--cr-ease-out)] hover:border-[var(--cr-rule-soft)] hover:bg-[var(--cr-ink-raised)] focus:border-primary focus:bg-[var(--cr-ink-raised)] focus-visible:ring-2 focus-visible:ring-ring/50"
+          style={{ fontSize: 'clamp(19px, 2.4vw, 25px)', fontWeight: 'var(--cr-weight-heavy)', lineHeight: 1.25 }}
           contentEditable
           suppressContentEditableWarning
           spellCheck={false}
@@ -437,7 +472,7 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
               <StatusPill status="failed" />
               <p style={{ color: 'var(--cr-danger)' }}>{meeting.errorMessage || 'Transcription failed.'}</p>
               <p className="text-sm text-muted-foreground">Delete this and try uploading the recording again.</p>
-              <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
+              <NotificationBadges items={notificationItems} onResend={handleResendNotifications} resending={resending} />
               <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
                 <Trash2 /> Delete
               </Button>
@@ -472,28 +507,65 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
             </div>
           </CardHeader>
 
-          <div className="flex items-center justify-between gap-3 px-4 pt-3">
-            <MetaLine>{metaParts.join(' · ')}</MetaLine>
-            <div className="flex shrink-0 gap-2">
+          {/* One toolbar row: everything here is either an action (button),
+              a status (badge, detail on hover), or a destination (the share
+              popover, anchored to its own trigger so it never pushes the
+              transcript down). Nothing here gets its own orphaned row. */}
+          <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-3">
+            <MetaLine className="pt-1.5">{metaParts.join(' · ')}</MetaLine>
+            <div className="flex shrink-0 items-center gap-2">
+              <NotificationBadges items={notificationItems} onResend={handleResendNotifications} resending={resending} />
               {speakerCount > 1 && (
                 <Button variant="outline" size="sm" onClick={openMergeDialog}>
                   <Users /> Merge speakers
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={handleShare}>
-                <Share2 /> Share
-              </Button>
+              <Popover>
+                <PopoverTrigger
+                  render={
+                    <Button variant="outline" size="sm">
+                      <Share2 /> Share
+                    </Button>
+                  }
+                />
+                <PopoverContent align="end" className="w-80 gap-3">
+                  {meeting.shareToken ? (
+                    <>
+                      <PopoverHeader>
+                        <PopoverTitle>Share link</PopoverTitle>
+                        <PopoverDescription>Anyone with this link can view a read-only transcript, no account needed.</PopoverDescription>
+                      </PopoverHeader>
+                      <div className="flex items-center gap-2">
+                        <Input readOnly className="h-8 flex-1 font-mono text-xs" value={shareUrl} />
+                        <Button variant="outline" size="sm" onClick={handleCopyShareLink}>Copy</Button>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="self-start text-muted-foreground hover:text-destructive"
+                        onClick={() => setRevokeOpen(true)}
+                      >
+                        Revoke link
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <PopoverHeader>
+                        <PopoverTitle>Share this meeting</PopoverTitle>
+                        <PopoverDescription>Creates a public, read-only link to the transcript. Anyone with it can view it.</PopoverDescription>
+                      </PopoverHeader>
+                      <Button size="sm" className="self-start" onClick={handleShare}>Create share link</Button>
+                    </>
+                  )}
+                </PopoverContent>
+              </Popover>
               <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} disabled={deleting}>
                 <Trash2 /> Delete
               </Button>
             </div>
           </div>
 
-          <div className="px-4 pt-2">
-            <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2.5">
+          <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
             <Tag className="size-3.5 shrink-0 text-muted-foreground" />
             {(meeting.tags || []).map((tag) => (
               <Badge key={tag} variant="secondary" className="gap-1 pr-1">
@@ -525,22 +597,6 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
               )}
             </form>
           </div>
-
-          {meeting.shareToken && (
-            <div className="mx-4 mt-3 flex items-center gap-2 rounded-[var(--cr-radius-md)] border p-2.5" style={{ background: 'var(--cr-ink-raised)' }}>
-              <Link2 className="ml-1 size-4 shrink-0 text-muted-foreground" />
-              <Input
-                readOnly
-                className="h-8 flex-1 text-muted-foreground"
-                value={typeof window !== 'undefined' ? `${window.location.origin}/share/${meeting.shareToken}` : ''}
-              />
-              <Button variant="outline" size="sm" onClick={handleCopyShareLink}>Copy link</Button>
-              <Button variant="ghost" size="icon-sm" onClick={() => setRevokeOpen(true)}>
-                <X />
-                <span className="sr-only">Revoke</span>
-              </Button>
-            </div>
-          )}
 
           <CardContent className="px-4 pt-4 pb-4">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -672,57 +728,6 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-const NOTIFICATION_FORMAT_LABELS = { generic: 'Generic JSON', discord: 'Discord', slack: 'Slack', teams: 'Microsoft Teams' };
-
-// Delivery status per notification channel (see Meeting.emailLastAttemptOk
-// / userWebhooks[].lastAttemptOk), so a silently failed email/webhook is
-// visible right here instead of requiring a database lookup to notice -
-// plus a manual resend for exactly that situation.
-function NotificationsPanel({ notifications, onResend, resending }) {
-  if (!notifications) return null;
-  const webhooks = notifications.webhooks || [];
-  if (!notifications.email && webhooks.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      {notifications.email && <StatusBadge label="Email" attemptedAt={notifications.email.attemptedAt} ok={notifications.email.ok} />}
-      {webhooks.map((w, i) => (
-        <StatusBadge key={i} label={NOTIFICATION_FORMAT_LABELS[w.format] || w.format} attemptedAt={w.attemptedAt} ok={w.ok} />
-      ))}
-      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground" onClick={onResend} disabled={resending}>
-        {resending ? <Loader2 className="size-3 animate-spin" /> : <RotateCw className="size-3" />}
-        Resend
-      </Button>
-    </div>
-  );
-}
-
-function StatusBadge({ label, attemptedAt, ok }) {
-  if (!attemptedAt) {
-    return <MetaLine as="span">{label}: not sent yet</MetaLine>;
-  }
-  if (ok) {
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 rounded-[var(--cr-radius-pill)] px-[9px] py-[3px] font-mono"
-        style={{ background: 'var(--cr-tint-green)', color: 'var(--cr-success)', fontSize: 'var(--cr-type-tiny)' }}
-      >
-        <span className="size-[6px] rounded-full" style={{ background: 'currentColor' }} />
-        {label}
-      </span>
-    );
-  }
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-[var(--cr-radius-pill)] px-[9px] py-[3px] font-mono"
-      style={{ background: 'var(--cr-tint-red)', color: 'var(--cr-danger)', fontSize: 'var(--cr-type-tiny)' }}
-    >
-      <span className="size-[6px] rounded-full" style={{ background: 'currentColor' }} />
-      {label} failed
-    </span>
   );
 }
 

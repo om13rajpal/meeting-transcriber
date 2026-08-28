@@ -164,7 +164,12 @@
   --cr-space-10: 120px;
 
   --cr-measure:      1180px; /* landing content column                     */
-  --cr-measure-app:  1040px; /* authenticated app column                   */
+  /* 1040px floor matches everything already verified at laptop widths
+     (1280-1440px). Grows past that only on genuinely wide displays, so a
+     27" monitor doesn't leave half the screen as a dead void while a
+     14" laptop is untouched, clamp's floor binds until the viewport
+     itself is wider than ~1677px. */
+  --cr-measure-app: clamp(1040px, 62vw, 1320px);
   --cr-measure-read:  460px; /* max line length for lede / body prose      */
 
   /* ── stroke ──────────────────────────────────────────────────────────
