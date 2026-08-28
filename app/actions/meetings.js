@@ -2,6 +2,8 @@
 
 import crypto from 'crypto';
 import { verifySession } from '@/app/lib/dal';
+import { connectToDatabase } from '@/app/lib/db';
+import Meeting from '@/app/lib/models/Meeting';
 import { findOwnedMeeting, findOwnedMeetingLean, toDetail } from '@/app/lib/meetings';
 import { sendMeetingEmail } from '@/app/lib/email';
 import { sendMeetingWebhook } from '@/app/lib/webhook';
@@ -55,6 +57,35 @@ export async function updateMeetingTags(id, tags) {
   await meeting.save();
 
   return { meeting: toDetail(meeting) };
+}
+
+// Adds one tag to several meetings at once, for the dashboard's multi-select
+// bulk action - deliberately just "add", not a full replace like
+// updateMeetingTags above, since bulk-editing N meetings' existing tag
+// lists in one step isn't a real use case here (see "Meeting tags" in
+// CLAUDE.md: simple organization, not a workflow builder). Loops with
+// individual .save() calls rather than an updateMany() - each meeting's
+// existing tags differ, so the dedupe/cap logic has to run per document.
+export async function addTagToMeetings(ids, tag) {
+  const { userId } = await verifySession();
+  const trimmedTag = typeof tag === 'string' ? tag.trim().slice(0, MAX_TAG_LENGTH) : '';
+  if (!trimmedTag) {
+    return { error: 'Tag cannot be empty.' };
+  }
+
+  const idList = Array.isArray(ids) ? ids.filter((id) => typeof id === 'string' && id) : [];
+  if (!idList.length) {
+    return { error: 'No meetings selected.' };
+  }
+
+  await connectToDatabase();
+  const meetings = await Meeting.find({ _id: { $in: idList }, userId });
+  for (const meeting of meetings) {
+    meeting.tags = Array.from(new Set([...(meeting.tags || []), trimmedTag])).slice(0, MAX_TAGS);
+    await meeting.save();
+  }
+
+  return { ok: true, count: meetings.length };
 }
 
 export async function updateSpeakerName(id, speakerId, name) {
@@ -187,6 +218,28 @@ export async function deleteMeeting(id) {
 
   await meeting.deleteOne();
   return { ok: true };
+}
+
+// Bulk counterpart of deleteMeeting, for the dashboard's multi-select. A
+// single deleteMany() rather than a loop of individual deleteOne() calls -
+// there's no per-meeting side effect to run (unlike, say, notifications),
+// so there's nothing that needs each document loaded first. Still scoped
+// by userId in the filter itself, same ownership rule as everywhere else -
+// an id for a meeting that isn't yours is silently excluded rather than
+// erroring, matching the no-existence-leak rule.
+export async function deleteMeetings(ids) {
+  const { userId } = await verifySession();
+  const idList = Array.isArray(ids) ? ids.filter((id) => typeof id === 'string' && id) : [];
+  if (!idList.length) {
+    return { error: 'No meetings selected.' };
+  }
+
+  await connectToDatabase();
+  const result = await Meeting.deleteMany({ _id: { $in: idList }, userId }).catch(() => null);
+  if (!result) {
+    return { error: 'Could not delete these meetings.' };
+  }
+  return { ok: true, deletedCount: result.deletedCount };
 }
 
 export async function createShareLink(id) {

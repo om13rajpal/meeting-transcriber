@@ -15,6 +15,7 @@ import {
   resendNotifications,
   updateMeetingTags
 } from '@/app/actions/meetings';
+import { highlightText } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,9 +82,11 @@ function formatCost(costUsd) {
   return `$${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}`;
 }
 
-export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = [] }) {
+export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = [], initialQuery = '' }) {
   const router = useRouter();
   const titleRef = useRef(null);
+  const groupRefs = useRef({});
+  const hasJumpedRef = useRef(false);
 
   const [meeting, setMeeting] = useState(initialMeeting);
   const [activeTab, setActiveTab] = useState('speakers');
@@ -128,6 +131,26 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
   );
   const speakerCount = speakerIds.length;
   const wordCount = lastTranscript.trim() ? lastTranscript.trim().split(/\s+/).length : 0;
+
+  // Landed here from a dashboard search (?q=... - see Dashboard.js's row
+  // click handler): jump straight to the first matching line instead of
+  // making the user re-find it in a long transcript. Only runs once per
+  // page load (hasJumpedRef), and waits for currentGroups to actually have
+  // content, since a freshly-uploaded meeting starts with none while still
+  // 'processing'.
+  useEffect(() => {
+    if (!initialQuery || hasJumpedRef.current || !currentGroups.length) return;
+
+    const lowerQuery = initialQuery.toLowerCase();
+    const matchIndex = currentGroups.findIndex((g) => g.transcript.toLowerCase().includes(lowerQuery));
+    if (matchIndex === -1) return;
+
+    hasJumpedRef.current = true;
+    setActiveTab('speakers');
+    requestAnimationFrame(() => {
+      groupRefs.current[matchIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [initialQuery, currentGroups]);
 
   const speakerLabel = (speakerId) => speakerNames[speakerId] || `Speaker ${speakerId + 1}`;
 
@@ -505,14 +528,16 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
                 {currentGroups.length ? (
                   <div className="flex flex-col gap-4 pr-3">
                     {currentGroups.map((g, i) => (
-                      <SpeakerLine
-                        key={i}
-                        group={g}
-                        label={speakerLabel(g.speaker)}
-                        colorClass={SPEAKER_COLORS[g.speaker % SPEAKER_COLORS.length]}
-                        onRename={(name) => commitSpeakerName(g.speaker, name)}
-                        knownNamesListId="known-speaker-names"
-                      />
+                      <div key={i} ref={(el) => { groupRefs.current[i] = el; }}>
+                        <SpeakerLine
+                          group={g}
+                          label={speakerLabel(g.speaker)}
+                          colorClass={SPEAKER_COLORS[g.speaker % SPEAKER_COLORS.length]}
+                          onRename={(name) => commitSpeakerName(g.speaker, name)}
+                          knownNamesListId="known-speaker-names"
+                          highlightQuery={initialQuery}
+                        />
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -527,7 +552,7 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
             </TabsContent>
             <TabsContent value="plain">
               <ScrollArea className="h-[60vh]">
-                <pre className="pr-3 text-[15px] leading-relaxed whitespace-pre-wrap">{lastTranscript}</pre>
+                <pre className="pr-3 text-[15px] leading-relaxed whitespace-pre-wrap">{highlightText(lastTranscript, initialQuery)}</pre>
               </ScrollArea>
             </TabsContent>
           </Tabs>
@@ -673,7 +698,7 @@ function StatusBadge({ label, attemptedAt, ok }) {
   );
 }
 
-function SpeakerLine({ group, label, colorClass, onRename, knownNamesListId }) {
+function SpeakerLine({ group, label, colorClass, onRename, knownNamesListId, highlightQuery }) {
   return (
     <div className="flex flex-wrap items-baseline gap-3.5">
       <span className={`inline-flex shrink-0 min-w-[90px] items-baseline gap-1.5 text-[13px] font-semibold ${colorClass}`}>
@@ -696,7 +721,7 @@ function SpeakerLine({ group, label, colorClass, onRename, knownNamesListId }) {
         />
         <span className="text-[11.5px] font-normal text-muted-foreground">{formatTime(group.start)}</span>
       </span>
-      <span className="flex-1 basis-80 text-foreground">{group.transcript}</span>
+      <span className="flex-1 basis-80 text-foreground">{highlightText(group.transcript, highlightQuery)}</span>
     </div>
   );
 }

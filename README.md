@@ -18,7 +18,8 @@ The browser uploads the recording directly to the backend, authorized by a short
 - Per meeting cost tracking: the model used and what it cost, shown right away as an estimate and automatically upgraded to Deepgram's actual billed amount once available, plus a "this month" total on the dashboard
 - Simple tags on each meeting (add/remove from the meeting page), searchable from the same dashboard search box as titles and transcripts
 - Deepgram requests opt out of their model improvement program (`mip_opt_out`), so recordings are not used for training
-- Per user meeting history with a dashboard and full text search across titles and transcripts
+- Per user meeting history with a dashboard and full text search across titles, transcripts, and tags, with the matching snippet highlighted in the results and a jump straight to that line on the meeting page
+- Bulk select meetings on the dashboard to delete or tag several at once
 - Editable meeting titles and per speaker renaming, both saved to the database
 - Speaker diarized transcript view alongside a plain text view
 - Merge speakers that diarization split apart (or that were otherwise miscounted) into one

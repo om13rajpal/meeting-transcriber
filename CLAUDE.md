@@ -380,6 +380,19 @@ again next interval" - this is a deliberate exception to the "retry
 429/5xx, never 4xx" rule under "External API calls" below, because a 404
 here doesn't mean "this will never exist," it means "not ready yet."
 
+Verified for real against Deepgram's live Management API (not just read
+from their docs): a request's cost is genuinely not queryable for **at
+least ~1.5 hours** after it happens - `GET /v1/projects/:id/requests/:id`
+returns HTTP `200` with a literal `null` body (not a `404`) for a request
+that hasn't been indexed yet, which is exactly the "not ready, try later"
+case `fetchExactCost()` already treats identically to a 404. This is a
+real characteristic of Deepgram's billing pipeline, not a bug in this
+app - `deepgramCostExact` will legitimately stay `false` for a while after
+every meeting completes, by design, and there's no way to shorten that
+from this app's side. Don't "fix" this by shrinking
+`COST_SWEEP_LOOKBACK_MS`; if anything it should stay generous relative to
+this observed delay.
+
 `app/lib/meetings.js`'s `getUsageSummary(userId)` sums `durationSeconds`/
 `deepgramCostUsd` across the current calendar month's `'complete'`
 meetings (plain Node reduce, not an aggregation pipeline, matching
@@ -424,6 +437,73 @@ alongside title/originalName/transcript - Mongo matches a regex against an
 array field if *any* element matches, so this needed no `$elemMatch`, and
 the dashboard's one search box doubles as the tag filter rather than a
 separate UI for it.
+
+## Bulk actions
+
+`Dashboard.js` tracks a `selectedIds` Set alongside `meetings`; each row
+gets a checkbox (`onClick` stops propagation so it doesn't trigger the
+row's own navigate-to-meeting handler) that toggles membership. Selecting
+anything shows a bar with "Add tag" and "Delete", both scoped to
+`Array.from(selectedIds)`. Selection is cleared whenever the search query
+changes (`handleSearchChange`) - keeping a selection across a different
+filtered result set would show a count that doesn't match what's visible.
+
+- `deleteMeetings(ids)` in `app/actions/meetings.js` is a single
+  `Meeting.deleteMany({ _id: { $in: idList }, userId })` - no per-meeting
+  side effect needs a loaded document first (unlike, say, notifications),
+  so there's no reason to loop individual `deleteOne()` calls. Still
+  filtered by `userId` in the query itself, same ownership rule as
+  everywhere else.
+- `addTagToMeetings(ids, tag)` *adds* one tag to several meetings,
+  deliberately not a bulk-replace of each meeting's whole tag list (bulk-
+  editing N different existing tag sets in one step isn't a real use case
+  here - see "Meeting tags" above). This one does loop with individual
+  `.save()` calls, since the dedupe/cap-to-`MAX_TAGS` logic has to run
+  against each meeting's own existing tags.
+- The single-row delete button and the bulk delete button share one
+  dialog and one `confirmDelete()`, unified via `pendingDeleteIds` (an
+  array, even for a single row - `setPendingDeleteIds([meeting.id])`)
+  rather than keeping two separate delete code paths.
+
+## Search result highlighting and jump-to-match
+
+Two parts, split across the two pages that need them:
+
+- **Dashboard preview**: `toSummary(meeting, query)` in
+  `app/lib/meetings.js` takes an optional second argument - only
+  `listMeetings()` passes it, every other caller (`createUploadToken`,
+  etc.) gets the plain old prefix-slice preview. When the query actually
+  matches inside the transcript, `buildSnippet()` returns the text
+  *around* that match (with `SNIPPET_CONTEXT_CHARS` on each side) instead
+  of always the first `PREVIEW_LENGTH` characters - a hit 10 minutes into
+  a long meeting was otherwise invisible in the dashboard row. If the
+  query matched the title or a tag instead (both already visible
+  elsewhere on the row), `buildSnippet()` returns `null` and the row falls
+  back to the normal prefix preview.
+- **Jump on the meeting page**: clicking a dashboard row while a search is
+  active navigates to `/meeting/{id}?q=<query>` instead of the plain path
+  (see `Dashboard.js`'s row `onClick`). `app/meeting/[id]/page.js` reads
+  `searchParams.q` and passes it to `MeetingDetail` as `initialQuery`. On
+  load, a `useEffect` (placed *after* the `currentGroups` `useMemo` it
+  depends on - a temporal-dead-zone bug if it's declared earlier) finds
+  the first utterance group containing the query and calls
+  `scrollIntoView({ behavior: 'smooth', block: 'center' })` on it via a
+  `groupRefs` map of index → DOM node, populated by wrapping each
+  `SpeakerLine` in a `<div ref={...}>` (a plain function component can't
+  take a `ref` directly without `forwardRef`, so the wrapper is simpler
+  than converting it). Guarded by `hasJumpedRef` so it only runs once per
+  page load, not on every `currentGroups` recompute.
+
+Both the dashboard snippet and the meeting page's speaker/plain-text views
+share one `highlightText(text, query)` helper in `lib/utils.js` (not
+`app/lib/`, since it's plain client-safe code, not a server-only
+data-access function) - it returns an array of strings and `<mark>`
+elements, never `dangerouslySetInnerHTML`, since the transcript text this
+wraps is Deepgram/user-sourced (see the no-raw-HTML-injection rule under
+"Security" below). The meeting title is deliberately *not* run through
+this, even though it's a real match target - it's a `contentEditable`
+span, and injecting React elements as children of a `contentEditable`
+region interacts badly with reading `textContent` back out on blur.
 
 ## Password reset
 
@@ -667,10 +747,16 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - `app/actions/`: every Server Action (`auth.js` [signup/login/logout,
   `requestPasswordReset`, `resetPassword`], `meetings.js` [`getMeeting`,
   title/speaker rename, `mergeSpeakers`, `markMeetingFailed`,
-  `resendNotifications`, `updateMeetingTags`, delete, share links],
+  `resendNotifications`, `updateMeetingTags`, `deleteMeetings`,
+  `addTagToMeetings` (see "Bulk actions"), delete, share links],
   `settings.js` [`getWebhooks`, `saveWebhooks`], `transcribe.js` [token
   minting, also creates the `Meeting` row - see "Upload token flow"],
   `search.js`).
+- `lib/utils.js` (project root, not `app/lib/`): `cn()` (shadcn's Tailwind
+  class merge) and `highlightText()` (search-match highlighting - see
+  "Search result highlighting and jump-to-match"). Plain client-safe code
+  shared by both `Dashboard.js` and `MeetingDetail.js`, which is why it
+  lives outside `app/lib/` (that directory is `server-only`).
 - `app/login/`, `app/signup/`, `app/forgot-password/`,
   `app/reset-password/[token]/`, `app/meeting/[id]/`, `app/share/[token]/`:
   one folder per route; `page.js` is the Server Component (auth check + data

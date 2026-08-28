@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook, Plus, X, RotateCw } from 'lucide-react';
+import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook, Plus, X, RotateCw, Tag } from 'lucide-react';
 import { logout } from '@/app/actions/auth';
 import { createUploadToken } from '@/app/actions/transcribe';
-import { deleteMeeting, markMeetingFailed } from '@/app/actions/meetings';
+import { deleteMeeting, deleteMeetings, addTagToMeetings, markMeetingFailed } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
 import { getWebhooks, saveWebhooks } from '@/app/actions/settings';
+import { highlightText } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -132,7 +133,11 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
   const [dragOver, setDragOver] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkTagOpen, setBulkTagOpen] = useState(false);
+  const [bulkTagValue, setBulkTagValue] = useState('');
+  const [bulkTagSaving, setBulkTagSaving] = useState(false);
   const [, startLogoutTransition] = useTransition();
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [webhookLoading, setWebhookLoading] = useState(false);
@@ -295,18 +300,66 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
   const hasFinished = files.some((f) => f.status === 'done' || f.status === 'error' || f.status === 'cancelled');
 
   async function confirmDelete() {
-    const id = pendingDeleteId;
-    setPendingDeleteId(null);
-    const result = await deleteMeeting(id);
+    const ids = pendingDeleteIds;
+    setPendingDeleteIds(null);
+    if (!ids || !ids.length) return;
+
+    const result = ids.length === 1 ? await deleteMeeting(ids[0]) : await deleteMeetings(ids);
     if (result.error) {
       toast.error(result.error);
       return;
     }
-    setMeetings((prev) => prev.filter((m) => m.id !== id));
+    const idSet = new Set(ids);
+    setMeetings((prev) => prev.filter((m) => !idSet.has(m.id)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function openBulkTagDialog() {
+    setBulkTagValue('');
+    setBulkTagOpen(true);
+  }
+
+  async function handleBulkAddTag() {
+    const trimmed = bulkTagValue.trim();
+    if (!trimmed) return;
+
+    setBulkTagSaving(true);
+    try {
+      const result = await addTagToMeetings(Array.from(selectedIds), trimmed);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setBulkTagOpen(false);
+      clearSelection();
+      toast.success(`Tag added to ${result.count} meeting${result.count === 1 ? '' : 's'}.`);
+      const refreshed = await searchMeetings(searchQuery);
+      setMeetings(refreshed);
+    } finally {
+      setBulkTagSaving(false);
+    }
   }
 
   function handleSearchChange(value) {
     setSearchQuery(value);
+    clearSelection();
     window.clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = window.setTimeout(async () => {
       setSearching(true);
@@ -523,15 +576,41 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
           </div>
         )}
 
+        {selectedIds.size > 0 && (
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            <span>{selectedIds.size} selected</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={openBulkTagDialog}>
+                <Tag /> Add tag
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setPendingDeleteIds(Array.from(selectedIds))}>
+                <Trash2 /> Delete
+              </Button>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>Clear</Button>
+            </div>
+          </div>
+        )}
+
         {!searching && meetings.length > 0 && (
           <div className="flex flex-col gap-2">
             {meetings.map((meeting) => (
               <Card
                 key={meeting.id}
                 className="cursor-pointer shadow-none transition-colors hover:border-primary/50"
-                onClick={() => router.push(`/meeting/${meeting.id}`)}
+                onClick={() => {
+                  const q = searchQuery.trim();
+                  router.push(q ? `/meeting/${meeting.id}?q=${encodeURIComponent(q)}` : `/meeting/${meeting.id}`);
+                }}
               >
-                <CardContent className="flex items-center justify-between gap-4">
+                <CardContent className="flex items-center gap-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(meeting.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => toggleSelect(meeting.id)}
+                    className="size-4 shrink-0 accent-primary"
+                    aria-label={`Select ${meeting.title}`}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{meeting.title}</div>
                     <div className="text-xs text-muted-foreground">
@@ -552,7 +631,7 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
                         <span className="truncate">{meeting.errorMessage || 'Transcription failed.'}</span>
                       </div>
                     ) : (
-                      <div className="mt-1 truncate text-sm text-muted-foreground">{meeting.preview}</div>
+                      <div className="mt-1 truncate text-sm text-muted-foreground">{highlightText(meeting.preview, searchQuery)}</div>
                     )}
                     {meeting.tags?.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
@@ -568,7 +647,7 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
                     className="shrink-0 text-muted-foreground hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setPendingDeleteId(meeting.id);
+                      setPendingDeleteIds([meeting.id]);
                     }}
                   >
                     <Trash2 />
@@ -594,15 +673,43 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
         )}
       </main>
 
-      <Dialog open={pendingDeleteId !== null} onOpenChange={(open) => !open && setPendingDeleteId(null)}>
+      <Dialog open={pendingDeleteIds !== null} onOpenChange={(open) => !open && setPendingDeleteIds(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this meeting?</DialogTitle>
+            <DialogTitle>
+              {(pendingDeleteIds?.length || 0) > 1 ? `Delete ${pendingDeleteIds.length} meetings?` : 'Delete this meeting?'}
+            </DialogTitle>
             <DialogDescription>This cannot be undone.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkTagOpen} onOpenChange={setBulkTagOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add tag to {selectedIds.size} meeting{selectedIds.size === 1 ? '' : 's'}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={bulkTagValue}
+            onChange={(e) => setBulkTagValue(e.target.value)}
+            placeholder="Tag name"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleBulkAddTag();
+              }
+            }}
+          />
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button onClick={handleBulkAddTag} disabled={bulkTagSaving || !bulkTagValue.trim()}>
+              {bulkTagSaving && <Loader2 className="animate-spin" />}
+              Add
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

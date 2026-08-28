@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/app/lib/db';
 import Meeting from '@/app/lib/models/Meeting';
 
 const PREVIEW_LENGTH = 140;
+const SNIPPET_CONTEXT_CHARS = 60;
 
 // speakerNames arrives as a real Mongoose Map when `meeting` came from a
 // live (non-lean) document - e.g. a mutation Server Action that just called
@@ -14,8 +15,31 @@ function speakerNamesToPlainObject(speakerNames) {
   return speakerNames || {};
 }
 
-export function toSummary(meeting) {
+// When a search query matches inside the transcript, show the text around
+// that match instead of always the first PREVIEW_LENGTH characters - a hit
+// deep into a long meeting is otherwise invisible in the dashboard preview.
+// Returns null (falls back to the plain prefix slice) if the query isn't
+// found in the transcript at all - e.g. it matched the title or a tag
+// instead, which are already visible elsewhere on the row.
+function buildSnippet(transcript, query) {
+  if (!transcript || !query) return null;
+  const idx = transcript.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return null;
+
+  const start = Math.max(0, idx - SNIPPET_CONTEXT_CHARS);
+  const end = Math.min(transcript.length, idx + query.length + SNIPPET_CONTEXT_CHARS);
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < transcript.length ? '…' : '';
+  return `${prefix}${transcript.slice(start, end).trim()}${suffix}`;
+}
+
+// `query` is optional and only passed by listMeetings() - every other
+// caller (createUploadToken, the polling refresh in Dashboard.js's
+// non-search path, etc.) just gets the plain prefix preview as before.
+export function toSummary(meeting, query) {
   const transcript = meeting.transcript || '';
+  const trimmedQuery = typeof query === 'string' ? query.trim() : '';
+  const snippet = trimmedQuery ? buildSnippet(transcript, trimmedQuery) : null;
   return {
     id: String(meeting._id),
     title: meeting.title || meeting.originalName || 'Untitled recording',
@@ -23,7 +47,7 @@ export function toSummary(meeting) {
     isVideo: meeting.isVideo,
     durationSeconds: meeting.durationSeconds,
     createdAt: meeting.createdAt.toISOString(),
-    preview: transcript.slice(0, PREVIEW_LENGTH),
+    preview: snippet || transcript.slice(0, PREVIEW_LENGTH),
     status: meeting.status || 'complete',
     errorMessage: meeting.errorMessage || null,
     tags: meeting.tags || [],
@@ -107,7 +131,7 @@ export async function listMeetings(userId, query) {
     .select('-utterances')
     .sort({ createdAt: -1 })
     .lean();
-  return meetings.map(toSummary);
+  return meetings.map((m) => toSummary(m, q));
 }
 
 // Ownership is always enforced here: every meeting query filters by userId.

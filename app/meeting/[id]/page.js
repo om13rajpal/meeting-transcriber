@@ -5,8 +5,9 @@ import MeetingDetail from './MeetingDetail';
 
 export const metadata = { title: 'Meeting - Meeting Transcriber' };
 
-export default async function MeetingPage({ params }) {
+export default async function MeetingPage({ params, searchParams }) {
   const { id } = await params;
+  const { q } = await searchParams;
   const { userId } = await verifySession();
 
   const meeting = await findOwnedMeetingLean(id, userId);
@@ -32,5 +33,12 @@ export default async function MeetingPage({ params }) {
 
   const knownSpeakerNames = await listKnownSpeakerNames(userId);
 
-  return <MeetingDetail id={id} initialMeeting={toDetail(meeting)} knownSpeakerNames={knownSpeakerNames} />;
+  return (
+    <MeetingDetail
+      id={id}
+      initialMeeting={toDetail(meeting)}
+      knownSpeakerNames={knownSpeakerNames}
+      initialQuery={typeof q === 'string' ? q : ''}
+    />
+  );
 }
