@@ -1,0 +1,1408 @@
+<!-- @moodforge
+schema: 1.0
+round: 5
+phase: all-screens
+worker: moodforge-screen-designer
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: b081553ea9c2ca6231981373fb2ebc06c4047c294cff1e2e1190d8dda9e73bb4
+palette: [#0E0E0F, #08080A, #141417, #F4F1EA, #E63946, #B8202D, #EC4B57, #FFD23F, #8A8A86]
+fonts: [Big Shoulders Display 800/900, IBM Plex Mono 400/500/600, Inter 400/500/600/700 (stand-in for Geist)]
+tokens_used: [--cr-ink, --cr-ink-sunken, --cr-ink-raised, --cr-ink-hover, --cr-rule-soft, --cr-rule-strong, --cr-paper, --cr-paper-rule, --cr-text, --cr-text-secondary, --cr-text-tertiary, --cr-text-muted, --cr-text-on-paper, --cr-text-paper-mut, --cr-red, --cr-red-text, --cr-red-fill, --cr-red-fill-hover, --cr-red-fill-press, --cr-yellow, --cr-yellow-ink, --cr-tint-red, --cr-tint-yellow, --cr-success, --cr-tint-green, --cr-font-display, --cr-font-mono, --cr-font-body, --cr-type-display, --cr-type-h2, --cr-type-h3, --cr-type-lede, --cr-type-body, --cr-type-sm, --cr-type-mono, --cr-type-meta, --cr-type-tiny, --cr-space-1, --cr-space-2, --cr-space-3, --cr-space-4, --cr-space-5, --cr-space-6, --cr-space-7, --cr-space-8, --cr-stroke-hair, --cr-focus-ring, --cr-stroke-ribbon, --cr-radius-sm, --cr-radius-md, --cr-radius-lg, --cr-radius-card, --cr-radius-pill, --cr-ease-out, --cr-ease-in-out, --cr-dur-press, --cr-dur-hover, --cr-dur-dropdown, --cr-dur-modal, --cr-dur-reveal, --cr-dur-hero, --cr-stagger-row, --cr-stagger-reveal, --cr-stagger-char, --cr-press-scale, --cr-shadow-sheet, --cr-shadow-cta]
+screen: auth-login-signup
+summary: Login and Signup at full marketing-weight Court Reporter. Split screen, transcript-as-hero on Login, hand-off ribbon on Signup, real Google OAuth button, generic invalid-credentials error, 2px focus ring, in-flight submit, plus a 22-specimen interactive state gallery.
+-->
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round 05 · Court Reporter · Login &amp; Signup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+/* ==========================================================================
+   TOKENS. Copied verbatim from docs/design/brand-kit/tokens.css.
+   Nothing below invents a value. If a number is not in this block it is a
+   layout number, not a design token.
+   ========================================================================== */
+:root{
+  /* neutrals */
+  --cr-ink:#0E0E0F; --cr-ink-sunken:#08080A; --cr-ink-app:#111113;
+  --cr-ink-raised:#141417; --cr-ink-hover:#1A1A1D;
+  --cr-rule:#1C1C1C; --cr-rule-soft:#232327; --cr-rule-strong:#2A2A2E;
+  --cr-paper:#F4F1EA; --cr-paper-lifted:#FBF9F4; --cr-paper-dim:#EDEAE3; --cr-paper-rule:#D8D3C6;
+  --cr-text:#F4F1EA; --cr-text-secondary:#C9C6BD; --cr-text-tertiary:#A8A49B; --cr-text-muted:#8A8A86;
+  --cr-text-on-paper:#0E0E0F; --cr-text-paper-mut:#66625A;
+  --cr-hairline:#6B675F;
+  /* stamp red, three jobs */
+  --cr-red:#E63946; --cr-red-text:#EC4B57; --cr-red-fill:#B8202D;
+  --cr-red-fill-hover:#C82232; --cr-red-fill-press:#A81B27;
+  /* highlighter */
+  --cr-yellow:#FFD23F; --cr-yellow-ink:#0E0E0F;
+  /* semantic */
+  --cr-success:#6FCF97; --cr-warning:#FFD23F; --cr-danger:#EC4B57;
+  --cr-tint-red:#2C1417; --cr-tint-yellow:#2B2615; --cr-tint-green:#1C2922;
+  /* type */
+  --cr-font-display:'Big Shoulders Display','Arial Narrow',system-ui,sans-serif;
+  --cr-font-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',monospace;
+  --cr-font-body:'Inter',system-ui,sans-serif; /* stand-in for Geist, per brand kit */
+  --cr-type-display:84px; --cr-type-h1:48px; --cr-type-h2:30px; --cr-type-h3:22px;
+  --cr-type-lede:17px; --cr-type-body:15px; --cr-type-sm:13px; --cr-type-mono:12px;
+  --cr-type-meta:11px; --cr-type-tiny:10px;
+  --cr-weight-display:900; --cr-weight-heavy:800; --cr-weight-mono:500;
+  --cr-weight-body:400; --cr-weight-strong:600;
+  --cr-tracking-display:-0.01em; --cr-tracking-eyebrow:0.16em; --cr-tracking-tag:0.04em;
+  --cr-leading-display:0.92; --cr-leading-body:1.65; --cr-leading-mono:1.90;
+  /* spacing */
+  --cr-space-1:4px; --cr-space-2:8px; --cr-space-3:12px; --cr-space-4:16px; --cr-space-5:24px;
+  --cr-space-6:32px; --cr-space-7:40px; --cr-space-8:56px; --cr-space-9:88px; --cr-space-10:120px;
+  --cr-measure:1180px; --cr-measure-read:460px;
+  /* stroke. ONE border value. Emphasis is colour, never weight. */
+  --cr-stroke-hair:1px;
+  --cr-focus-ring:2px;      /* the only line heavier than a hairline */
+  --cr-stroke-icon:1.75px;
+  --cr-stroke-ribbon:34px;  /* artwork, not chrome */
+  /* radius */
+  --cr-radius-sm:6px; --cr-radius-md:8px; --cr-radius-lg:10px; --cr-radius-xl:14px;
+  --cr-radius-card:16px; --cr-radius-pill:999px;
+  /* motion */
+  --cr-ease-out:cubic-bezier(0.23,1,0.32,1);
+  --cr-ease-in-out:cubic-bezier(0.77,0,0.175,1);
+  --cr-ease-drawer:cubic-bezier(0.32,0.72,0,1);
+  --cr-dur-press:140ms; --cr-dur-hover:160ms; --cr-dur-tooltip:160ms; --cr-dur-dropdown:200ms;
+  --cr-dur-drawer:320ms; --cr-dur-modal:400ms; --cr-dur-reveal:600ms; --cr-dur-hero:700ms;
+  --cr-stagger-row:50ms; --cr-stagger-reveal:120ms; --cr-stagger-line:120ms;
+  --cr-stagger-char:25ms;  /* derived, locked round 4: --cr-stagger-row / 2 */
+  --cr-press-scale:0.97;
+  /* elevation. One sheet shadow, one CTA glow. Everything else is a rule. */
+  --cr-shadow-sheet:0 50px 100px -30px rgba(0,0,0,0.65);
+  --cr-shadow-cta:0 14px 30px -12px rgba(184,32,45,0.55);
+}
+@media (prefers-reduced-motion: reduce){
+  :root{
+    --cr-dur-press:1ms; --cr-dur-hover:1ms; --cr-dur-tooltip:1ms; --cr-dur-dropdown:1ms;
+    --cr-dur-drawer:1ms; --cr-dur-modal:1ms; --cr-dur-reveal:200ms; --cr-dur-hero:200ms;
+    --cr-stagger-row:0ms; --cr-stagger-reveal:0ms; --cr-stagger-line:0ms; --cr-stagger-char:0ms;
+    --cr-press-scale:1;
+  }
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--cr-ink); color:var(--cr-text);
+  font-family:var(--cr-font-body); font-size:var(--cr-type-body);
+  -webkit-font-smoothing:antialiased;
+}
+img,svg{display:block;max-width:100%;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+input{font-family:inherit;}
+a{color:inherit;}
+::selection{background:var(--cr-yellow); color:var(--cr-yellow-ink);}
+
+/* One focus treatment for the whole document. 2px, stamp red, offset animates.
+   outline-offset is the documented exception to transform/opacity only: an
+   outline does not participate in layout, so animating it costs nothing. */
+:focus-visible{
+  outline:var(--cr-focus-ring) solid var(--cr-red);
+  outline-offset:3px;
+  border-radius:var(--cr-radius-sm);
+  transition:outline-offset var(--cr-dur-hover) var(--cr-ease-out);
+}
+
+/* ==========================================================================
+   PREVIEW CHROME. Not product. The switcher and the changelog drawer.
+   ========================================================================== */
+.pv-nav{
+  position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:80;
+  display:flex; gap:var(--cr-space-1); background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-pill); padding:var(--cr-space-1);
+  box-shadow:0 12px 30px -10px rgba(0,0,0,.6);
+}
+.pv-nav button{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); font-weight:var(--cr-weight-strong);
+  letter-spacing:var(--cr-tracking-tag); text-transform:uppercase;
+  color:var(--cr-text-tertiary); padding:8px 15px; border-radius:var(--cr-radius-pill);
+  transition:background var(--cr-dur-hover) var(--cr-ease-out),
+             color var(--cr-dur-hover) var(--cr-ease-out),
+             transform var(--cr-dur-press) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .pv-nav button:hover{background:var(--cr-ink-hover); color:var(--cr-text);} }
+.pv-nav button:active{transform:scale(var(--cr-press-scale));}
+.pv-nav button[aria-current="true"]{background:var(--cr-paper); color:var(--cr-text-on-paper);}
+
+.changelog{
+  position:fixed; right:16px; bottom:16px; z-index:80; max-width:430px;
+  background:var(--cr-ink-raised); border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-lg);
+}
+.changelog summary{
+  list-style:none; cursor:pointer; padding:10px 14px;
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); letter-spacing:.12em;
+  text-transform:uppercase; color:var(--cr-red-text);
+}
+.changelog summary::-webkit-details-marker{display:none;}
+.changelog[open] summary{border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.changelog ul{margin:0; padding:14px 18px 16px 30px; max-height:44vh; overflow:auto;}
+.changelog li{font-size:var(--cr-type-sm); line-height:1.6; color:var(--cr-text-tertiary); margin-bottom:10px;}
+.changelog li:last-child{margin-bottom:0;}
+.changelog li b{color:var(--cr-text-secondary); font-weight:var(--cr-weight-strong);}
+
+/* ==========================================================================
+   SCREEN SHELL. Split: evidence on the left, the form on the right.
+   The two halves are separated by one hairline, never by a shadow.
+   ========================================================================== */
+.screen{display:none; min-height:100vh;}
+.screen.is-active{display:block;}
+.auth{
+  display:grid; grid-template-columns:1.08fr .92fr; min-height:100vh;
+}
+.auth-left{
+  position:relative; padding:34px 60px 34px; display:flex; flex-direction:column;
+  border-right:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.auth-right{
+  padding:34px 60px 44px; display:flex; flex-direction:column;
+  background:var(--cr-ink); position:relative;
+}
+/* A hairline of stamp red down the inside edge of the form column. The
+   heaviest thing this system says, said at 1px. */
+.auth-right::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:var(--cr-stroke-hair);
+  background:linear-gradient(180deg, var(--cr-red) 0%, var(--cr-red) 22%, transparent 60%);
+}
+@media (max-width:1040px){
+  .auth{grid-template-columns:1fr;}
+  .auth-left{border-right:none; border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft); padding:28px 28px 40px;}
+  .auth-right{padding:36px 28px 56px;}
+  .auth-right::before{display:none;}
+  /* one column, so the form centres instead of hugging the left gutter */
+  .form-col{margin:0 auto;}
+}
+
+/* wordmark */
+.wordmark{
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-display);
+  font-size:22px; letter-spacing:.01em; text-decoration:none; display:inline-block;
+}
+.wordmark span{color:var(--cr-red);}
+.brand-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:auto;}
+.back-link{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+  text-decoration:none; letter-spacing:.06em; transition:color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .back-link:hover{color:var(--cr-text);} }
+
+/* eyebrow + headline */
+.eyebrow{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-mono);
+  letter-spacing:var(--cr-tracking-eyebrow); color:var(--cr-yellow); margin:0 0 18px;
+}
+.eyebrow::before{content:'● '; color:var(--cr-red);}
+.hero-h1{
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-display);
+  text-transform:uppercase; font-size:clamp(44px,4.7vw,var(--cr-type-display));
+  line-height:var(--cr-leading-display); letter-spacing:var(--cr-tracking-display);
+  margin:0 0 18px;
+}
+.hero-h1 .ln{display:block;}
+.hero-h1 .ln.accent{color:var(--cr-red);}
+.hero-h1 .c{display:inline-block; will-change:transform,opacity;}
+.lede{
+  font-size:var(--cr-type-lede); line-height:var(--cr-leading-body);
+  color:var(--cr-text-secondary); max-width:var(--cr-measure-read); margin:0 0 26px;
+}
+.hero-block{padding:32px 0 8px;}
+
+/* left-column footer meta */
+.left-foot{
+  margin-top:auto; padding-top:22px; border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  display:flex; gap:20px; flex-wrap:wrap;
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+}
+.left-foot b{color:var(--cr-text-tertiary); font-weight:var(--cr-weight-mono);}
+
+/* ==========================================================================
+   THE TRANSCRIPT CARD. A sheet of paper on a dark desk. The one lift shadow.
+   ========================================================================== */
+.transcript-card{
+  background:var(--cr-paper); color:var(--cr-text-on-paper);
+  border-radius:var(--cr-radius-card); padding:26px 28px 22px;
+  box-shadow:var(--cr-shadow-sheet); position:relative; max-width:540px;
+}
+.transcript-card .stamp{
+  position:absolute; top:20px; right:22px;
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-display);
+  font-size:var(--cr-type-mono); letter-spacing:.1em; color:var(--cr-red-fill);
+  border:var(--cr-stroke-hair) solid var(--cr-red); padding:4px 10px;
+  transform:rotate(-6deg);
+}
+.tc-title{
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-heavy);
+  font-size:var(--cr-type-body); text-transform:uppercase; letter-spacing:var(--cr-tracking-tag);
+  color:var(--cr-text-paper-mut); margin:0 0 16px;
+}
+.t-line{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-sm); line-height:var(--cr-leading-mono);
+  display:flex; gap:10px; padding:5px 0;
+  border-bottom:var(--cr-stroke-hair) dashed var(--cr-paper-rule);
+}
+.t-line:last-of-type{border-bottom:none;}
+.t-tag{
+  background:var(--cr-ink); color:var(--cr-paper); font-size:var(--cr-type-tiny);
+  font-weight:600; padding:2px 7px; border-radius:var(--cr-radius-sm);
+  height:fit-content; flex:none; letter-spacing:var(--cr-tracking-tag);
+}
+.t-time{color:var(--cr-text-paper-mut); flex:none;}
+.t-hl{background:var(--cr-yellow); color:var(--cr-yellow-ink); padding:0 3px; border-radius:2px;}
+.t-redact{background:var(--cr-ink); color:var(--cr-ink); border-radius:2px; padding:0 2px; user-select:none;}
+.tc-meta{
+  display:flex; gap:14px; flex-wrap:wrap; margin-top:16px; padding-top:14px;
+  border-top:var(--cr-stroke-hair) solid var(--cr-paper-rule);
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-paper-mut);
+}
+.tc-meta b{color:var(--cr-text-on-paper); font-weight:var(--cr-weight-mono);}
+
+/* ==========================================================================
+   HAND-OFF RIBBON (Signup left column). Brand kit asset, inlined so it can
+   inherit the tokens and be drawn by GSAP.
+   ========================================================================== */
+.ribbon-wrap{max-width:600px;}
+.ribbon-cap{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+  letter-spacing:.1em; text-transform:uppercase; margin:14px 0 0;
+}
+.cr-ribbon-path{stroke:var(--cr-red); stroke-width:var(--cr-stroke-ribbon); fill:none; stroke-linecap:round;}
+
+/* ==========================================================================
+   THE FORM
+   ========================================================================== */
+.form-col{width:100%; max-width:404px; margin:auto 0;}
+.sec{
+  display:block; font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny);
+  letter-spacing:.14em; text-transform:uppercase; color:var(--cr-red-text); margin-bottom:12px;
+}
+.form-h2{
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-heavy);
+  font-size:var(--cr-type-h2); text-transform:uppercase; letter-spacing:.005em;
+  margin:0 0 8px; line-height:1;
+}
+.form-sub{font-size:var(--cr-type-sm); color:var(--cr-text-muted); margin:0 0 26px; line-height:1.55;}
+
+/* Google. Renders first, then the Or rule, then the credential form.
+   This mirrors app/OAuthButtons.js, which returns null when Google is not
+   configured. See the States tab for that variant. */
+.btn-google{
+  width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+  background:var(--cr-ink-raised); color:var(--cr-text);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong); border-radius:var(--cr-radius-md);
+  padding:13px 16px; font-size:14px; font-weight:var(--cr-weight-strong);
+  transition:background var(--cr-dur-hover) var(--cr-ease-out),
+             border-color var(--cr-dur-hover) var(--cr-ease-out),
+             transform var(--cr-dur-press) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .btn-google:hover{background:var(--cr-ink-hover); border-color:#38383d;}
+}
+.btn-google:active{transform:scale(var(--cr-press-scale));}
+
+.rule-or{display:flex; align-items:center; gap:14px; margin:22px 0;}
+.rule-or::before,.rule-or::after{content:''; height:var(--cr-stroke-hair); background:var(--cr-rule-soft); flex:1;}
+.rule-or span{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); letter-spacing:.16em;
+  text-transform:uppercase; color:var(--cr-text-muted);
+}
+
+.field{margin-bottom:18px;}
+.field-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:7px; gap:12px;}
+.lbl{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); letter-spacing:.14em;
+  text-transform:uppercase; color:var(--cr-text-tertiary);
+}
+.lbl .req{color:var(--cr-red-text);}
+.link-tiny{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+  text-decoration:underline; text-underline-offset:3px;
+  transition:color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .link-tiny:hover{color:var(--cr-red-text);} }
+
+.input-shell{position:relative;}
+.inp{
+  width:100%; background:var(--cr-ink-sunken); color:var(--cr-text);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong); border-radius:var(--cr-radius-md);
+  padding:13px 15px; font-size:var(--cr-type-body); line-height:1.2;
+  transition:border-color var(--cr-dur-hover) var(--cr-ease-out),
+             background var(--cr-dur-hover) var(--cr-ease-out);
+}
+.inp::placeholder{color:var(--cr-text-muted);}
+.inp:hover{border-color:#38383d;}
+.inp:focus{outline:var(--cr-focus-ring) solid var(--cr-red); outline-offset:2px; border-color:var(--cr-red); background:var(--cr-ink);}
+.inp[data-invalid="true"]{border-color:var(--cr-red-text); background:var(--cr-tint-red);}
+.inp:disabled{color:var(--cr-text-muted); background:#0B0B0D; cursor:not-allowed;}
+.has-toggle .inp{padding-right:78px;}
+.reveal{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); letter-spacing:.1em;
+  text-transform:uppercase; color:var(--cr-text-muted); padding:6px 8px;
+  border-radius:var(--cr-radius-sm);
+  transition:color var(--cr-dur-hover) var(--cr-ease-out), background var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .reveal:hover{color:var(--cr-text); background:var(--cr-ink-hover);} }
+.hint{
+  display:block; font-family:var(--cr-font-mono); font-size:var(--cr-type-meta);
+  color:var(--cr-text-muted); margin-top:7px; line-height:1.5;
+}
+/* [hidden] must beat display:block, or an empty hint reserves a line and a
+   Caps Lock warning nobody triggered sits under the password field. */
+.hint[hidden]{display:none;}
+.hint[data-tone="bad"]{color:var(--cr-red-text);}
+.hint[data-tone="good"]{color:var(--cr-success);}
+.hint[data-tone="warn"]{color:var(--cr-yellow);}
+
+/* the primary action. Matches the approved Round 2 landing CTA exactly:
+   body face, 700, 15px, sentence case, red fill surface, one glow. */
+.btn-primary{
+  width:100%; position:relative; overflow:hidden;
+  background:var(--cr-red-fill); color:var(--cr-paper);
+  border-radius:var(--cr-radius-lg); padding:15px 22px;
+  font-size:var(--cr-type-body); font-weight:700; letter-spacing:.005em;
+  box-shadow:var(--cr-shadow-cta);
+  transition:background var(--cr-dur-hover) var(--cr-ease-out),
+             transform var(--cr-dur-press) var(--cr-ease-out),
+             box-shadow var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .btn-primary:hover{background:var(--cr-red-fill-hover);} }
+.btn-primary:active{transform:scale(var(--cr-press-scale)); background:var(--cr-red-fill-press);}
+.btn-primary[disabled]{cursor:not-allowed;}
+.btn-primary[data-state="busy"]{
+  background:var(--cr-red-fill-press); box-shadow:none; cursor:progress;
+}
+/* In flight: a hairline sweeps left to right under the label. No spinner.
+   clip-path, so it is one composited property and it can be interrupted. */
+.btn-primary .sweep{
+  position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--cr-yellow);
+  clip-path:inset(0 100% 0 0);
+}
+.btn-primary[data-state="busy"] .sweep{
+  animation:sweep 1100ms var(--cr-ease-in-out) infinite;
+}
+@keyframes sweep{
+  0%{clip-path:inset(0 100% 0 0);}
+  55%{clip-path:inset(0 0 0 0);}
+  100%{clip-path:inset(0 0 0 100%);}
+}
+@media (prefers-reduced-motion: reduce){
+  .btn-primary[data-state="busy"] .sweep{animation:none; clip-path:inset(0 40% 0 0); opacity:.7;}
+}
+
+/* the error banner. Row pattern, not an apology page. */
+.banner{
+  display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start;
+  background:var(--cr-tint-red); border:var(--cr-stroke-hair) solid #4A1F24;
+  border-left:var(--cr-stroke-hair) solid var(--cr-red);
+  border-radius:var(--cr-radius-md); padding:13px 15px; margin-bottom:20px;
+}
+.banner .bang{
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-display);
+  font-size:var(--cr-type-h3); line-height:1; color:var(--cr-red-text);
+}
+.banner p{margin:0; font-size:var(--cr-type-sm); line-height:1.5; color:var(--cr-text-secondary);}
+.banner p b{color:var(--cr-red-text); font-weight:var(--cr-weight-strong); display:block; margin-bottom:2px;}
+.banner .esc{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); color:var(--cr-text-muted);
+  margin-top:6px; display:block;
+}
+.banner[hidden]{display:none;}
+.banner.enter{
+  animation:banner-in var(--cr-dur-dropdown) var(--cr-ease-out) both;
+}
+@keyframes banner-in{ from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:none;} }
+@media (prefers-reduced-motion: reduce){ .banner.enter{animation:none;} }
+.banner[data-tone="warn"]{background:var(--cr-tint-yellow); border-color:#4A4222; border-left-color:var(--cr-yellow);}
+.banner[data-tone="warn"] .bang{color:var(--cr-yellow);}
+.banner[data-tone="warn"] p b{color:var(--cr-yellow);}
+.banner[data-tone="good"]{background:var(--cr-tint-green); border-color:#27402F; border-left-color:var(--cr-success);}
+.banner[data-tone="good"] .bang{color:var(--cr-success);}
+.banner[data-tone="good"] p b{color:var(--cr-success);}
+
+.form-foot{
+  margin-top:22px; padding-top:20px; border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  font-size:var(--cr-type-sm); color:var(--cr-text-muted);
+}
+.form-foot a{
+  color:var(--cr-text); font-weight:var(--cr-weight-strong); text-decoration:underline;
+  text-underline-offset:3px; transition:color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .form-foot a:hover{color:var(--cr-red-text);} }
+.trust{
+  margin-top:16px; font-family:var(--cr-font-mono); font-size:var(--cr-type-meta);
+  color:var(--cr-text-muted); line-height:1.7;
+}
+.trust b{color:var(--cr-text-tertiary); font-weight:var(--cr-weight-mono);}
+
+/* ==========================================================================
+   STATES GALLERY
+   ========================================================================== */
+.states{max-width:var(--cr-measure); margin:0 auto; padding:96px 32px 120px;}
+.states-head{border-bottom:var(--cr-stroke-hair) solid var(--cr-paper); padding-bottom:20px; margin-bottom:8px;}
+.states-head h2{
+  font-family:var(--cr-font-display); font-weight:var(--cr-weight-display);
+  font-size:56px; text-transform:uppercase; line-height:.94; margin:0 0 10px;
+}
+.states-head p{color:var(--cr-text-tertiary); font-size:var(--cr-type-lede); max-width:620px; margin:0; line-height:var(--cr-leading-body);}
+.grp{margin-top:52px;}
+.grp > h3{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); letter-spacing:.16em;
+  text-transform:uppercase; color:var(--cr-red-text); margin:0 0 18px;
+  padding-bottom:10px; border-bottom:var(--cr-stroke-hair) solid var(--cr-red);
+}
+.spec-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px;}
+.spec{
+  background:var(--cr-ink-raised); border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-xl); padding:20px;
+}
+.spec > .cap{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); letter-spacing:.1em;
+  text-transform:uppercase; color:var(--cr-text-muted); display:block; margin-bottom:14px;
+}
+.spec > .note{
+  font-size:var(--cr-type-meta); color:var(--cr-text-muted); line-height:1.6;
+  margin:14px 0 0; padding-top:12px; border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.spec.wide{grid-column:span 2;}
+@media (max-width:760px){ .spec.wide{grid-column:span 1;} }
+/* frozen states, so a reviewer sees them without hunting for them */
+.freeze-focus{outline:var(--cr-focus-ring) solid var(--cr-red); outline-offset:2px; border-color:var(--cr-red)!important; background:var(--cr-ink)!important;}
+.freeze-hover{background:var(--cr-ink-hover)!important; border-color:#38383d!important;}
+.freeze-press{transform:scale(var(--cr-press-scale)); background:var(--cr-red-fill-press)!important; box-shadow:none!important;}
+.freeze-ghover{background:var(--cr-red-fill-hover)!important;}
+.skel-row{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.skel{background:var(--cr-rule-soft); border-radius:var(--cr-radius-sm); height:11px; animation:pulse 1200ms var(--cr-ease-in-out) infinite;}
+@keyframes pulse{0%,100%{opacity:.4;} 50%{opacity:.8;}}
+@media (prefers-reduced-motion: reduce){ .skel{animation:none; opacity:.55;} }
+.kbd{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); background:var(--cr-ink-sunken);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong); border-radius:var(--cr-radius-sm);
+  padding:2px 6px; color:var(--cr-text-tertiary);
+}
+.reveal-y{opacity:0; transform:translateY(18px);}
+</style>
+</head>
+<body>
+
+<!-- ========================================================================
+     CHANGELOG. Wireframe pass to production pass, in the brand's voice.
+     Preview chrome. Collapsed by default so it never covers a screen.
+     ===================================================================== -->
+<details class="changelog">
+  <summary>§ Changelog · wireframe to production</summary>
+  <ul>
+    <li><b>The grey box became evidence.</b> The structure pass had one rectangle labelled "illustration". Login now carries a real paper transcript card with the DIARISED stamp, a highlighter mark and one redacted phone number. Signup carries the locked hand off ribbon, inlined from <code>assets/handoff-ribbon.svg</code> rather than redrawn.</li>
+    <li><b>Labels moved to the intake sheet.</b> Field labels are IBM Plex Mono at 11px with 0.14em tracking, so the form reads like a document you fill in, not a settings panel.</li>
+    <li><b>Every placeholder became a real value.</b> priya.bansal@northbeam.in, a meeting that ran 41 minutes 12 seconds, $0.2925 of Nova-3, three speakers with names.</li>
+    <li><b>The error state stopped guessing.</b> It says "Invalid email or password" and nothing more, on purpose. Naming which half was wrong would tell an attacker which addresses have accounts here.</li>
+    <li><b>Submit grew a real in flight state.</b> The label swaps to "Checking credentials", a 2px highlighter sweep runs along the bottom edge, and the whole fieldset locks so a second Enter cannot fire a second request. No spinner anywhere.</li>
+    <li><b>Focus got its 2px back.</b> Every other line on these screens is a 1px hairline. The focus ring is the single exception, stamp red at 2px with an animated offset, which is exactly what a focus indicator should be.</li>
+  </ul>
+</details>
+
+<nav class="pv-nav" aria-label="Screen switcher">
+  <button data-go="login" aria-current="true">Login</button>
+  <button data-go="signup">Signup</button>
+  <button data-go="states">States</button>
+</nav>
+
+
+<!-- ========================================================================
+     SCREEN 1 · LOGIN
+     ===================================================================== -->
+<section class="screen is-active" id="login" aria-label="Login screen">
+<div class="auth">
+
+  <!-- left: the evidence -->
+  <div class="auth-left">
+    <div class="brand-row">
+      <a class="wordmark" href="#login">MEETING<span>.TXT</span></a>
+      <a class="back-link" href="#login">&#8592; back to home</a>
+    </div>
+
+    <div class="hero-block">
+      <p class="eyebrow rv">File 0142 · Sign in</p>
+      <h1 class="hero-h1">
+        <span class="ln" data-split>Back on</span>
+        <span class="ln accent" data-split>the record.</span>
+      </h1>
+      <p class="lede rv">Your meetings are exactly where you left them. Sign in to reopen the file, rename a speaker, or pull the transcript out.</p>
+
+      <div class="transcript-card rv" role="img" aria-label="Sample transcript excerpt from the meeting Q3 pipeline review, showing three diarised speakers with timestamps">
+        <span class="stamp">DIARISED</span>
+        <p class="tc-title">Q3 pipeline review · 12 Aug</p>
+
+        <div class="t-line"><span class="t-tag">AANYA I.</span><span class="t-time">00:12:04</span><span>Toh Q3 ka number kya laga? Last week ke draft mein 4.2 crore tha.</span></div>
+        <div class="t-line"><span class="t-tag">ROHIT K.</span><span class="t-time">00:12:11</span><span>4.28 actually. Marathahalli wale account ne late close kiya.</span></div>
+        <div class="t-line"><span class="t-tag">AANYA I.</span><span class="t-time">00:12:19</span><span>Theek hai, phir <span class="t-hl">revised deck</span> mein wahi number daal dena.</span></div>
+        <div class="t-line"><span class="t-tag">PRIYA B.</span><span class="t-time">00:12:26</span><span>Mera number save kar lo, <span class="t-redact">98••• •••42</span></span></div>
+
+        <div class="tc-meta">
+          <span><b>3</b> speakers</span>
+          <span><b>00:41:12</b> runtime</span>
+          <span>Nova-3 · <b>$0.2925</b></span>
+          <span>uploaded <b>12 Aug, 4:18 PM</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="left-foot">
+      <span><b>1,284</b> meetings on record</span>
+      <span>Hinglish, <b>36 languages</b>, one pass</span>
+      <span>Never used for <b>model training</b></span>
+    </div>
+  </div>
+
+  <!-- right: the form -->
+  <div class="auth-right">
+    <div class="form-col">
+      <span class="sec">§ Sign in</span>
+      <h2 class="form-h2">Open your file</h2>
+      <p class="form-sub">Email and password. That is the whole list. We do not ask for a phone number and there is nothing else to connect.</p>
+
+      <div class="banner" id="login-banner" role="alert" aria-live="assertive" hidden>
+        <span class="bang">!</span>
+        <p>
+          <b>Invalid email or password</b>
+          Check both and try again. If you cannot remember it, reset the password.
+          <span class="esc">Press Esc to dismiss</span>
+        </p>
+      </div>
+
+      <button class="btn-google" type="button" id="google-login">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path fill="#4285F4" d="M23.06 12.25c0-.85-.08-1.67-.22-2.45H12v4.63h6.2a5.3 5.3 0 0 1-2.3 3.48v2.89h3.72c2.18-2 3.44-4.96 3.44-8.55z"/>
+          <path fill="#34A853" d="M12 24c3.11 0 5.72-1.03 7.62-2.8l-3.72-2.89c-1.03.69-2.35 1.1-3.9 1.1-3 0-5.54-2.02-6.45-4.74H1.7v2.98A11.5 11.5 0 0 0 12 24z"/>
+          <path fill="#FBBC05" d="M5.55 14.67a6.9 6.9 0 0 1 0-4.41V7.28H1.7a11.5 11.5 0 0 0 0 10.37l3.85-2.98z"/>
+          <path fill="#EA4335" d="M12 4.75c1.69 0 3.21.58 4.4 1.72l3.3-3.3C17.72 1.24 15.11 0 12 0 7.48 0 3.57 2.6 1.7 6.38l3.85 2.98C6.46 6.77 9 4.75 12 4.75z"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="rule-or"><span>Or</span></div>
+
+      <form id="login-form" novalidate>
+        <fieldset id="login-fields" style="border:none;margin:0;padding:0;">
+          <div class="field">
+            <div class="field-head"><label class="lbl" for="li-email">Email</label></div>
+            <div class="input-shell">
+              <input class="inp" id="li-email" name="email" type="email" autocomplete="email"
+                     value="priya.bansal@northbeam.in" placeholder="you@company.in">
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-head">
+              <label class="lbl" for="li-pass">Password</label>
+              <a class="link-tiny" href="#login" id="forgot-link">Forgot password?</a>
+            </div>
+            <div class="input-shell has-toggle">
+              <input class="inp" id="li-pass" name="password" type="password" autocomplete="current-password"
+                     value="haathi-chai-9042" placeholder="Your password">
+              <button class="reveal" type="button" data-reveal="li-pass" aria-label="Show password">Reveal</button>
+            </div>
+            <span class="hint" id="li-caps" data-tone="warn" hidden>Caps Lock is on.</span>
+          </div>
+
+          <button class="btn-primary" type="submit" id="li-submit">
+            <span class="lbl-txt">Sign in</span>
+            <span class="sweep" aria-hidden="true"></span>
+          </button>
+        </fieldset>
+      </form>
+
+      <p class="form-foot">New here? <a href="#signup" data-go="signup">Create an account</a>. It takes about twenty seconds.</p>
+      <p class="trust">Your recordings stay <b>private to your account</b>.<br>Deepgram requests are sent with <b>mip_opt_out</b>, so nothing you say trains a model.</p>
+    </div>
+  </div>
+
+</div>
+</section>
+
+
+<!-- ========================================================================
+     SCREEN 2 · SIGNUP
+     ===================================================================== -->
+<section class="screen" id="signup" aria-label="Signup screen">
+<div class="auth">
+
+  <div class="auth-left">
+    <div class="brand-row">
+      <a class="wordmark" href="#signup">MEETING<span>.TXT</span></a>
+      <a class="back-link" href="#signup">&#8592; back to home</a>
+    </div>
+
+    <div class="hero-block">
+      <p class="eyebrow rv">New file · Sign up</p>
+      <h1 class="hero-h1">
+        <span class="ln" data-split>Say it once.</span>
+        <span class="ln accent" data-split>Keep it forever.</span>
+      </h1>
+      <p class="lede rv">Upload the recording, walk away. It comes back split by speaker, timestamped, searchable, and yours alone.</p>
+
+      <div class="ribbon-wrap rv">
+        <svg viewBox="0 0 1200 340" role="img" aria-labelledby="rib-t rib-d" class="cr-handoff-ribbon">
+          <title id="rib-t">A voice handed across and returned as a written record</title>
+          <desc id="rib-d">One long ribbon arm carries a waveform from a hand on the left to a hand on the right, where it has become a page of transcript lines.</desc>
+          <path class="cr-ribbon-path" id="ribbon-path"
+                d="M120,260 C260,260 300,60 480,60 C640,60 640,260 800,260 C920,260 960,90 1090,90"/>
+          <g class="cr-hand-a"><g fill="var(--cr-paper)" transform="translate(58,196)">
+            <rect x="-14" y="70" width="30" height="14" rx="7" transform="rotate(-30 1 77)"/>
+            <rect x="6" y="30" width="70" height="46" rx="23"/>
+            <rect x="6" y="0" width="14" height="34" rx="7" transform="rotate(-8 13 17)"/>
+            <rect x="22" y="-6" width="14" height="40" rx="7"/>
+            <rect x="38" y="-4" width="14" height="38" rx="7" transform="rotate(6 45 15)"/>
+            <rect x="54" y="2" width="13" height="32" rx="6.5" transform="rotate(14 60 18)"/>
+          </g></g>
+          <g class="cr-cargo-in"><g transform="translate(78,150)">
+            <rect x="0" y="0" width="56" height="42" rx="6" fill="var(--cr-ink)"/>
+            <rect x="8"  y="16" width="4" height="14" fill="var(--cr-yellow)"/>
+            <rect x="16" y="9"  width="4" height="26" fill="var(--cr-yellow)"/>
+            <rect x="24" y="17" width="4" height="10" fill="var(--cr-yellow)"/>
+            <rect x="32" y="5"  width="4" height="34" fill="var(--cr-yellow)"/>
+            <rect x="40" y="13" width="4" height="18" fill="var(--cr-yellow)"/>
+          </g></g>
+          <g class="cr-hand-b"><g fill="var(--cr-paper)" transform="translate(1148,26) scale(-1,1)">
+            <rect x="-14" y="70" width="30" height="14" rx="7" transform="rotate(-30 1 77)"/>
+            <rect x="6" y="30" width="70" height="46" rx="23"/>
+            <rect x="6" y="0" width="14" height="34" rx="7" transform="rotate(-8 13 17)"/>
+            <rect x="22" y="-6" width="14" height="40" rx="7"/>
+            <rect x="38" y="-4" width="14" height="38" rx="7" transform="rotate(6 45 15)"/>
+            <rect x="54" y="2" width="13" height="32" rx="6.5" transform="rotate(14 60 18)"/>
+          </g></g>
+          <g class="cr-cargo-out"><g transform="translate(978,-14)">
+            <rect x="0" y="0" width="72" height="50" rx="6" fill="var(--cr-paper)"/>
+            <rect x="9" y="11" width="42" height="4" rx="2" fill="var(--cr-ink)"/>
+            <rect x="9" y="21" width="54" height="4" rx="2" fill="var(--cr-ink)" opacity=".55"/>
+            <rect x="9" y="31" width="32" height="4" rx="2" fill="var(--cr-ink)" opacity=".55"/>
+          </g></g>
+        </svg>
+        <p class="ribbon-cap">Voice in. Record out. Nothing in between that you have to do.</p>
+      </div>
+    </div>
+
+    <div class="left-foot">
+      <span>Free while you try it. <b>No card</b></span>
+      <span>MP4 and MP3, up to <b>2 GB</b></span>
+      <span>Nova-3, about <b>$0.43</b> an hour</span>
+    </div>
+  </div>
+
+  <div class="auth-right">
+    <div class="form-col">
+      <span class="sec">§ Create account</span>
+      <h2 class="form-h2">Open a new file</h2>
+      <p class="form-sub">One account, one private history. Sign up with Google or set a password below.</p>
+
+      <div class="banner" id="signup-banner" role="alert" aria-live="assertive" hidden>
+        <span class="bang">!</span>
+        <p>
+          <b>That email is already registered</b>
+          Sign in instead, or reset the password if you do not have it.
+          <span class="esc">Press Esc to dismiss</span>
+        </p>
+      </div>
+
+      <button class="btn-google" type="button" id="google-signup">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path fill="#4285F4" d="M23.06 12.25c0-.85-.08-1.67-.22-2.45H12v4.63h6.2a5.3 5.3 0 0 1-2.3 3.48v2.89h3.72c2.18-2 3.44-4.96 3.44-8.55z"/>
+          <path fill="#34A853" d="M12 24c3.11 0 5.72-1.03 7.62-2.8l-3.72-2.89c-1.03.69-2.35 1.1-3.9 1.1-3 0-5.54-2.02-6.45-4.74H1.7v2.98A11.5 11.5 0 0 0 12 24z"/>
+          <path fill="#FBBC05" d="M5.55 14.67a6.9 6.9 0 0 1 0-4.41V7.28H1.7a11.5 11.5 0 0 0 0 10.37l3.85-2.98z"/>
+          <path fill="#EA4335" d="M12 4.75c1.69 0 3.21.58 4.4 1.72l3.3-3.3C17.72 1.24 15.11 0 12 0 7.48 0 3.57 2.6 1.7 6.38l3.85 2.98C6.46 6.77 9 4.75 12 4.75z"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="rule-or"><span>Or</span></div>
+
+      <form id="signup-form" novalidate>
+        <fieldset id="signup-fields" style="border:none;margin:0;padding:0;">
+          <div class="field">
+            <div class="field-head"><label class="lbl" for="su-email">Email <span class="req">*</span></label></div>
+            <div class="input-shell">
+              <input class="inp" id="su-email" name="email" type="email" autocomplete="email"
+                     placeholder="aanya.iyer@northbeam.in">
+            </div>
+            <span class="hint" id="su-email-hint" hidden></span>
+          </div>
+
+          <div class="field">
+            <div class="field-head"><label class="lbl" for="su-pass">Password <span class="req">*</span></label></div>
+            <div class="input-shell has-toggle">
+              <input class="inp" id="su-pass" name="password" type="password" autocomplete="new-password"
+                     placeholder="At least 8 characters">
+              <button class="reveal" type="button" data-reveal="su-pass" aria-label="Show password">Reveal</button>
+            </div>
+            <span class="hint" id="su-pass-hint">8 characters minimum. A passphrase beats a puzzle.</span>
+          </div>
+
+          <div class="field">
+            <div class="field-head"><label class="lbl" for="su-confirm">Confirm password <span class="req">*</span></label></div>
+            <div class="input-shell has-toggle">
+              <input class="inp" id="su-confirm" name="confirm" type="password" autocomplete="new-password"
+                     placeholder="Type it once more">
+              <button class="reveal" type="button" data-reveal="su-confirm" aria-label="Show password">Reveal</button>
+            </div>
+            <span class="hint" id="su-confirm-hint" hidden></span>
+          </div>
+
+          <button class="btn-primary" type="submit" id="su-submit">
+            <span class="lbl-txt">Create account</span>
+            <span class="sweep" aria-hidden="true"></span>
+          </button>
+        </fieldset>
+      </form>
+
+      <p class="form-foot">Already have a file? <a href="#login" data-go="login">Sign in</a>.</p>
+      <p class="trust">Creating an account signs you in on this device only.<br>Changing your password later <b>signs out every other device</b>.</p>
+    </div>
+  </div>
+
+</div>
+</section>
+
+
+<!-- ========================================================================
+     SCREEN 3 · STATES
+     ===================================================================== -->
+<section class="screen" id="states" aria-label="Interactive states gallery">
+<div class="states">
+
+  <div class="states-head">
+    <h2>Every state,<br>frozen and labelled</h2>
+    <p>The two screens above are live. Type in them, tab through them, submit them. This page freezes each state so it can be reviewed without hunting, and records the product rules behind the ones that look like design choices but are not.</p>
+  </div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <div class="grp">
+    <h3>§ 01 · Text field</h3>
+    <div class="spec-grid">
+
+      <div class="spec">
+        <span class="cap">Rest</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp" type="email" placeholder="you@company.in" aria-label="Email at rest">
+        </div>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Hover</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp freeze-hover" type="email" placeholder="you@company.in" aria-label="Email hovered">
+        </div>
+        <p class="note">Border lifts from <code>--cr-rule-strong</code> to #38383D. One hairline, a different colour. Gated behind <code>hover:hover</code> so a tap does not trigger it.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Focus · the 2px ring</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp freeze-focus" type="email" value="priya.bansal@northbeam.in" aria-label="Email focused">
+        </div>
+        <p class="note">The only line in this system heavier than a hairline. <code>--cr-focus-ring</code> 2px, <code>--cr-red</code>, offset 2px. The offset animates, the width never does.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Filled and valid</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp" type="email" value="rohit.kulkarni@northbeam.in" aria-label="Email filled">
+          <span class="hint" data-tone="good">Looks like a real address.</span>
+        </div>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Invalid</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp" data-invalid="true" type="email" value="priya.bansal@" aria-label="Email invalid">
+          <span class="hint" data-tone="bad">This does not look like an email address.</span>
+        </div>
+        <p class="note">Field level validation only says what the field can prove. It never says whether the account exists.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Disabled · in flight</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp" type="email" value="priya.bansal@northbeam.in" disabled aria-label="Email disabled">
+        </div>
+        <p class="note">The whole fieldset locks while the request is out, so a second Enter cannot fire a second sign in attempt.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <div class="grp">
+    <h3>§ 02 · Password field</h3>
+    <div class="spec-grid">
+
+      <div class="spec">
+        <span class="cap">Masked · rest</span>
+        <div class="field" style="margin:0">
+          <div class="field-head">
+            <span class="lbl">Password</span>
+            <span class="link-tiny">Forgot password?</span>
+          </div>
+          <div class="input-shell has-toggle">
+            <input class="inp" type="password" value="haathi-chai-9042" aria-label="Password masked">
+            <button class="reveal" type="button" data-reveal-demo>Reveal</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Revealed</span>
+        <div class="field" style="margin:0">
+          <div class="field-head">
+            <span class="lbl">Password</span>
+            <span class="link-tiny">Forgot password?</span>
+          </div>
+          <div class="input-shell has-toggle">
+            <input class="inp" type="text" value="haathi-chai-9042" aria-label="Password revealed">
+            <button class="reveal" type="button" data-reveal-demo style="color:var(--cr-text);background:var(--cr-ink-hover)">Hide</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Caps Lock detected</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Password</span></div>
+          <div class="input-shell has-toggle">
+            <input class="inp freeze-focus" type="password" value="HAATHI" aria-label="Password with caps lock on">
+            <button class="reveal" type="button" data-reveal-demo>Reveal</button>
+          </div>
+          <span class="hint" data-tone="warn">Caps Lock is on.</span>
+        </div>
+        <p class="note">Read from <code>getModifierState('CapsLock')</code> on keydown. It warns, it never blocks. A password can legitimately be all caps.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Too short · signup only</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Password</span></div>
+          <div class="input-shell has-toggle">
+            <input class="inp" data-invalid="true" type="password" value="chai42" aria-label="Password too short">
+            <button class="reveal" type="button" data-reveal-demo>Reveal</button>
+          </div>
+          <span class="hint" data-tone="bad">6 of 8 characters. Two more.</span>
+        </div>
+        <p class="note">Matches the real form's <code>minLength={8}</code>. Counts up rather than scolding.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Confirm does not match</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Confirm password</span></div>
+          <div class="input-shell has-toggle">
+            <input class="inp" data-invalid="true" type="password" value="haathi-chai-9043" aria-label="Confirm mismatched">
+            <button class="reveal" type="button" data-reveal-demo>Reveal</button>
+          </div>
+          <span class="hint" data-tone="bad">These two do not match yet.</span>
+        </div>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Confirm matches</span>
+        <div class="field" style="margin:0">
+          <div class="field-head"><span class="lbl">Confirm password</span></div>
+          <div class="input-shell has-toggle">
+            <input class="inp" type="password" value="haathi-chai-9042" aria-label="Confirm matched">
+            <button class="reveal" type="button" data-reveal-demo>Reveal</button>
+          </div>
+          <span class="hint" data-tone="good">Matches.</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <div class="grp">
+    <h3>§ 03 · Buttons</h3>
+    <div class="spec-grid">
+
+      <div class="spec">
+        <span class="cap">Primary · rest</span>
+        <button class="btn-primary" type="button"><span class="lbl-txt">Sign in</span><span class="sweep"></span></button>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Primary · hover</span>
+        <button class="btn-primary freeze-ghover" type="button"><span class="lbl-txt">Sign in</span><span class="sweep"></span></button>
+        <p class="note">Fill moves <code>--cr-red-fill</code> to <code>--cr-red-fill-hover</code>. The glow stays put.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Primary · pressed</span>
+        <button class="btn-primary freeze-press" type="button"><span class="lbl-txt">Sign in</span><span class="sweep"></span></button>
+        <p class="note"><code>scale(0.97)</code> over <code>--cr-dur-press</code> 140ms, glow drops to nothing. Every pressable element in this system does this, with no exceptions.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Primary · in flight</span>
+        <button class="btn-primary" type="button" data-state="busy" disabled><span class="lbl-txt">Checking credentials</span><span class="sweep"></span></button>
+        <p class="note">No spinner. A 2px highlighter sweep runs the bottom edge on a 1100ms loop and the label states what is happening. Under reduced motion the sweep freezes at 60 percent and stops looping.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Google · rest</span>
+        <button class="btn-google" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.06 12.25c0-.85-.08-1.67-.22-2.45H12v4.63h6.2a5.3 5.3 0 0 1-2.3 3.48v2.89h3.72c2.18-2 3.44-4.96 3.44-8.55z"/><path fill="#34A853" d="M12 24c3.11 0 5.72-1.03 7.62-2.8l-3.72-2.89c-1.03.69-2.35 1.1-3.9 1.1-3 0-5.54-2.02-6.45-4.74H1.7v2.98A11.5 11.5 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.55 14.67a6.9 6.9 0 0 1 0-4.41V7.28H1.7a11.5 11.5 0 0 0 0 10.37l3.85-2.98z"/><path fill="#EA4335" d="M12 4.75c1.69 0 3.21.58 4.4 1.72l3.3-3.3C17.72 1.24 15.11 0 12 0 7.48 0 3.57 2.6 1.7 6.38l3.85 2.98C6.46 6.77 9 4.75 12 4.75z"/></svg>
+          Continue with Google
+        </button>
+        <p class="note">Outline, never filled. In this brand the primary action is already red, so a second filled button would compete with it.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Google · leaving for consent</span>
+        <button class="btn-google" type="button" disabled style="opacity:.7;cursor:progress">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.06 12.25c0-.85-.08-1.67-.22-2.45H12v4.63h6.2a5.3 5.3 0 0 1-2.3 3.48v2.89h3.72c2.18-2 3.44-4.96 3.44-8.55z"/><path fill="#34A853" d="M12 24c3.11 0 5.72-1.03 7.62-2.8l-3.72-2.89c-1.03.69-2.35 1.1-3.9 1.1-3 0-5.54-2.02-6.45-4.74H1.7v2.98A11.5 11.5 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.55 14.67a6.9 6.9 0 0 1 0-4.41V7.28H1.7a11.5 11.5 0 0 0 0 10.37l3.85-2.98z"/><path fill="#EA4335" d="M12 4.75c1.69 0 3.21.58 4.4 1.72l3.3-3.3C17.72 1.24 15.11 0 12 0 7.48 0 3.57 2.6 1.7 6.38l3.85 2.98C6.46 6.77 9 4.75 12 4.75z"/></svg>
+          Redirecting to Google
+        </button>
+        <p class="note">This is a full page navigation to <code>/api/auth/google</code>, not a popup. The button holds the label until the browser leaves.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <div class="grp">
+    <h3>§ 04 · Messages</h3>
+    <div class="spec-grid">
+
+      <div class="spec wide">
+        <span class="cap">Login failure · the only message this form is allowed to send</span>
+        <div class="banner">
+          <span class="bang">!</span>
+          <p><b>Invalid email or password</b>Check both and try again. If you cannot remember it, reset the password.</p>
+        </div>
+        <p class="note">Never "no account with that email", never "wrong password". The message is identical whether the address exists or not, because a different message for each is a free account enumeration tool. This is a security rule from the project's own CLAUDE.md, not a copy preference, so it is not open to a friendlier rewrite.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Google unavailable</span>
+        <div class="banner" data-tone="warn">
+          <span class="bang">!</span>
+          <p><b>Google sign in is unavailable</b>Use your email and password for now.</p>
+        </div>
+        <p class="note">Only reachable by hitting <code>/api/auth/google</code> directly with a stale bookmark. In the normal case the button does not render at all.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Password reset requested</span>
+        <div class="banner" data-tone="good">
+          <span class="bang">§</span>
+          <p><b>Check your inbox</b>If that email has an account, a reset link is on its way. The link works once and expires in an hour.</p>
+        </div>
+        <p class="note">"If that email has an account" is doing real work. The same message shows either way, same rule as the login failure above.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Account created</span>
+        <div class="banner" data-tone="good">
+          <span class="bang">§</span>
+          <p><b>File opened</b>Signed in as aanya.iyer@northbeam.in. Taking you to your meetings.</p>
+        </div>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Email already registered · signup</span>
+        <div class="banner">
+          <span class="bang">!</span>
+          <p><b>That email is already registered</b>Sign in instead, or reset the password if you do not have it.</p>
+        </div>
+        <p class="note">Signup genuinely has to reveal this, since it cannot silently create a duplicate account. Login must not. The asymmetry is deliberate.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Reset link dead</span>
+        <div class="banner">
+          <span class="bang">!</span>
+          <p><b>This reset link has expired</b>Links last one hour and work once. Request a fresh one.</p>
+        </div>
+        <p class="note">Shown before the form renders, from a read only <code>exists()</code> check, so a dead link says so immediately instead of after the user picks a new password.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------------- -->
+  <div class="grp">
+    <h3>§ 05 · Edge cases and variants</h3>
+    <div class="spec-grid">
+
+      <div class="spec">
+        <span class="cap">Google not configured</span>
+        <span class="sec" style="margin-bottom:10px">§ Sign in</span>
+        <div class="field">
+          <div class="field-head"><span class="lbl">Email</span></div>
+          <input class="inp" type="email" placeholder="you@company.in" aria-label="Email, no OAuth variant">
+        </div>
+        <div class="field">
+          <div class="field-head"><span class="lbl">Password</span><span class="link-tiny">Forgot password?</span></div>
+          <input class="inp" type="password" placeholder="Your password" aria-label="Password, no OAuth variant">
+        </div>
+        <button class="btn-primary" type="button"><span class="lbl-txt">Sign in</span><span class="sweep"></span></button>
+        <p class="note">When <code>GOOGLE_CLIENT_ID</code> is unset, <code>OAuthButtons</code> returns null. The button and the Or rule both disappear and the form simply starts at Email. There is no greyed out button and no "coming soon".</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Session check · first paint</span>
+        <div style="padding:4px 0 2px">
+          <div class="skel-row"><div class="skel" style="width:78px"></div><div class="skel" style="width:150px;height:38px;border-radius:var(--cr-radius-md);flex:1"></div></div>
+          <div class="skel-row"><div class="skel" style="width:78px"></div><div class="skel" style="width:150px;height:38px;border-radius:var(--cr-radius-md);flex:1"></div></div>
+          <div class="skel-row" style="border-bottom:none"><div class="skel" style="height:48px;border-radius:var(--cr-radius-lg);flex:1"></div></div>
+        </div>
+        <p class="note">Skeletons match the real field geometry, 38px tall inputs and a 48px button, not generic grey blocks. Opacity pulses 0.4 to 0.8 over 1200ms. Mostly theoretical here, since the page is server rendered and usually paints complete.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Keyboard map</span>
+        <p style="font-size:var(--cr-type-sm);line-height:2.1;color:var(--cr-text-tertiary);margin:0">
+          <span class="kbd">Tab</span> walks Google, then email, then forgot, then password, then reveal, then submit.<br>
+          <span class="kbd">Enter</span> in any field submits.<br>
+          <span class="kbd">Esc</span> dismisses the error banner, with zero animation.
+        </p>
+        <p class="note">Escape closes instantly on purpose. Keyboard initiated actions are never animated in this product, because they repeat all day and motion makes them feel broken.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Reduced motion</span>
+        <p style="font-size:var(--cr-type-sm);line-height:1.7;color:var(--cr-text-tertiary);margin:0">
+          The headline stops staggering and simply appears. The ribbon stops drawing itself. The submit sweep freezes. Everything that carries meaning, colour, focus, and the error banner's own appearance, is kept.
+        </p>
+        <p class="note">Fewer and gentler, not none.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Narrow · under 1040px</span>
+        <p style="font-size:var(--cr-type-sm);line-height:1.7;color:var(--cr-text-tertiary);margin:0">
+          The split collapses to one column. The evidence panel stays on top but drops to its own band with a hairline under it, and the form runs full width beneath. The transcript card keeps its shadow, since it is the one sheet of paper in the system.
+        </p>
+        <p class="note">Resize this window to watch it happen on the two live screens.</p>
+      </div>
+
+      <div class="spec">
+        <span class="cap">Contrast receipts</span>
+        <p style="font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);line-height:2;color:var(--cr-text-tertiary);margin:0">
+          paper on ink · <b style="color:var(--cr-text)">17.11:1</b><br>
+          paper on red fill · <b style="color:var(--cr-text)">5.67:1</b><br>
+          red text on ink · <b style="color:var(--cr-text)">5.25:1</b><br>
+          red text on red tint · <b style="color:var(--cr-text)">4.68:1</b><br>
+          muted on ink · <b style="color:var(--cr-text)">5.57:1</b><br>
+          focus ring on ink · <b style="color:var(--cr-text)">4.63:1</b>
+        </p>
+        <p class="note">Nothing on these two screens sits below 4.5:1 for text or 3:1 for the focus ring.</p>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</section>
+
+
+<script>
+(function(){
+  'use strict';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ------------------------------------------------------------------
+     Screen switcher (preview chrome)
+     ------------------------------------------------------------------ */
+  var screens = {
+    login:  document.getElementById('login'),
+    signup: document.getElementById('signup'),
+    states: document.getElementById('states')
+  };
+  var played = {};
+
+  function show(name){
+    if(!screens[name]) name = 'login';
+    Object.keys(screens).forEach(function(k){
+      screens[k].classList.toggle('is-active', k === name);
+    });
+    document.querySelectorAll('.pv-nav button').forEach(function(b){
+      b.setAttribute('aria-current', b.dataset.go === name ? 'true' : 'false');
+    });
+    window.scrollTo(0,0);
+    if(!played[name]){ played[name] = true; intro(name); }
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('[data-go]');
+    if(!t) return;
+    e.preventDefault();
+    show(t.dataset.go);
+  });
+
+  /* ------------------------------------------------------------------
+     Headline character split. Done in JS so the markup stays readable.
+     ------------------------------------------------------------------ */
+  document.querySelectorAll('[data-split]').forEach(function(el){
+    var txt = el.textContent;
+    el.textContent = '';
+    txt.split('').forEach(function(ch){
+      var s = document.createElement('span');
+      s.className = 'c';
+      s.textContent = ch === ' ' ? ' ' : ch;
+      el.appendChild(s);
+    });
+  });
+
+  /* ------------------------------------------------------------------
+     Entrance timeline. Marketing surface, so --cr-dur-hero is legal here.
+     ------------------------------------------------------------------ */
+  function intro(name){
+    var root = screens[name];
+    if(!root || name === 'states') return;
+    var chars = root.querySelectorAll('.hero-h1 .c');
+    var rest  = root.querySelectorAll('.rv');
+    var form  = root.querySelectorAll('.form-col > *');
+
+    if(reduce || typeof gsap === 'undefined'){
+      [].concat([].slice.call(chars), [].slice.call(rest), [].slice.call(form))
+        .forEach(function(n){ n.style.opacity = 1; n.style.transform = 'none'; });
+      return;
+    }
+
+    var tl = gsap.timeline({ defaults:{ ease:'power3.out' } });
+    tl.from(root.querySelector('.brand-row'), { opacity:0, y:-10, duration:0.4 })
+      .from(chars, { opacity:0, yPercent:60, duration:0.7, stagger:0.025 }, 0.05)
+      .from(rest,  { opacity:0, y:18, duration:0.6, stagger:0.12 }, 0.35)
+      .from(form,  { opacity:0, y:14, duration:0.5, stagger:0.05 }, 0.45);
+
+    /* the ribbon draws itself, once, on the signup screen only */
+    var path = root.querySelector('#ribbon-path');
+    if(path){
+      var len = path.getTotalLength();
+      gsap.set(path, { strokeDasharray: len, strokeDashoffset: len });
+      tl.to(path, { strokeDashoffset: 0, duration: 1.1, ease:'power2.out' }, 0.5);
+      tl.from(root.querySelector('.cr-cargo-out'), { opacity:0, scale:0.9, transformOrigin:'50% 50%', duration:0.5 }, 1.3);
+    }
+  }
+  intro('login');
+
+  /* ------------------------------------------------------------------
+     Password reveal
+     ------------------------------------------------------------------ */
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-reveal]');
+    if(btn){
+      var inp = document.getElementById(btn.dataset.reveal);
+      var showing = inp.type === 'text';
+      inp.type = showing ? 'password' : 'text';
+      btn.textContent = showing ? 'Reveal' : 'Hide';
+      btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+      inp.focus();
+      return;
+    }
+    /* the frozen specimens in the gallery toggle too, so they can be poked */
+    var demo = e.target.closest('[data-reveal-demo]');
+    if(demo){
+      var field = demo.parentElement.querySelector('input');
+      var isText = field.type === 'text';
+      field.type = isText ? 'password' : 'text';
+      demo.textContent = isText ? 'Reveal' : 'Hide';
+    }
+  });
+
+  /* ------------------------------------------------------------------
+     Caps Lock. Warns, never blocks.
+     ------------------------------------------------------------------ */
+  var liPass = document.getElementById('li-pass');
+  var liCaps = document.getElementById('li-caps');
+  liPass.addEventListener('keydown', function(e){
+    if(typeof e.getModifierState !== 'function') return;
+    liCaps.hidden = !e.getModifierState('CapsLock');
+  });
+  liPass.addEventListener('blur', function(){ liCaps.hidden = true; });
+
+  /* ------------------------------------------------------------------
+     Banners. Esc dismisses with zero animation, per the motion rules.
+     ------------------------------------------------------------------ */
+  function openBanner(el){
+    el.hidden = false;
+    el.classList.remove('enter');
+    void el.offsetWidth;      /* restart the transition cleanly */
+    el.classList.add('enter');
+  }
+  function closeBanner(el){
+    el.classList.remove('enter');
+    el.hidden = true;
+  }
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    ['login-banner','signup-banner'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && !el.hidden) closeBanner(el);
+    });
+  });
+
+  /* ------------------------------------------------------------------
+     LOGIN submit. Locks the fieldset, runs the sweep, then returns the
+     one message this form is allowed to return.
+     ------------------------------------------------------------------ */
+  var liForm = document.getElementById('login-form');
+  var liFields = document.getElementById('login-fields');
+  var liSubmit = document.getElementById('li-submit');
+  var liLabel = liSubmit.querySelector('.lbl-txt');
+  var liBanner = document.getElementById('login-banner');
+  var liEmail = document.getElementById('li-email');
+
+  liForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    closeBanner(liBanner);
+    liFields.disabled = true;
+    liSubmit.dataset.state = 'busy';
+    liLabel.textContent = 'Checking credentials';
+
+    window.setTimeout(function(){
+      liFields.disabled = false;
+      delete liSubmit.dataset.state;
+      liLabel.textContent = 'Sign in';
+      liEmail.dataset.invalid = 'true';
+      liPass.dataset.invalid = 'true';
+      liPass.value = '';
+      openBanner(liBanner);
+      liPass.focus();
+    }, 1400);
+  });
+
+  [liEmail, liPass].forEach(function(f){
+    f.addEventListener('input', function(){ delete f.dataset.invalid; });
+  });
+
+  document.getElementById('forgot-link').addEventListener('click', function(e){
+    e.preventDefault();
+    liBanner.dataset.tone = 'good';
+    liBanner.querySelector('.bang').textContent = '§';
+    liBanner.querySelector('p').innerHTML =
+      '<b>Check your inbox</b>If that email has an account, a reset link is on its way. ' +
+      'The link works once and expires in an hour.' +
+      '<span class="esc">Press Esc to dismiss</span>';
+    openBanner(liBanner);
+  });
+
+  /* ------------------------------------------------------------------
+     SIGNUP. Live validation, then submit.
+     ------------------------------------------------------------------ */
+  var suForm = document.getElementById('signup-form');
+  var suFields = document.getElementById('signup-fields');
+  var suSubmit = document.getElementById('su-submit');
+  var suLabel = suSubmit.querySelector('.lbl-txt');
+  var suBanner = document.getElementById('signup-banner');
+  var suEmail = document.getElementById('su-email');
+  var suPass = document.getElementById('su-pass');
+  var suConfirm = document.getElementById('su-confirm');
+  var suEmailHint = document.getElementById('su-email-hint');
+  var suPassHint = document.getElementById('su-pass-hint');
+  var suConfirmHint = document.getElementById('su-confirm-hint');
+
+  function setHint(el, text, tone){
+    if(!text){ el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = text;
+    if(tone) el.dataset.tone = tone; else delete el.dataset.tone;
+  }
+
+  suEmail.addEventListener('input', function(){
+    var v = suEmail.value.trim();
+    if(!v){ setHint(suEmailHint, ''); delete suEmail.dataset.invalid; return; }
+    var ok = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+    suEmail.dataset.invalid = ok ? '' : 'true';
+    if(ok) delete suEmail.dataset.invalid;
+    setHint(suEmailHint, ok ? 'Looks like a real address.' : 'This does not look like an email address.', ok ? 'good' : 'bad');
+  });
+
+  function checkPass(){
+    var n = suPass.value.length;
+    if(n === 0){
+      suPassHint.hidden = false;
+      suPassHint.textContent = '8 characters minimum. A passphrase beats a puzzle.';
+      delete suPassHint.dataset.tone;
+      delete suPass.dataset.invalid;
+    } else if(n < 8){
+      suPass.dataset.invalid = 'true';
+      setHint(suPassHint, n + ' of 8 characters. ' + (8 - n) + ' more.', 'bad');
+    } else {
+      delete suPass.dataset.invalid;
+      setHint(suPassHint, 'Long enough.', 'good');
+    }
+    checkConfirm();
+  }
+  function checkConfirm(){
+    if(!suConfirm.value){ setHint(suConfirmHint, ''); delete suConfirm.dataset.invalid; return; }
+    var match = suConfirm.value === suPass.value;
+    if(match){ delete suConfirm.dataset.invalid; } else { suConfirm.dataset.invalid = 'true'; }
+    setHint(suConfirmHint, match ? 'Matches.' : 'These two do not match yet.', match ? 'good' : 'bad');
+  }
+  suPass.addEventListener('input', checkPass);
+  suConfirm.addEventListener('input', checkConfirm);
+
+  suForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    closeBanner(suBanner);
+    if(suPass.value.length < 8){ checkPass(); suPass.focus(); return; }
+    if(suConfirm.value !== suPass.value){ checkConfirm(); suConfirm.focus(); return; }
+
+    suFields.disabled = true;
+    suSubmit.dataset.state = 'busy';
+    suLabel.textContent = 'Opening your file';
+
+    window.setTimeout(function(){
+      suFields.disabled = false;
+      delete suSubmit.dataset.state;
+      suLabel.textContent = 'Create account';
+      suBanner.dataset.tone = 'good';
+      suBanner.querySelector('.bang').textContent = '§';
+      suBanner.querySelector('p').innerHTML =
+        '<b>File opened</b>Signed in as ' + (suEmail.value.trim() || 'aanya.iyer@northbeam.in') +
+        '. Taking you to your meetings.' +
+        '<span class="esc">Press Esc to dismiss</span>';
+      openBanner(suBanner);
+    }, 1500);
+  });
+
+  /* Google buttons hold their label while the browser leaves for consent */
+  ['google-login','google-signup'].forEach(function(id){
+    var b = document.getElementById(id);
+    b.addEventListener('click', function(){
+      if(b.disabled) return;
+      var original = b.lastChild.textContent;
+      b.disabled = true;
+      b.style.opacity = '.7';
+      b.style.cursor = 'progress';
+      b.lastChild.textContent = ' Redirecting to Google';
+      window.setTimeout(function(){
+        b.disabled = false;
+        b.style.opacity = '';
+        b.style.cursor = '';
+        b.lastChild.textContent = original;
+      }, 1800);
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -56,9 +56,11 @@ export async function exchangeGoogleCode({ code, redirectUri }) {
   return data.access_token;
 }
 
-// Returns { providerId, email } for a verified account, or null if Google
-// won't vouch for the email - only trust an email Google itself says it
-// verified, so someone can't claim an address that isn't really theirs.
+// Returns { providerId, email, avatarUrl } for a verified account, or null
+// if Google won't vouch for the email - only trust an email Google itself
+// says it verified, so someone can't claim an address that isn't really
+// theirs. avatarUrl is cosmetic only (the header avatar), never used for
+// any auth decision.
 export async function fetchGoogleProfile(accessToken) {
   const resp = await fetch(GOOGLE.userInfoUrl, {
     headers: { Authorization: `Bearer ${accessToken}` }
@@ -68,7 +70,7 @@ export async function fetchGoogleProfile(accessToken) {
   }
   const data = await resp.json();
   if (!data.verified_email || !data.email) return null;
-  return { providerId: data.id, email: data.email };
+  return { providerId: data.id, email: data.email, avatarUrl: data.picture || null };
 }
 
 const OAUTH_ERROR_MESSAGES = {

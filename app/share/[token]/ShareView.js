@@ -4,12 +4,9 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-const SPEAKER_COLORS = ['text-sky-400', 'text-emerald-400', 'text-amber-400', 'text-pink-400', 'text-violet-400', 'text-cyan-400'];
 
 function formatTime(sec) {
   if (sec == null) return '';
@@ -62,13 +59,13 @@ export default function ShareView({ meeting }) {
 
   const speakerLabel = (speakerId) => speakerNames[speakerId] || `Speaker ${speakerId + 1}`;
 
-  const metaLine = [
+  const metaParts = [
     meeting.originalName,
     meeting.isVideo ? 'video → audio extracted' : 'audio file',
     meeting.durationSeconds ? `${formatTime(meeting.durationSeconds)} duration` : null,
     `${wordCount} words`,
     speakerCount ? `${speakerCount} speaker${speakerCount > 1 ? 's' : ''}` : null
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean);
 
   function buildSpeakerText() {
     return currentGroups
@@ -133,22 +130,30 @@ export default function ShareView({ meeting }) {
 
   return (
     <>
-      <h1 className="mb-5 text-2xl font-bold break-words">{meeting.title}</h1>
+      <h1 className="font-display mb-5 break-words uppercase" style={{ fontSize: 'var(--cr-type-h1)', fontWeight: 'var(--cr-weight-heavy)' }}>
+        {meeting.title}
+      </h1>
 
-      <Card className="gap-0 py-0 shadow-none">
-        <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
+      {/* The paper transcript-as-hero treatment from the landing page, the
+          same object this product's whole identity is built around. A
+          shared read-only link is exactly the moment that motif belongs. */}
+      <div
+        className="cr-paper-scope overflow-hidden rounded-[var(--cr-radius-card)]"
+        style={{ background: 'var(--cr-paper)', color: 'var(--cr-text-on-paper)', boxShadow: 'var(--cr-shadow-sheet)' }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5" style={{ borderBottom: '1px solid var(--cr-paper-rule)' }}>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
+            <TabsList className="bg-[var(--cr-paper-dim)]">
               <TabsTrigger value="speakers">Transcript</TabsTrigger>
               <TabsTrigger value="plain">Plain Text</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopy}>
+            <Button variant="outline" size="sm" onClick={handleCopy} style={{ borderColor: 'var(--cr-paper-rule)' }}>
               <Copy /> Copy
             </Button>
             <Select value={format} onValueChange={setFormat}>
-              <SelectTrigger size="sm" className="w-20">
+              <SelectTrigger size="sm" className="w-20" style={{ borderColor: 'var(--cr-paper-rule)' }}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -157,44 +162,57 @@ export default function ShareView({ meeting }) {
                 <SelectItem value="vtt">.vtt</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="sm" onClick={handleDownload}>
+            <Button variant="outline" size="sm" onClick={handleDownload} style={{ borderColor: 'var(--cr-paper-rule)' }}>
               <Download /> Download
             </Button>
           </div>
-        </CardHeader>
+        </div>
 
-        <p className="px-4 pt-3 text-xs text-muted-foreground">{metaLine}</p>
+        <div className="font-mono px-5 pt-3" style={{ fontSize: 'var(--cr-type-meta)', color: 'var(--cr-text-paper-mut)' }}>
+          {metaParts.join(' · ')}
+        </div>
 
-        <CardContent className="px-4 pt-4 pb-4">
+        <div className="px-5 pt-4 pb-5">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsContent value="speakers">
-              <ScrollArea className="h-[60vh]">
+              <ScrollArea className="h-[55vh]">
                 {currentGroups.length ? (
-                  <div className="flex flex-col gap-4 pr-3">
-                    {currentGroups.map((g, i) => (
-                      <div className="flex flex-wrap items-baseline gap-3.5" key={i}>
-                        <span className={`inline-flex shrink-0 min-w-[90px] items-baseline gap-1.5 text-[13px] font-semibold ${SPEAKER_COLORS[g.speaker % SPEAKER_COLORS.length]}`}>
-                          <span className="self-center size-2 shrink-0 rounded-full bg-current" />
-                          <span>{speakerLabel(g.speaker)}</span>
-                          <span className="text-[11.5px] font-normal text-muted-foreground">{formatTime(g.start)}</span>
+                  <div className="flex flex-col gap-0 pr-3">
+                    {currentGroups.map((g, i, arr) => (
+                      <div
+                        key={i}
+                        className="flex gap-[var(--cr-space-3)] font-mono"
+                        style={{
+                          fontSize: 'var(--cr-type-sm)',
+                          lineHeight: 'var(--cr-leading-mono)',
+                          padding: '9px 0',
+                          borderBottom: i < arr.length - 1 ? '1px dashed var(--cr-paper-rule)' : 'none'
+                        }}
+                      >
+                        <span
+                          className="h-fit shrink-0 font-semibold"
+                          style={{ background: 'var(--cr-text-on-paper)', color: 'var(--cr-paper)', fontSize: 10.5, padding: '2px 7px', borderRadius: 4 }}
+                        >
+                          {speakerLabel(g.speaker)}
                         </span>
-                        <span className="flex-1 basis-80 text-foreground">{g.transcript}</span>
+                        <span className="shrink-0" style={{ color: 'var(--cr-text-paper-mut)' }}>{formatTime(g.start)}</span>
+                        <span>{g.transcript}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No speaker segments returned.</p>
+                  <p style={{ color: 'var(--cr-text-paper-mut)', fontSize: 'var(--cr-type-sm)' }}>No speaker segments returned.</p>
                 )}
               </ScrollArea>
             </TabsContent>
             <TabsContent value="plain">
-              <ScrollArea className="h-[60vh]">
-                <pre className="pr-3 text-[15px] leading-relaxed whitespace-pre-wrap">{lastTranscript}</pre>
+              <ScrollArea className="h-[55vh]">
+                <pre className="font-mono pr-3 whitespace-pre-wrap" style={{ fontSize: 'var(--cr-type-sm)', lineHeight: 1.7 }}>{lastTranscript}</pre>
               </ScrollArea>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </>
   );
 }

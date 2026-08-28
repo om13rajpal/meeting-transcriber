@@ -33,6 +33,16 @@ export async function getSessionUserId() {
   return session ? session.userId : null;
 }
 
+// The current tab's own session token (the raw cookie value, which doubles
+// as the Session document's _id - see createSession above). Used when an
+// action needs to sign out every OTHER device without also signing out the
+// device that just proved it's the account owner (see updatePassword in
+// app/actions/auth.js). Returns null if there's no session cookie at all.
+export async function getCurrentSessionToken() {
+  const cookieStore = await cookies();
+  return cookieStore.get(COOKIE_NAME)?.value || null;
+}
+
 export async function deleteSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;

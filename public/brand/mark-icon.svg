@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: 98901ba1fd2c6f8abb41a0fee8d2470ae812ba80dbce1e2495843ccd9dd473cd
+artifact_role: asset
+palette: [#0E0E0F, #F4F1EA, #E63946]
+tokens_used: [--cr-ink, --cr-paper, --cr-red, --cr-radius-lg]
+summary: Icon-only lockup. A record: speaker tag plus three transcript lines on an ink tile. Pure geometry, no type, survives 16px and outlives the placeholder name.
+-->
+<!--
+  ICON-ONLY LOCKUP  ·  the mark
+  ==========================================================================
+  This is the one piece of identity that is NOT a placeholder. It carries no
+  letterforms, so it survives whatever the product ends up being called.
+
+  Read: a speaker tag (red) followed by three lines of transcript. That is
+  the entire product in four shapes.
+
+  Sizes: 16, 20, 24, 32, 64, 512. Geometry is on a 64 grid so every one of
+  those divides cleanly. At 16px the third line drops out, use
+  mark-icon-16.svg logic (set .cr-mark-line-3 to display none).
+
+  CLEAR SPACE: 25% of the tile width on all four sides.
+  Do not place the mark on --cr-red. Do not add a gradient. Do not round the
+  tile past --cr-radius-lg.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Product mark: a speaker tag and three transcript lines">
+  <rect width="64" height="64" rx="10" fill="var(--cr-ink, #0E0E0F)"/>
+
+  <!-- the speaker tag. the only red in the mark. -->
+  <rect class="cr-mark-tag" x="14" y="17" width="13" height="8" rx="2" fill="var(--cr-red, #E63946)"/>
+
+  <!-- three transcript lines, ragged right like real speech -->
+  <rect class="cr-mark-line-1" x="31" y="18.5" width="19" height="5" rx="2.5" fill="var(--cr-paper, #F4F1EA)"/>
+  <rect class="cr-mark-line-2" x="14" y="30.5" width="36" height="5" rx="2.5" fill="var(--cr-paper, #F4F1EA)"/>
+  <rect class="cr-mark-line-3" x="14" y="42.5" width="24" height="5" rx="2.5" fill="var(--cr-paper, #F4F1EA)" opacity=".55"/>
+</svg>

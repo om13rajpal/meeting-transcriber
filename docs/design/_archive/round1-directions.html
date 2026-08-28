@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round 01 · Theme Exploration — Meeting Transcriber</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600;700&family=Big+Shoulders+Display:wght@600;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Press+Start+2P&family=Space+Mono:wght@400;700&family=Unbounded:wght@500;700;900&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --page-bg:#0a0a0c; --page-ink:#f2f0eb; --page-muted:#9a978f;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; background:var(--page-bg); color:var(--page-ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
+  img,svg{display:block; max-width:100%;}
+
+  /* ---------- intro ---------- */
+  .intro{max-width:920px; margin:0 auto; padding:96px 24px 64px;}
+  .eyebrow{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#c9a4ff; font-weight:600; margin-bottom:20px;}
+  .intro h1{font-family:'Fraunces',serif; font-size:clamp(40px,7vw,72px); line-height:1.02; letter-spacing:-.02em; margin:0 0 20px; font-weight:600;}
+  .intro h1 em{font-style:italic; color:#c9a4ff;}
+  .intro p.lede{font-size:18px; line-height:1.6; color:#cfccc4; max-width:640px; margin:0 0 40px;}
+  .analysis{background:#141417; border:1px solid #232327; border-radius:16px; padding:28px 32px; margin-bottom:48px;}
+  .analysis h3{margin:0 0 12px; font-size:13px; text-transform:uppercase; letter-spacing:.1em; color:#9a978f;}
+  .analysis p{margin:0 0 10px; font-size:15px; line-height:1.65; color:#c8c5bd;}
+  .analysis p:last-child{margin-bottom:0;}
+  .analysis b{color:var(--page-ink); font-weight:600;}
+  .toc{display:flex; flex-wrap:wrap; gap:10px;}
+  .toc a{display:flex; align-items:center; gap:10px; padding:10px 16px; border:1px solid #2a2a2e; border-radius:999px; color:var(--page-ink); text-decoration:none; font-size:14px; font-weight:500; transition:border-color .18s ease, transform .18s ease;}
+  .toc a:hover{border-color:#c9a4ff; transform:translateY(-2px);}
+  .toc .dot{width:8px; height:8px; border-radius:50%;}
+
+  section.direction{padding:88px 0 96px; border-top:1px solid rgba(255,255,255,.06); position:relative; overflow:hidden;}
+  .wrap{max-width:1100px; margin:0 auto; padding:0 24px; position:relative; z-index:2;}
+  .kicker{display:flex; align-items:center; gap:14px; margin-bottom:20px;}
+  .kicker .letter{width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Inter',sans-serif; font-weight:700; font-size:16px; flex:none;}
+  .kicker .meta{font-size:12px; letter-spacing:.12em; text-transform:uppercase; opacity:.7;}
+  .dirname{font-size:clamp(34px,5.2vw,58px); line-height:1.02; margin:0 0 10px; letter-spacing:-.01em;}
+  .tagline{font-size:19px; opacity:.85; margin:0 0 40px; max-width:560px;}
+
+  .grid2{display:grid; grid-template-columns: 1.1fr 1fr; gap:56px; align-items:start;}
+  @media (max-width:880px){ .grid2{grid-template-columns:1fr;} }
+
+  .palette{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px;}
+  .swatch{width:96px;}
+  .chip{height:56px; border-radius:10px; margin-bottom:8px; border:1px solid rgba(255,255,255,.08);}
+  .swatch .hex{font-family:'IBM Plex Mono',monospace; font-size:11px; opacity:.8; display:block;}
+  .swatch .role{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; opacity:.55; display:block; margin-top:1px;}
+
+  .typesample{margin-bottom:28px;}
+  .typesample .display{font-size:38px; line-height:1.08; margin:0 0 10px;}
+  .typesample .body-line{font-size:14.5px; opacity:.75; max-width:480px; line-height:1.6;}
+  .stack-label{font-size:11px; letter-spacing:.1em; text-transform:uppercase; opacity:.5; margin-bottom:6px;}
+
+  .pitch{font-size:15.5px; line-height:1.7; opacity:.85; max-width:520px; margin-bottom:24px;}
+  .tags{display:flex; flex-wrap:wrap; gap:8px;}
+  .tags span{font-size:11.5px; padding:6px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.15); opacity:.7;}
+
+  .mock-frame{border-radius:18px; overflow:hidden; border:1px solid rgba(255,255,255,.1); box-shadow:0 40px 80px -30px rgba(0,0,0,.6);}
+  .mock-chrome{height:34px; display:flex; align-items:center; gap:6px; padding:0 14px; background:rgba(0,0,0,.18);}
+  .mock-chrome i{width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.25); display:block;}
+  .mock-body{padding:36px 32px; min-height:400px; position:relative;}
+
+  /* ============ A — Analog Waveform ============ */
+  #a{background:#241128; color:#FBEEDD;}
+  #a .kicker .letter{background:#FF6B4A; color:#241128;}
+  #a .chip.c1{background:#FF6B4A;} #a .chip.c2{background:#F6B93B;} #a .chip.c3{background:#6FCF97;}
+  #a .chip.c4{background:#3a1f45;} #a .chip.c5{background:#2f1638;} #a .chip.c6{background:#FBEEDD;}
+  #a .typesample .display{font-family:'Fraunces',serif; font-style:italic; font-weight:500; color:#FBEEDD;}
+  #a .mock-frame{background:#2f1638;}
+  #a .mock-chrome i{background:rgba(251,238,221,.25);}
+  #a .mock-h{font-family:'Fraunces',serif; font-size:34px; font-weight:600; line-height:1.12; margin:0 0 14px;}
+  #a .mock-sub{font-size:14px; opacity:.75; max-width:320px; line-height:1.6; margin-bottom:26px;}
+  #a .cta{display:inline-block; background:#FF6B4A; color:#241128; font-weight:600; font-size:14px; padding:12px 22px; border-radius:999px;}
+  #a .reel-wrap{position:absolute; right:28px; bottom:28px; display:flex; align-items:center; gap:14px;}
+  #a .reel{width:64px; height:64px; border-radius:50%; border:6px solid #F6B93B; position:relative;}
+  #a .reel::after{content:'';position:absolute; inset:22px; border-radius:50%; background:#241128;}
+  #a .tape-body{width:120px; height:52px; background:#3a1f45; border-radius:8px; border:2px solid #F6B93B;}
+  #a .wave{display:flex; align-items:flex-end; gap:3px; height:34px; margin-top:22px;}
+  #a .wave i{width:4px; background:#FF6B4A; border-radius:2px; display:block;}
+
+  /* ============ B — Court Reporter ============ */
+  #b{background:#0E0E0F; color:#F4F1EA;}
+  #b .kicker .letter{background:#F4F1EA; color:#0E0E0F;}
+  #b .chip.c1{background:#0E0E0F; border:1px solid #333;} #b .chip.c2{background:#F4F1EA;} #b .chip.c3{background:#E63946;}
+  #b .chip.c4{background:#FFD23F;} #b .chip.c5{background:#1c1c1c;} #b .chip.c6{background:#8a8a86;}
+  #b .typesample .display{font-family:'Big Shoulders Display',sans-serif; font-weight:800; text-transform:uppercase; letter-spacing:.01em;}
+  #b .mock-frame{background:#F4F1EA; color:#0E0E0F;}
+  #b .mock-chrome{background:rgba(0,0,0,.06);}
+  #b .mock-chrome i{background:rgba(0,0,0,.15);}
+  #b .stamp{display:inline-block; font-family:'Big Shoulders Display',sans-serif; font-weight:900; font-size:13px; letter-spacing:.08em; color:#E63946; border:2px solid #E63946; padding:4px 10px; transform:rotate(-4deg); margin-bottom:18px;}
+  #b .mock-h{font-family:'Big Shoulders Display',sans-serif; font-weight:900; font-size:40px; line-height:.98; text-transform:uppercase; margin:0 0 18px;}
+  #b .line{font-family:'IBM Plex Mono',monospace; font-size:12.5px; display:flex; gap:10px; padding:7px 0; border-bottom:1px dashed rgba(0,0,0,.12);}
+  #b .line .tag{background:#0E0E0F; color:#F4F1EA; padding:1px 6px; border-radius:3px; flex:none; height:fit-content;}
+  #b .line .hl{background:#FFD23F; padding:0 3px;}
+  #b .redact{background:#0E0E0F; color:#0E0E0F; border-radius:2px;}
+
+  /* ============ C — Voice Synth ============ */
+  #c{background:#05060a; color:#E8FFF6;}
+  #c .kicker .letter{background:#24F2C4; color:#05060a; font-family:'Press Start 2P',monospace; font-size:11px;}
+  #c .chip.c1{background:#24F2C4;} #c .chip.c2{background:#FF3F8E;} #c .chip.c3{background:#FFE156;}
+  #c .chip.c4{background:#05060a; border:1px solid #24F2C4;} #c .chip.c5{background:#111820;} #c .chip.c6{background:#E8FFF6;}
+  #c .typesample .display{font-family:'Press Start 2P',monospace; font-size:22px; line-height:1.6; color:#24F2C4;}
+  #c .mock-frame{background:#0b0d12; border:2px solid #24F2C4; position:relative;}
+  #c .mock-frame::before{content:''; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0px, rgba(255,255,255,.035) 1px, transparent 1px, transparent 3px);}
+  #c .mock-chrome{background:#111820;}
+  #c .mock-chrome i{background:#24F2C4;}
+  #c .mock-h{font-family:'Press Start 2P',monospace; font-size:16px; line-height:1.9; color:#FFE156; margin:0 0 20px;}
+  #c .oscil{display:flex; align-items:center; gap:2px; height:60px; margin:20px 0;}
+  #c .oscil i{width:6px; background:#24F2C4; display:block;}
+  #c .mascot{width:56px; height:56px; margin:0 auto 16px; image-rendering:pixelated;}
+  #c .btn8{font-family:'Press Start 2P',monospace; font-size:11px; background:#FF3F8E; color:#05060a; padding:12px 16px; display:inline-block; box-shadow:4px 4px 0 #24F2C4;}
+
+  /* ============ D — Collage Control Room ============ */
+  #d{background:#0B0B0C; color:#F7F5F0;}
+  #d .kicker .letter{background:#FFD400; color:#0B0B0C;}
+  #d .chip.c1{background:#FF3B30;} #d .chip.c2{background:#2D5BFF;} #d .chip.c3{background:#FFD400;}
+  #d .chip.c4{background:#F7F5F0;} #d .chip.c5{background:#0B0B0C; border:1px solid #333;} #d .chip.c6{background:#2D5BFF; opacity:.5;}
+  #d .typesample .display{font-family:'Unbounded',sans-serif; font-weight:900; text-transform:uppercase;}
+  #d .mock-frame{background:#F7F5F0; color:#0B0B0C; position:relative;}
+  #d .mock-chrome{background:rgba(0,0,0,.06);}
+  #d .mock-chrome i{background:rgba(0,0,0,.15);}
+  #d .ticker{background:#0B0B0C; color:#FFD400; font-family:'Unbounded',sans-serif; font-weight:700; font-size:11px; letter-spacing:.1em; padding:8px 0; overflow:hidden; white-space:nowrap; margin-bottom:22px; transform:rotate(-1.4deg); }
+  #d .ticker span{padding:0 18px;}
+  #d .mock-h{font-family:'Unbounded',sans-serif; font-weight:900; font-size:32px; line-height:1.04; text-transform:uppercase; margin:0 0 16px;}
+  #d .mock-h .r{color:#FF3B30;} #d .mock-h .b{color:#2D5BFF;}
+  #d .collage-shape{position:absolute; border-radius:4px;}
+  #d .cta{display:inline-block; background:#0B0B0C; color:#FFD400; font-weight:700; font-size:13px; padding:12px 20px; border-radius:4px; transform:rotate(-1deg); font-family:'Unbounded',sans-serif;}
+
+  /* ============ E — Soft Focus Study ============ */
+  #e{background:#16181D; color:#F1EFEA;}
+  #e .kicker .letter{background:#C9B6F2; color:#16181D;}
+  #e .chip.c1{background:#9FE6C4;} #e .chip.c2{background:#C9B6F2;} #e .chip.c3{background:#F5B8C4;}
+  #e .chip.c4{background:#1E2128;} #e .chip.c5{background:#F1EFEA;} #e .chip.c6{background:#16181D; border:1px solid #333;}
+  #e .typesample .display{font-family:'Instrument Serif',serif; font-style:italic; font-weight:400; color:#F1EFEA;}
+  #e .mock-frame{background:#1E2128;}
+  #e .mock-chrome i{background:rgba(255,255,255,.2);}
+  #e .mock-body.split{display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:center; min-height:380px;}
+  #e .mock-h{font-family:'Instrument Serif',serif; font-style:italic; font-size:36px; line-height:1.12; margin:0 0 16px; color:#F1EFEA;}
+  #e .mock-sub{font-family:'DM Sans',sans-serif; font-size:14px; opacity:.7; max-width:280px; line-height:1.6; margin-bottom:22px;}
+  #e .cta{font-family:'DM Sans',sans-serif; display:inline-block; background:#C9B6F2; color:#16181D; font-weight:700; font-size:13px; padding:12px 22px; border-radius:999px;}
+  #e .dots{position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px); background-size:14px 14px; opacity:.5;}
+
+  /* ---------- decision footer ---------- */
+  footer{padding:100px 24px 120px; text-align:center; border-top:1px solid rgba(255,255,255,.08);}
+  footer h2{font-family:'Fraunces',serif; font-size:clamp(30px,5vw,46px); margin:0 0 14px;}
+  footer p{color:#9a978f; max-width:520px; margin:0 auto 44px; line-height:1.6;}
+  .picks{display:flex; flex-wrap:wrap; justify-content:center; gap:16px; max-width:960px; margin:0 auto 48px;}
+  .pick-card{width:170px; padding:20px 16px; border-radius:14px; border:1px solid #2a2a2e; background:#141417; text-align:left; transition:transform .18s ease, border-color .18s ease;}
+  .pick-card:hover{transform:translateY(-4px); border-color:#c9a4ff;}
+  .pick-card .dot{width:12px; height:12px; border-radius:50%; margin-bottom:14px;}
+  .pick-card b{display:block; font-size:14px; margin-bottom:4px;}
+  .pick-card span{font-size:12px; color:#9a978f; line-height:1.5;}
+  .howto{font-size:14px; color:#7a776f; max-width:480px; margin:0 auto;}
+  .howto code{background:#1c1c1f; padding:2px 7px; border-radius:5px; font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#e6e3da;}
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <div class="eyebrow">Round 01 · Theme Exploration</div>
+  <h1>Five worlds for a machine<br>that <em>listens in Hinglish.</em></h1>
+  <p class="lede">Built from your four references — PixelAI's collage confidence, Peppermint's warm illustrated fintech, Tamagotchi's pixel nostalgia, Sayings' quiet editorial split-screen — reworked around what this product actually is, not a generic "AI SaaS" template.</p>
+
+  <div class="analysis">
+    <h3>Product read</h3>
+    <p><b>What it is:</b> upload a recording → ffmpeg + Deepgram Nova‑3 diarize a Hinglish conversation → a private, searchable transcript with speaker names, tags, and cost-per-minute you can trust.</p>
+    <p><b>Who's using it:</b> a solo founder, consultant, or student who records their own meetings — not an enterprise buyer, not a social feed. One person, private history, real recordings.</p>
+    <p><b>What the interface must earn:</b> <b>trust</b> (this is someone's private conversation), <b>calm</b> during the wait (ffmpeg + Deepgram takes real minutes), and a genuine <b>payoff</b> the moment "Transcribing…" flips to done.</p>
+    <p><b>Where it lives today:</b> no landing page exists — first-time visitors land straight on <code style="font-family:'IBM Plex Mono',monospace;background:#1c1c1f;padding:1px 6px;border-radius:4px;">/login</code>. All five directions below design that missing front door.</p>
+  </div>
+
+  <div class="toc">
+    <a href="#a"><span class="dot" style="background:#FF6B4A"></span> A · Analog Waveform</a>
+    <a href="#b"><span class="dot" style="background:#E63946"></span> B · Court Reporter</a>
+    <a href="#c"><span class="dot" style="background:#24F2C4"></span> C · Voice Synth</a>
+    <a href="#d"><span class="dot" style="background:#FFD400"></span> D · Collage Control Room</a>
+    <a href="#e"><span class="dot" style="background:#C9B6F2"></span> E · Soft Focus Study</a>
+  </div>
+</div>
+
+<!-- ============ A ============ -->
+<section class="direction" id="a">
+  <div class="wrap">
+    <div class="kicker"><div class="letter">A</div><div class="meta">Committed color · warm nostalgia</div></div>
+    <h2 class="dirname">Analog Waveform</h2>
+    <p class="tagline">Every recording, kept warm.</p>
+
+    <div class="grid2">
+      <div>
+        <div class="stack-label">Palette</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip c1"></div><span class="hex">#FF6B4A</span><span class="role">Accent · coral</span></div>
+          <div class="swatch"><div class="chip c2"></div><span class="hex">#F6B93B</span><span class="role">Accent · marigold</span></div>
+          <div class="swatch"><div class="chip c3"></div><span class="hex">#6FCF97</span><span class="role">Success</span></div>
+          <div class="swatch"><div class="chip c4"></div><span class="hex">#3a1f45</span><span class="role">Surface</span></div>
+          <div class="swatch"><div class="chip c5"></div><span class="hex">#241128</span><span class="role">Background</span></div>
+          <div class="swatch"><div class="chip c6"></div><span class="hex">#FBEEDD</span><span class="role">Ink</span></div>
+        </div>
+        <div class="typesample">
+          <div class="stack-label">Fraunces (display, italic) + Inter (body)</div>
+          <div class="display">Baat ho gayi.</div>
+          <div class="body-line">A cassette-deck warmth: reels spin while Nova‑3 listens, so waiting for a transcript feels like queuing a mixtape, not staring at a spinner.</div>
+        </div>
+        <p class="pitch">The safe-leaning, illustration-forward option. Deep plum + coral + marigold reads premium and human at once — closest in spirit to Peppermint's warm fintech illustration, but grounded in the product's own object: the tape, the reel, the waveform.</p>
+        <div class="tags"><span>Peppermint — warmth</span><span>Sayings — character</span></div>
+      </div>
+
+      <div class="mock-frame">
+        <div class="mock-chrome"><i></i><i></i><i></i></div>
+        <div class="mock-body">
+          <div class="mock-h">Baat ho gayi.<br>Ab likhi bhi hui hai.</div>
+          <div class="mock-sub">Upload the recording, get a diarised Hinglish transcript back while you make chai.</div>
+          <span class="cta">Upload a meeting →</span>
+          <div class="reel-wrap">
+            <div class="tape-body"></div>
+            <div class="reel"></div>
+            <div class="reel"></div>
+          </div>
+          <div class="wave">
+            <i style="height:10px"></i><i style="height:22px"></i><i style="height:14px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:26px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:8px"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ B ============ -->
+<section class="direction" id="b">
+  <div class="wrap">
+    <div class="kicker"><div class="letter">B</div><div class="meta">Restrained + one accent · editorial</div></div>
+    <h2 class="dirname">Court Reporter</h2>
+    <p class="tagline">The record speaks for itself.</p>
+
+    <div class="grid2">
+      <div>
+        <div class="stack-label">Palette</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip c1"></div><span class="hex">#0E0E0F</span><span class="role">Ink / bg</span></div>
+          <div class="swatch"><div class="chip c2"></div><span class="hex">#F4F1EA</span><span class="role">Paper</span></div>
+          <div class="swatch"><div class="chip c3"></div><span class="hex">#E63946</span><span class="role">Accent · stamp red</span></div>
+          <div class="swatch"><div class="chip c4"></div><span class="hex">#FFD23F</span><span class="role">Accent · highlighter</span></div>
+          <div class="swatch"><div class="chip c5"></div><span class="hex">#1c1c1c</span><span class="role">Rule</span></div>
+          <div class="swatch"><div class="chip c6"></div><span class="hex">#8a8a86</span><span class="role">Muted</span></div>
+        </div>
+        <div class="typesample">
+          <div class="stack-label">Big Shoulders Display + IBM Plex Mono</div>
+          <div class="display">ON THE RECORD</div>
+          <div class="body-line" style="font-family:'IBM Plex Mono',monospace;">SPEAKER 2 · 00:04:12 · "toh maine bola, let's just ship it"</div>
+        </div>
+        <p class="pitch">The transcript <em>is</em> the graphic. Stamp-red highlights, highlighter-yellow speaker tags, redaction bars played for wit — because this product's real output already looks great; we just let it lead instead of hiding behind a generic hero.</p>
+        <div class="tags"><span>PixelAI — bold type</span><span>Sayings — editorial layout</span></div>
+      </div>
+
+      <div class="mock-frame">
+        <div class="mock-chrome"><i></i><i></i><i></i></div>
+        <div class="mock-body">
+          <span class="stamp">DIARISED</span>
+          <div class="mock-h">Every word.<br>On record.</div>
+          <div class="line"><span class="tag">S1</span> 00:00:04 &nbsp; Toh <span class="hl">Q3 ka number</span> kya laga?</div>
+          <div class="line"><span class="tag">S2</span> 00:00:09 &nbsp; <span class="redact">██████ ██████</span> up eleven percent.</div>
+          <div class="line"><span class="tag">S1</span> 00:00:14 &nbsp; <span class="hl">Bahut badhiya.</span> Send me the deck?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ C ============ -->
+<section class="direction" id="c">
+  <div class="wrap">
+    <div class="kicker"><div class="letter">C</div><div class="meta">Drenched · retro pixel / CRT</div></div>
+    <h2 class="dirname">Voice Synth</h2>
+    <p class="tagline">Press start. Speak Hinglish.</p>
+
+    <div class="grid2">
+      <div>
+        <div class="stack-label">Palette</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip c1"></div><span class="hex">#24F2C4</span><span class="role">Cyan</span></div>
+          <div class="swatch"><div class="chip c2"></div><span class="hex">#FF3F8E</span><span class="role">Magenta</span></div>
+          <div class="swatch"><div class="chip c3"></div><span class="hex">#FFE156</span><span class="role">Yellow</span></div>
+          <div class="swatch"><div class="chip c4"></div><span class="hex">#05060a</span><span class="role">Void</span></div>
+          <div class="swatch"><div class="chip c5"></div><span class="hex">#111820</span><span class="role">Panel</span></div>
+          <div class="swatch"><div class="chip c6"></div><span class="hex">#E8FFF6</span><span class="role">Text</span></div>
+        </div>
+        <div class="typesample">
+          <div class="stack-label">Press Start 2P (headers only) + Space Mono</div>
+          <div class="display">LOAD<br>TAPE.WAV</div>
+          <div class="body-line" style="font-family:'Space Mono',monospace;">&gt; diarizing speaker_02... 84%</div>
+        </div>
+        <p class="pitch">The wildcard. Full commitment to Tamagotchi's world — pixel oscilloscope, CRT scanlines, an 8‑bit mascot that blinks while it "listens" — but every pixel does real product work: speaker colors, upload progress, a genuinely memorable processing state instead of a generic spinner.</p>
+        <div class="tags"><span>Tamagotchi — direct</span></div>
+      </div>
+
+      <div class="mock-frame">
+        <div class="mock-chrome"><i></i><i></i><i></i></div>
+        <div class="mock-body">
+          <svg class="mascot" viewBox="0 0 16 16" shape-rendering="crispEdges">
+            <rect width="16" height="16" fill="none"/>
+            <rect x="4" y="2" width="8" height="10" fill="#24F2C4"/>
+            <rect x="2" y="4" width="2" height="6" fill="#24F2C4"/>
+            <rect x="12" y="4" width="2" height="6" fill="#24F2C4"/>
+            <rect x="6" y="5" width="1" height="2" fill="#05060a"/>
+            <rect x="9" y="5" width="1" height="2" fill="#05060a"/>
+            <rect x="6" y="9" width="4" height="1" fill="#05060a"/>
+            <rect x="7" y="12" width="2" height="2" fill="#FFE156"/>
+          </svg>
+          <div class="mock-h" style="text-align:center;">NOW LISTENING</div>
+          <div class="oscil">
+            <i style="height:12px"></i><i style="height:28px"></i><i style="height:44px"></i><i style="height:20px"></i><i style="height:52px"></i><i style="height:16px"></i><i style="height:36px"></i><i style="height:24px"></i><i style="height:48px"></i><i style="height:14px"></i><i style="height:30px"></i><i style="height:20px"></i>
+          </div>
+          <div style="text-align:center;"><span class="btn8">▶ UPLOAD</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ D ============ -->
+<section class="direction" id="d">
+  <div class="wrap">
+    <div class="kicker"><div class="letter">D</div><div class="meta">Full palette · bold collage</div></div>
+    <h2 class="dirname">Collage Control Room</h2>
+    <p class="tagline">Meetings are chaos. The transcript isn't.</p>
+
+    <div class="grid2">
+      <div>
+        <div class="stack-label">Palette</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip c1"></div><span class="hex">#FF3B30</span><span class="role">Red</span></div>
+          <div class="swatch"><div class="chip c2"></div><span class="hex">#2D5BFF</span><span class="role">Blue</span></div>
+          <div class="swatch"><div class="chip c3"></div><span class="hex">#FFD400</span><span class="role">Yellow</span></div>
+          <div class="swatch"><div class="chip c4"></div><span class="hex">#F7F5F0</span><span class="role">Paper</span></div>
+          <div class="swatch"><div class="chip c5"></div><span class="hex">#0B0B0C</span><span class="role">Ink</span></div>
+        </div>
+        <div class="typesample">
+          <div class="stack-label">Unbounded, weight 900</div>
+          <div class="display">SUNO. SEARCH KARO.</div>
+          <div class="body-line">Ticker banners, cut-paper blocks, stacked primary type — real crosstalk turned into one confident identity.</div>
+        </div>
+        <p class="pitch">The most direct descendant of PixelAI: torn-paper collage energy, marquee tickers, primary-color blocking, huge stacked type. Loud on purpose — because a meeting really is chaos, code-switching and crosstalk included, and the product's job is resolving that into one clean line.</p>
+        <div class="tags"><span>PixelAI — direct</span></div>
+      </div>
+
+      <div class="mock-frame">
+        <div class="mock-chrome"><i></i><i></i><i></i></div>
+        <div class="mock-body">
+          <div class="ticker"><span>HINGLISH · DIARIZED · SEARCHABLE · NOVA-3 · HINGLISH · DIARIZED · SEARCHABLE ·</span></div>
+          <div class="mock-h">SUNO. <span class="r">SAMAJHO.</span><br><span class="b">SEARCH</span> KARO.</div>
+          <span class="cta">Upload a recording</span>
+          <div class="collage-shape" style="width:70px;height:44px;background:#FFD400;right:24px;top:80px;transform:rotate(8deg);"></div>
+          <div class="collage-shape" style="width:50px;height:50px;background:#2D5BFF;right:60px;top:150px;transform:rotate(-10deg);"></div>
+          <div class="collage-shape" style="width:90px;height:30px;background:#FF3B30;right:10px;top:210px;transform:rotate(4deg);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ E ============ -->
+<section class="direction" id="e">
+  <div class="wrap">
+    <div class="kicker"><div class="letter">E</div><div class="meta">Full palette · calm pastel</div></div>
+    <h2 class="dirname">Soft Focus Study</h2>
+    <p class="tagline">Calm enough to actually re-read.</p>
+
+    <div class="grid2">
+      <div>
+        <div class="stack-label">Palette</div>
+        <div class="palette">
+          <div class="swatch"><div class="chip c1"></div><span class="hex">#9FE6C4</span><span class="role">Mint</span></div>
+          <div class="swatch"><div class="chip c2"></div><span class="hex">#C9B6F2</span><span class="role">Lavender</span></div>
+          <div class="swatch"><div class="chip c3"></div><span class="hex">#F5B8C4</span><span class="role">Blush</span></div>
+          <div class="swatch"><div class="chip c4"></div><span class="hex">#1E2128</span><span class="role">Card</span></div>
+          <div class="swatch"><div class="chip c5"></div><span class="hex">#F1EFEA</span><span class="role">Ink</span></div>
+          <div class="swatch"><div class="chip c6"></div><span class="hex">#16181D</span><span class="role">Background</span></div>
+        </div>
+        <div class="typesample">
+          <div class="stack-label">Instrument Serif (italic) + DM Sans</div>
+          <div class="display">a quieter kind of proof.</div>
+          <div class="body-line" style="font-family:'DM Sans',sans-serif;">One illustrated character, soft pastel flats on charcoal, dotted halftone texture, generous whitespace.</div>
+        </div>
+        <p class="pitch">The stakeholder-safe option. A private-meeting tool should feel like a trusted notebook, not a hype product — one illustrated figure at a desk, pastel-on-charcoal, calm pacing. Closest to Sayings' split-screen editorial and Peppermint's illustrated warmth, without either one's saturation.</p>
+        <div class="tags"><span>Sayings — direct</span><span>Peppermint — character warmth</span></div>
+      </div>
+
+      <div class="mock-frame">
+        <div class="mock-chrome"><i></i><i></i><i></i></div>
+        <div class="mock-body split">
+          <div class="dots"></div>
+          <div style="position:relative;z-index:1;">
+            <div class="mock-h">Discover<br>what was said.</div>
+            <div class="mock-sub">Upload a recording. Get back a searchable, speaker-labelled Hinglish transcript.</div>
+            <span class="cta">Get a transcript</span>
+          </div>
+          <svg viewBox="0 0 200 220" style="position:relative;z-index:1;">
+            <rect x="30" y="130" width="140" height="70" rx="10" fill="#1a1c22"/>
+            <circle cx="100" cy="80" r="46" fill="#F5B8C4"/>
+            <rect x="70" y="120" width="60" height="50" rx="14" fill="#9FE6C4"/>
+            <circle cx="80" cy="72" r="6" fill="#16181D"/>
+            <circle cx="120" cy="72" r="6" fill="#16181D"/>
+            <path d="M78 96 q22 14 44 0" stroke="#16181D" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <rect x="46" y="150" width="30" height="4" rx="2" fill="#C9B6F2"/>
+            <rect x="46" y="160" width="46" height="4" rx="2" fill="#C9B6F2" opacity=".6"/>
+            <rect x="124" y="150" width="34" height="4" rx="2" fill="#C9B6F2"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <h2>Pick a world.</h2>
+  <p>Reply with a letter to lock a direction, "combine A's color + B's typography" to mash two up, or tell me what's missing and I'll deal a new hand.</p>
+  <div class="picks">
+    <div class="pick-card"><div class="dot" style="background:#FF6B4A"></div><b>A · Analog Waveform</b><span>Warm plum + coral, cassette nostalgia</span></div>
+    <div class="pick-card"><div class="dot" style="background:#E63946"></div><b>B · Court Reporter</b><span>Paper + stamp red, transcript-as-hero</span></div>
+    <div class="pick-card"><div class="dot" style="background:#24F2C4"></div><b>C · Voice Synth</b><span>CRT pixel, retro-futurist</span></div>
+    <div class="pick-card"><div class="dot" style="background:#FFD400"></div><b>D · Collage Control Room</b><span>Primary color collage, loud &amp; confident</span></div>
+    <div class="pick-card"><div class="dot" style="background:#C9B6F2"></div><b>E · Soft Focus Study</b><span>Pastel-on-charcoal, calm &amp; safe</span></div>
+  </div>
+  <p class="howto">Once you pick, I'll build 1-2 real screens (dashboard + a detail view) in that direction so you can see the actual product before we commit to a full brand kit.</p>
+</footer>
+
+</body>
+</html>

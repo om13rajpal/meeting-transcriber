@@ -14,11 +14,11 @@ export default function ResetPasswordForm({ token }) {
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="token" value={token} />
       <div className="flex flex-col gap-2">
-        <Label htmlFor="password">New password</Label>
+        <Label htmlFor="password" className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">New password</Label>
         <Input id="password" name="password" type="password" required autoComplete="new-password" />
       </div>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="confirmPassword">Confirm new password</Label>
+        <Label htmlFor="confirmPassword" className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Confirm new password</Label>
         <Input id="confirmPassword" name="confirmPassword" type="password" required autoComplete="new-password" />
       </div>
       {state?.error && (
@@ -26,7 +26,7 @@ export default function ResetPasswordForm({ token }) {
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       )}
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" size="lg" className="w-full" disabled={pending} style={{ boxShadow: 'var(--cr-shadow-cta)' }}>
         {pending ? 'Resetting…' : 'Reset password'}
       </Button>
     </form>

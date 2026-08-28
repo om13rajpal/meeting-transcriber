@@ -1,30 +1,28 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { UploadCloud, Search, Trash2, FileAudio, FileVideo, LogOut, Loader2, AlertCircle, Webhook, Plus, X, RotateCw, Tag } from 'lucide-react';
-import { logout } from '@/app/actions/auth';
+import { UploadCloud, Search, Trash2, FileAudio, FileVideo, Loader2, X, RotateCw, Tag } from 'lucide-react';
 import { createUploadToken } from '@/app/actions/transcribe';
 import { deleteMeeting, deleteMeetings, addTagToMeetings, markMeetingFailed } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
-import { getWebhooks, saveWebhooks } from '@/app/actions/settings';
-import { highlightText } from '@/lib/utils';
+import { highlightText, cn } from '@/lib/utils';
+import AppHeader from '@/components/brand/AppHeader';
+import StatusPill from '@/components/brand/StatusPill';
+import MetaLine from '@/components/brand/MetaLine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuGroup
-} from '@/components/ui/dropdown-menu';
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription
+} from '@/components/ui/empty';
 import {
   Dialog,
   DialogContent,
@@ -72,25 +70,13 @@ function formatDate(iso) {
   // produce byte-identical output regardless of which ICU version ran.
   return date
     .toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-    .replace(/[  -   　]/g, ' ');
+    .replace(/[  -   　]/g, ' ');
 }
 
 function formatCost(costUsd) {
   if (typeof costUsd !== 'number') return null;
   return `$${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}`;
 }
-
-function initialsFor(email) {
-  return (email || '?').slice(0, 2).toUpperCase();
-}
-
-const WEBHOOK_FORMATS = [
-  { value: 'generic', label: 'Generic JSON' },
-  { value: 'discord', label: 'Discord' },
-  { value: 'slack', label: 'Slack' },
-  { value: 'teams', label: 'Microsoft Teams' }
-];
-const EMPTY_WEBHOOK = { url: '', format: 'generic' };
 
 // fetch() has no upload progress event, which is exactly what made a large,
 // slow, or stalled upload indistinguishable from a working one - the user
@@ -123,7 +109,7 @@ function uploadWithProgress(url, formData, onProgress) {
   return { xhr, promise };
 }
 
-export default function Dashboard({ userEmail, initialMeetings, usageSummary }) {
+export default function Dashboard({ userEmail, avatarUrl, initialMeetings, usageSummary }) {
   const router = useRouter();
   const fileInputRef = useRef(null);
   const searchDebounceRef = useRef(null);
@@ -138,11 +124,6 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
   const [bulkTagOpen, setBulkTagOpen] = useState(false);
   const [bulkTagValue, setBulkTagValue] = useState('');
   const [bulkTagSaving, setBulkTagSaving] = useState(false);
-  const [, startLogoutTransition] = useTransition();
-  const [webhookOpen, setWebhookOpen] = useState(false);
-  const [webhookLoading, setWebhookLoading] = useState(false);
-  const [webhookSaving, setWebhookSaving] = useState(false);
-  const [webhooks, setWebhooks] = useState([]);
 
   // Polls while any meeting is still 'processing', so a job kicked off by
   // this tab (or one still running when the page was reloaded, since status
@@ -372,88 +353,23 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
     }, 300);
   }
 
-  function handleLogout() {
-    startLogoutTransition(() => {
-      logout();
-    });
-  }
-
-  async function openWebhookDialog() {
-    setWebhookOpen(true);
-    setWebhookLoading(true);
-    try {
-      const result = await getWebhooks();
-      setWebhooks(result.webhooks.length ? result.webhooks : [{ ...EMPTY_WEBHOOK }]);
-    } finally {
-      setWebhookLoading(false);
-    }
-  }
-
-  function updateWebhookField(index, field, value) {
-    setWebhooks((prev) => prev.map((w, i) => (i === index ? { ...w, [field]: value } : w)));
-  }
-
-  function addWebhookRow() {
-    setWebhooks((prev) => [...prev, { ...EMPTY_WEBHOOK }]);
-  }
-
-  function removeWebhookRow(index) {
-    setWebhooks((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  async function handleSaveWebhooks() {
-    setWebhookSaving(true);
-    try {
-      const result = await saveWebhooks(webhooks);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      setWebhookOpen(false);
-      toast.success('Webhooks saved.');
-    } finally {
-      setWebhookSaving(false);
-    }
-  }
-
   const showEmptyState = files.length === 0 && !searching && meetings.length === 0 && !searchQuery.trim();
   const showNoResultsState = files.length === 0 && !searching && meetings.length === 0 && searchQuery.trim();
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <span className="text-base font-semibold">Meeting Transcriber</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-              <Avatar className="size-8">
-                <AvatarFallback className="text-xs">{initialsFor(userEmail)}</AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="font-normal text-muted-foreground">{userEmail}</DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openWebhookDialog}>
-                <Webhook />
-                Webhook
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} variant="destructive">
-                <LogOut />
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
+    <div className="min-h-screen" style={{ background: 'var(--cr-ink-app)' }}>
+      <AppHeader userEmail={userEmail} avatarUrl={avatarUrl} />
 
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">New Transcription</h2>
+      <main className="mx-auto px-6 py-8" style={{ maxWidth: 'var(--cr-measure-app)' }}>
+        <h2 className="mb-3 font-mono uppercase text-[var(--cr-text-muted)]" style={{ fontSize: 'var(--cr-type-mono)', letterSpacing: 'var(--cr-tracking-eyebrow)' }}>
+          New Transcription
+        </h2>
 
         <Card
-          className={`cursor-pointer border-2 border-dashed py-10 text-center shadow-none transition-colors ${dragOver ? 'border-primary bg-accent/40' : 'border-border hover:border-primary/60'}`}
+          className={cn(
+            'cursor-pointer border-2 border-dashed py-10 text-center shadow-none transition-colors duration-[var(--cr-dur-hover)] ease-[var(--cr-ease-out)]',
+            dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/60'
+          )}
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => {
             e.preventDefault();
@@ -463,7 +379,7 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
           onDrop={handleDrop}
         >
           <CardContent className="flex flex-col items-center gap-2">
-            <UploadCloud className="mb-1 size-8 text-primary" />
+            <UploadCloud className="mb-1 size-8" style={{ color: 'var(--cr-text-tertiary)' }} />
             <p className="font-medium">Drop your recordings here</p>
             <p className="text-sm text-muted-foreground">MP4 or MP3 &middot; multiple files at once &middot; or click to browse</p>
           </CardContent>
@@ -496,10 +412,14 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
                       <span className="shrink-0 text-muted-foreground">({formatBytes(f.file.size)})</span>
                     </div>
                     {f.status === 'uploading' && (
+                      // Constant motion, so linear is correct (not ease-out).
+                      // Animates transform, never width, so it never
+                      // triggers layout on a value that changes many times
+                      // a second.
                       <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-primary transition-[width] duration-300"
-                          style={{ width: `${f.progress}%` }}
+                          className="h-full origin-left rounded-full bg-primary transition-transform duration-150 ease-linear"
+                          style={{ transform: `scaleX(${f.progress / 100})` }}
                         />
                       </div>
                     )}
@@ -522,16 +442,30 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
                       <Button variant="outline" size="sm" className="shrink-0" onClick={() => retryFile(f.key)}>
                         <RotateCw /> Retry
                       </Button>
-                      <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={() => removeFile(f.key)}>
-                        <X />
-                        <span className="sr-only">Remove</span>
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={() => removeFile(f.key)}>
+                              <X />
+                              <span className="sr-only">Remove</span>
+                            </Button>
+                          }
+                        />
+                        <TooltipContent>Remove from this list</TooltipContent>
+                      </Tooltip>
                     </>
                   ) : (
-                    <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={() => removeFile(f.key)}>
-                      <X />
-                      <span className="sr-only">Remove</span>
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" onClick={() => removeFile(f.key)}>
+                            <X />
+                            <span className="sr-only">Remove</span>
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Remove from this list</TooltipContent>
+                    </Tooltip>
                   )}
                 </CardContent>
               </Card>
@@ -547,16 +481,19 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
           </div>
         )}
 
-        <div className="mt-10 mb-3 flex items-center justify-between gap-3">
+        <div className="mt-10 mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-muted-foreground">Past Meetings</h2>
+            <h2 className="font-display uppercase" style={{ fontSize: 'var(--cr-type-h2)', fontWeight: 'var(--cr-weight-heavy)' }}>
+              Past Meetings
+            </h2>
             {usageSummary && usageSummary.count > 0 && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                This month: {usageSummary.minutes} min transcribed &middot; ~{formatCost(usageSummary.costUsd)} estimated
-              </p>
+              <MetaLine className="mt-1">
+                This month: {usageSummary.minutes} min transcribed &middot;{' '}
+                <span style={{ color: 'var(--cr-text-tertiary)' }}>~{formatCost(usageSummary.costUsd)}</span> estimated
+              </MetaLine>
             )}
           </div>
-          <div className="relative w-56">
+          <div className="relative w-full sm:w-56">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
@@ -571,14 +508,34 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
 
         {searching && (
           <div className="flex flex-col gap-2">
-            <Skeleton className="h-20 w-full rounded-xl" />
-            <Skeleton className="h-20 w-full rounded-xl" />
+            {/* Skeletons mirror the real row grid (checkbox, title, two mono
+                meta lines) rather than generic slabs, so the loading state
+                reads as "this list, arriving" not "something unrelated". */}
+            {[0, 1].map((i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-4" style={{ borderBottom: '1px solid var(--cr-rule-soft)' }}>
+                <Skeleton className="size-4 shrink-0 rounded-[4px]" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton className="mb-2 h-4 w-48" />
+                  <Skeleton className="h-3 w-72" />
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <Skeleton className="h-4 w-20 rounded-full" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {selectedIds.size > 0 && (
-          <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-            <span>{selectedIds.size} selected</span>
+          // Neutral raised surface, not yellow. Highlighter yellow on this
+          // screen is reserved for the search <mark> and the Transcribing
+          // status, nothing else.
+          <div
+            className="mb-2 flex items-center justify-between gap-3 rounded-[var(--cr-radius-md)] px-3 py-2 text-sm"
+            style={{ background: 'var(--cr-ink-raised)', border: '1px solid var(--cr-rule-soft)' }}
+          >
+            <span className="font-mono" style={{ fontSize: 'var(--cr-type-sm)' }}>{selectedIds.size} selected</span>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={openBulkTagDialog}>
                 <Tag /> Add tag
@@ -596,39 +553,38 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
             {meetings.map((meeting) => (
               <Card
                 key={meeting.id}
-                className="cursor-pointer shadow-none transition-colors hover:border-primary/50"
+                className="cursor-pointer shadow-none transition-colors duration-[var(--cr-dur-hover)] ease-[var(--cr-ease-out)] hover:border-primary/50"
                 onClick={() => {
                   const q = searchQuery.trim();
                   router.push(q ? `/meeting/${meeting.id}?q=${encodeURIComponent(q)}` : `/meeting/${meeting.id}`);
                 }}
               >
                 <CardContent className="flex items-center gap-4">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selectedIds.has(meeting.id)}
                     onClick={(e) => e.stopPropagation()}
-                    onChange={() => toggleSelect(meeting.id)}
-                    className="size-4 shrink-0 accent-primary"
+                    onCheckedChange={() => toggleSelect(meeting.id)}
                     aria-label={`Select ${meeting.title}`}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{meeting.title}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <MetaLine className="mt-0.5">
                       {[
                         meeting.isVideo ? 'Video' : 'Audio',
                         formatDuration(meeting.durationSeconds),
                         formatDate(meeting.createdAt)
                       ].filter(Boolean).join(' · ')}
-                    </div>
+                    </MetaLine>
                     {meeting.status === 'processing' ? (
-                      <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <Loader2 className="size-3.5 animate-spin" />
-                        Transcribing&hellip;
+                      <div className="mt-1.5">
+                        <StatusPill status="processing" />
                       </div>
                     ) : meeting.status === 'failed' ? (
-                      <div className="mt-1 flex items-center gap-1.5 truncate text-sm text-destructive">
-                        <AlertCircle className="size-3.5 shrink-0" />
-                        <span className="truncate">{meeting.errorMessage || 'Transcription failed.'}</span>
+                      <div className="mt-1.5 flex items-center gap-1.5 truncate">
+                        <StatusPill status="failed" />
+                        <span className="truncate text-sm" style={{ color: 'var(--cr-danger)' }}>
+                          {meeting.errorMessage || 'Transcription failed.'}
+                        </span>
                       </div>
                     ) : (
                       <div className="mt-1 truncate text-sm text-muted-foreground">{highlightText(meeting.preview, searchQuery)}</div>
@@ -641,18 +597,25 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
                       </div>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPendingDeleteIds([meeting.id]);
-                    }}
-                  >
-                    <Trash2 />
-                    <span className="sr-only">Delete</span>
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingDeleteIds([meeting.id]);
+                          }}
+                        >
+                          <Trash2 />
+                          <span className="sr-only">Delete</span>
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Delete meeting</TooltipContent>
+                  </Tooltip>
                 </CardContent>
               </Card>
             ))}
@@ -660,16 +623,20 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
         )}
 
         {showEmptyState && (
-          <Card className="border-dashed py-14 text-center shadow-none">
-            <CardContent className="text-muted-foreground">
-              No meetings yet. Upload a recording above to get started.
-            </CardContent>
-          </Card>
+          <Empty className="py-14" style={{ border: '1px dashed var(--cr-rule-soft)', borderRadius: 'var(--cr-radius-xl)' }}>
+            <EmptyHeader>
+              <EmptyTitle>No meetings yet</EmptyTitle>
+              <EmptyDescription>Upload a recording above to get your first transcript.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
         {showNoResultsState && (
-          <Card className="border-dashed py-14 text-center shadow-none">
-            <CardContent className="text-muted-foreground">No meetings match your search.</CardContent>
-          </Card>
+          <Empty className="py-14" style={{ border: '1px dashed var(--cr-rule-soft)', borderRadius: 'var(--cr-radius-xl)' }}>
+            <EmptyHeader>
+              <EmptyTitle>Nothing matches &ldquo;{searchQuery.trim()}&rdquo;</EmptyTitle>
+              <EmptyDescription>Try a different word, or check a tag you may have misspelled.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </main>
 
@@ -709,70 +676,6 @@ export default function Dashboard({ userEmail, initialMeetings, usageSummary }) 
             <Button onClick={handleBulkAddTag} disabled={bulkTagSaving || !bulkTagValue.trim()}>
               {bulkTagSaving && <Loader2 className="animate-spin" />}
               Add
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={webhookOpen} onOpenChange={setWebhookOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Webhooks</DialogTitle>
-            <DialogDescription>
-              When a meeting finishes or fails, the transcript is sent to each URL below. Pick a format
-              to match where it's going &mdash; Discord and Slack post a readable message, Microsoft Teams
-              posts a card (via a Workflows webhook), and Generic JSON sends the full raw data for your
-              own automation.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            {webhooks.map((webhook, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <Input
-                  type="url"
-                  placeholder="https://..."
-                  value={webhook.url}
-                  onChange={(e) => updateWebhookField(index, 'url', e.target.value)}
-                  disabled={webhookLoading}
-                  className="flex-1"
-                />
-                <Select
-                  value={webhook.format}
-                  onValueChange={(value) => updateWebhookField(index, 'format', value)}
-                  disabled={webhookLoading}
-                >
-                  <SelectTrigger className="w-40 shrink-0">
-                    <SelectValue>
-                      {(value) => WEBHOOK_FORMATS.find((f) => f.value === value)?.label || value}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEBHOOK_FORMATS.map((f) => (
-                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeWebhookRow(index)}
-                  disabled={webhookLoading}
-                >
-                  <X />
-                  <span className="sr-only">Remove</span>
-                </Button>
-              </div>
-            ))}
-            <Button variant="outline" size="sm" className="self-start" onClick={addWebhookRow} disabled={webhookLoading}>
-              <Plus /> Add webhook
-            </Button>
-          </div>
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button onClick={handleSaveWebhooks} disabled={webhookLoading || webhookSaving}>
-              {webhookSaving && <Loader2 className="animate-spin" />}
-              Save
             </Button>
           </DialogFooter>
         </DialogContent>

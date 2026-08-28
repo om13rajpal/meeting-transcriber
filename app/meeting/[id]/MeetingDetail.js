@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Copy, Download, Share2, Trash2, Link2, X, Loader2, AlertCircle, Users, CheckCircle2, XCircle, RotateCw, Tag, Plus } from 'lucide-react';
+import { Copy, Download, Share2, Trash2, Link2, X, Loader2, Users, RotateCw, Tag, Plus } from 'lucide-react';
 import {
   getMeeting,
   updateMeetingTitle,
@@ -16,10 +16,16 @@ import {
   updateMeetingTags
 } from '@/app/actions/meetings';
 import { highlightText } from '@/lib/utils';
+import AppHeader from '@/components/brand/AppHeader';
+import StatusPill from '@/components/brand/StatusPill';
+import SpeakerTag from '@/components/brand/SpeakerTag';
+import TimeRail from '@/components/brand/TimeRail';
+import MetaLine from '@/components/brand/MetaLine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -33,8 +39,6 @@ import {
   DialogFooter,
   DialogClose
 } from '@/components/ui/dialog';
-
-const SPEAKER_COLORS = ['text-sky-400', 'text-emerald-400', 'text-amber-400', 'text-pink-400', 'text-violet-400', 'text-cyan-400'];
 
 function formatTime(sec) {
   if (sec == null) return '';
@@ -82,7 +86,7 @@ function formatCost(costUsd) {
   return `$${costUsd.toFixed(costUsd < 0.01 ? 4 : 2)}`;
 }
 
-export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = [], initialQuery = '' }) {
+export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting, knownSpeakerNames = [], initialQuery = '' }) {
   const router = useRouter();
   const titleRef = useRef(null);
   const groupRefs = useRef({});
@@ -137,7 +141,8 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
   // making the user re-find it in a long transcript. Only runs once per
   // page load (hasJumpedRef), and waits for currentGroups to actually have
   // content, since a freshly-uploaded meeting starts with none while still
-  // 'processing'.
+  // 'processing'. Declared after currentGroups on purpose - it reads that
+  // memo, so declaring it earlier is a temporal-dead-zone crash.
   useEffect(() => {
     if (!initialQuery || hasJumpedRef.current || !currentGroups.length) return;
 
@@ -154,7 +159,7 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
 
   const speakerLabel = (speakerId) => speakerNames[speakerId] || `Speaker ${speakerId + 1}`;
 
-  const metaLine = [
+  const metaParts = [
     meeting.originalName,
     meeting.isVideo ? 'video → audio extracted' : 'audio file',
     meeting.durationSeconds ? `${formatTime(meeting.durationSeconds)} duration` : null,
@@ -164,7 +169,7 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
     formatCost(meeting.deepgramCostUsd)
       ? `${formatCost(meeting.deepgramCostUsd)}${meeting.deepgramCostExact ? '' : ' estimated'}`
       : null
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean);
 
   async function commitTags(nextTags) {
     setTagSaving(true);
@@ -369,196 +374,213 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mb-4 -ml-2 text-muted-foreground"
-        render={<a href="/" />}
-        nativeButton={false}
-      >
-        &larr; Back to meetings
-      </Button>
-
-      <h1
-        ref={titleRef}
-        className="-ml-2 mb-5 cursor-text rounded-lg border border-transparent px-2 py-1 text-2xl font-bold break-words outline-none hover:border-border hover:bg-accent/40 focus:border-primary focus:bg-accent/40"
-        contentEditable
-        suppressContentEditableWarning
-        spellCheck={false}
-        title="Click to rename"
-        onFocus={(e) => selectAllTextIn(e.target)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            e.target.blur();
-          }
-        }}
-        onBlur={commitTitle}
-      >
-        {meeting.title}
-      </h1>
-
-      {meeting.status === 'processing' ? (
-        <Card className="border-dashed py-14 text-center shadow-none">
-          <CardContent className="flex flex-col items-center gap-3 text-muted-foreground">
-            <Loader2 className="size-6 animate-spin" />
-            <p>Transcribing&hellip; this can take a few minutes depending on the recording's length.</p>
-            <p className="text-xs">This page updates automatically, no need to refresh.</p>
-            <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
-              <Trash2 /> Cancel &amp; delete
+    <div className="min-h-screen" style={{ background: 'var(--cr-ink-app)' }}>
+      <AppHeader
+        userEmail={userEmail}
+        avatarUrl={avatarUrl}
+        left={
+          <>
+            <span style={{ color: 'var(--cr-rule-strong)' }}>/</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              render={<a href="/" />}
+              nativeButton={false}
+            >
+              &larr; Back to meetings
             </Button>
-          </CardContent>
-        </Card>
-      ) : meeting.status === 'failed' ? (
-        <Card className="border-dashed py-14 text-center shadow-none">
-          <CardContent className="flex flex-col items-center gap-3">
-            <AlertCircle className="size-6 text-destructive" />
-            <p className="text-destructive">{meeting.errorMessage || 'Transcription failed.'}</p>
-            <p className="text-sm text-muted-foreground">Delete this and try uploading the recording again.</p>
+          </>
+        }
+      />
+
+      <main className="mx-auto px-6 py-8" style={{ maxWidth: 'var(--cr-measure-app)' }}>
+        <h1
+          ref={titleRef}
+          className="font-display -ml-2 mb-5 cursor-text rounded-[var(--cr-radius-md)] border border-transparent px-2 py-1 break-words uppercase outline-none transition-colors duration-[var(--cr-dur-hover)] ease-[var(--cr-ease-out)] hover:border-[var(--cr-rule-soft)] hover:bg-[var(--cr-ink-raised)] focus:border-primary focus:bg-[var(--cr-ink-raised)] focus-visible:ring-2 focus-visible:ring-ring/50"
+          style={{ fontSize: 'var(--cr-type-h2)', fontWeight: 'var(--cr-weight-heavy)' }}
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck={false}
+          role="textbox"
+          aria-multiline="false"
+          aria-label="Meeting title"
+          title="Click to rename"
+          onFocus={(e) => selectAllTextIn(e.target)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.target.blur();
+            }
+          }}
+          onBlur={commitTitle}
+        >
+          {meeting.title}
+        </h1>
+
+        {meeting.status === 'processing' ? (
+          <Card className="border-dashed py-14 text-center shadow-none">
+            <CardContent className="flex flex-col items-center gap-3">
+              <StatusPill status="processing" />
+              <p className="text-muted-foreground">
+                Transcribing&hellip; this can take a few minutes depending on the recording&apos;s length.
+              </p>
+              <p className="text-xs text-muted-foreground">This page updates automatically, no need to refresh.</p>
+              <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+                <Trash2 /> Cancel &amp; delete
+              </Button>
+            </CardContent>
+          </Card>
+        ) : meeting.status === 'failed' ? (
+          <Card className="border-dashed py-14 text-center shadow-none">
+            <CardContent className="flex flex-col items-center gap-3">
+              <StatusPill status="failed" />
+              <p style={{ color: 'var(--cr-danger)' }}>{meeting.errorMessage || 'Transcription failed.'}</p>
+              <p className="text-sm text-muted-foreground">Delete this and try uploading the recording again.</p>
+              <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
+              <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+                <Trash2 /> Delete
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+        <Card className="gap-0 py-0 shadow-none">
+          <CardHeader className="flex-row items-center justify-between gap-3 border-b px-4 py-3" style={{ background: 'var(--cr-ink-raised)' }}>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList>
+                <TabsTrigger value="speakers">Transcript</TabsTrigger>
+                <TabsTrigger value="plain">Plain Text</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleCopy}>
+                <Copy /> Copy
+              </Button>
+              <Select value={format} onValueChange={setFormat}>
+                <SelectTrigger size="sm" className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="txt">.txt</SelectItem>
+                  <SelectItem value="srt">.srt</SelectItem>
+                  <SelectItem value="vtt">.vtt</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download /> Download
+              </Button>
+            </div>
+          </CardHeader>
+
+          <div className="flex items-center justify-between gap-3 px-4 pt-3">
+            <MetaLine>{metaParts.join(' · ')}</MetaLine>
+            <div className="flex shrink-0 gap-2">
+              {speakerCount > 1 && (
+                <Button variant="outline" size="sm" onClick={openMergeDialog}>
+                  <Users /> Merge speakers
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleShare}>
+                <Share2 /> Share
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} disabled={deleting}>
+                <Trash2 /> Delete
+              </Button>
+            </div>
+          </div>
+
+          <div className="px-4 pt-2">
             <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
-            <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteOpen(true)} disabled={deleting}>
-              <Trash2 /> Delete
-            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2.5">
+            <Tag className="size-3.5 shrink-0 text-muted-foreground" />
+            {(meeting.tags || []).map((tag) => (
+              <Badge key={tag} variant="secondary" className="gap-1 pr-1">
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  disabled={tagSaving}
+                  className="rounded-full p-0.5 transition-transform duration-[var(--cr-dur-press)] ease-[var(--cr-ease-out)] hover:bg-black/10 active:scale-[var(--cr-press-scale)] dark:hover:bg-white/10"
+                >
+                  <X className="size-2.5" />
+                  <span className="sr-only">Remove tag</span>
+                </button>
+              </Badge>
+            ))}
+            <form onSubmit={handleAddTag} className="inline-flex items-center">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder="Add tag"
+                disabled={tagSaving}
+                className="h-6 w-24 border-none bg-transparent px-1.5 text-xs shadow-none focus-visible:ring-0"
+              />
+              {tagInput.trim() && (
+                <Button type="submit" variant="ghost" size="icon-sm" className="size-6" disabled={tagSaving}>
+                  <Plus className="size-3.5" />
+                  <span className="sr-only">Add tag</span>
+                </Button>
+              )}
+            </form>
+          </div>
+
+          {meeting.shareToken && (
+            <div className="mx-4 mt-3 flex items-center gap-2 rounded-[var(--cr-radius-md)] border p-2.5" style={{ background: 'var(--cr-ink-raised)' }}>
+              <Link2 className="ml-1 size-4 shrink-0 text-muted-foreground" />
+              <Input
+                readOnly
+                className="h-8 flex-1 text-muted-foreground"
+                value={typeof window !== 'undefined' ? `${window.location.origin}/share/${meeting.shareToken}` : ''}
+              />
+              <Button variant="outline" size="sm" onClick={handleCopyShareLink}>Copy link</Button>
+              <Button variant="ghost" size="icon-sm" onClick={() => setRevokeOpen(true)}>
+                <X />
+                <span className="sr-only">Revoke</span>
+              </Button>
+            </div>
+          )}
+
+          <CardContent className="px-4 pt-4 pb-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsContent value="speakers">
+                <ScrollArea className="h-[60vh]">
+                  {currentGroups.length ? (
+                    <div className="flex flex-col gap-3.5 pr-3">
+                      {currentGroups.map((g, i) => (
+                        <div key={i} ref={(el) => { groupRefs.current[i] = el; }}>
+                          <SpeakerLine
+                            group={g}
+                            label={speakerLabel(g.speaker)}
+                            variant={!speakerNames[g.speaker] ? 'unnamed' : g.speaker === 0 ? 'self' : 'default'}
+                            onRename={(name) => commitSpeakerName(g.speaker, name)}
+                            knownNamesListId="known-speaker-names"
+                            highlightQuery={initialQuery}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No speaker segments returned.</p>
+                  )}
+                </ScrollArea>
+                <datalist id="known-speaker-names">
+                  {knownSpeakerNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </TabsContent>
+              <TabsContent value="plain">
+                <ScrollArea className="h-[60vh]">
+                  <pre className="pr-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap">{highlightText(lastTranscript, initialQuery)}</pre>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
-      ) : (
-      <Card className="gap-0 py-0 shadow-none">
-        <CardHeader className="flex-row items-center justify-between gap-3 border-b bg-muted/30 px-4 py-3">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="speakers">Transcript</TabsTrigger>
-              <TabsTrigger value="plain">Plain Text</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleCopy}>
-              <Copy /> Copy
-            </Button>
-            <Select value={format} onValueChange={setFormat}>
-              <SelectTrigger size="sm" className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="txt">.txt</SelectItem>
-                <SelectItem value="srt">.srt</SelectItem>
-                <SelectItem value="vtt">.vtt</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download /> Download
-            </Button>
-          </div>
-        </CardHeader>
-
-        <div className="flex items-center justify-between gap-3 px-4 pt-3">
-          <p className="text-xs text-muted-foreground">{metaLine}</p>
-          <div className="flex shrink-0 gap-2">
-            {speakerCount > 1 && (
-              <Button variant="outline" size="sm" onClick={openMergeDialog}>
-                <Users /> Merge speakers
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={handleShare}>
-              <Share2 /> Share
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)} disabled={deleting}>
-              <Trash2 /> Delete
-            </Button>
-          </div>
-        </div>
-
-        <div className="px-4 pt-2">
-          <NotificationsPanel notifications={meeting.notifications} onResend={handleResendNotifications} resending={resending} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 px-4 pt-2.5">
-          <Tag className="size-3.5 shrink-0 text-muted-foreground" />
-          {(meeting.tags || []).map((tag) => (
-            <Badge key={tag} variant="secondary" className="gap-1 pr-1">
-              {tag}
-              <button
-                type="button"
-                onClick={() => handleRemoveTag(tag)}
-                disabled={tagSaving}
-                className="rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
-              >
-                <X className="size-2.5" />
-                <span className="sr-only">Remove tag</span>
-              </button>
-            </Badge>
-          ))}
-          <form onSubmit={handleAddTag} className="inline-flex items-center">
-            <Input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              placeholder="Add tag"
-              disabled={tagSaving}
-              className="h-6 w-24 border-none bg-transparent px-1.5 text-xs shadow-none focus-visible:ring-0"
-            />
-            {tagInput.trim() && (
-              <Button type="submit" variant="ghost" size="icon-sm" className="size-6" disabled={tagSaving}>
-                <Plus className="size-3.5" />
-                <span className="sr-only">Add tag</span>
-              </Button>
-            )}
-          </form>
-        </div>
-
-        {meeting.shareToken && (
-          <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-            <Link2 className="ml-1 size-4 shrink-0 text-muted-foreground" />
-            <Input
-              readOnly
-              className="h-8 flex-1 text-muted-foreground"
-              value={typeof window !== 'undefined' ? `${window.location.origin}/share/${meeting.shareToken}` : ''}
-            />
-            <Button variant="outline" size="sm" onClick={handleCopyShareLink}>Copy link</Button>
-            <Button variant="ghost" size="icon-sm" onClick={() => setRevokeOpen(true)}>
-              <X />
-              <span className="sr-only">Revoke</span>
-            </Button>
-          </div>
         )}
-
-        <CardContent className="px-4 pt-4 pb-4">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsContent value="speakers">
-              <ScrollArea className="h-[60vh]">
-                {currentGroups.length ? (
-                  <div className="flex flex-col gap-4 pr-3">
-                    {currentGroups.map((g, i) => (
-                      <div key={i} ref={(el) => { groupRefs.current[i] = el; }}>
-                        <SpeakerLine
-                          group={g}
-                          label={speakerLabel(g.speaker)}
-                          colorClass={SPEAKER_COLORS[g.speaker % SPEAKER_COLORS.length]}
-                          onRename={(name) => commitSpeakerName(g.speaker, name)}
-                          knownNamesListId="known-speaker-names"
-                          highlightQuery={initialQuery}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No speaker segments returned.</p>
-                )}
-              </ScrollArea>
-              <datalist id="known-speaker-names">
-                {knownSpeakerNames.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-            </TabsContent>
-            <TabsContent value="plain">
-              <ScrollArea className="h-[60vh]">
-                <pre className="pr-3 text-[15px] leading-relaxed whitespace-pre-wrap">{highlightText(lastTranscript, initialQuery)}</pre>
-              </ScrollArea>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-      )}
+      </main>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
@@ -591,7 +613,7 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
           <DialogHeader>
             <DialogTitle>Merge speakers</DialogTitle>
             <DialogDescription>
-              If Deepgram split one person's voice into multiple speakers, merge them here. Choose which
+              If Deepgram split one person&apos;s voice into multiple speakers, merge them here. Choose which
               speaker to keep, then check the others to fold into it.
             </DialogDescription>
           </DialogHeader>
@@ -626,13 +648,11 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
             <div className="flex flex-col gap-1.5">
               <Label>Merge into it</Label>
               {speakerIds.filter((sid) => sid !== mergeTarget).map((sid) => (
-                <label key={sid} className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-accent/40">
-                  <input
-                    type="checkbox"
-                    checked={mergeSources.has(sid)}
-                    onChange={() => toggleMergeSource(sid)}
-                    className="size-4 accent-primary"
-                  />
+                <label
+                  key={sid}
+                  className="flex cursor-pointer items-center gap-2 rounded-[var(--cr-radius-md)] border px-3 py-2 text-sm transition-colors duration-[var(--cr-dur-hover)] ease-[var(--cr-ease-out)] hover:bg-[var(--cr-ink-hover)]"
+                >
+                  <Checkbox checked={mergeSources.has(sid)} onCheckedChange={() => toggleMergeSource(sid)} />
                   {speakerLabel(sid)}
                 </label>
               ))}
@@ -646,12 +666,12 @@ export default function MeetingDetail({ id, initialMeeting, knownSpeakerNames = 
             <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
             <Button onClick={confirmMerge} disabled={merging || mergeSources.size === 0}>
               {merging && <Loader2 className="animate-spin" />}
-              Merge
+              Merge{mergeSources.size > 0 ? ` ${mergeSources.size} speaker${mergeSources.size > 1 ? 's' : ''}` : ''}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </main>
+    </div>
   );
 }
 
@@ -667,7 +687,7 @@ function NotificationsPanel({ notifications, onResend, resending }) {
   if (!notifications.email && webhooks.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {notifications.email && <StatusBadge label="Email" attemptedAt={notifications.email.attemptedAt} ok={notifications.email.ok} />}
       {webhooks.map((w, i) => (
         <StatusBadge key={i} label={NOTIFICATION_FORMAT_LABELS[w.format] || w.format} attemptedAt={w.attemptedAt} ok={w.ok} />
@@ -682,46 +702,56 @@ function NotificationsPanel({ notifications, onResend, resending }) {
 
 function StatusBadge({ label, attemptedAt, ok }) {
   if (!attemptedAt) {
-    return <span>{label}: not sent yet</span>;
+    return <MetaLine as="span">{label}: not sent yet</MetaLine>;
   }
   if (ok) {
     return (
-      <span className="inline-flex items-center gap-1 text-emerald-500">
-        <CheckCircle2 className="size-3" /> {label}
+      <span
+        className="inline-flex items-center gap-1.5 rounded-[var(--cr-radius-pill)] px-[9px] py-[3px] font-mono"
+        style={{ background: 'var(--cr-tint-green)', color: 'var(--cr-success)', fontSize: 'var(--cr-type-tiny)' }}
+      >
+        <span className="size-[6px] rounded-full" style={{ background: 'currentColor' }} />
+        {label}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-destructive">
-      <XCircle className="size-3" /> {label} failed
+    <span
+      className="inline-flex items-center gap-1.5 rounded-[var(--cr-radius-pill)] px-[9px] py-[3px] font-mono"
+      style={{ background: 'var(--cr-tint-red)', color: 'var(--cr-danger)', fontSize: 'var(--cr-type-tiny)' }}
+    >
+      <span className="size-[6px] rounded-full" style={{ background: 'currentColor' }} />
+      {label} failed
     </span>
   );
 }
 
-function SpeakerLine({ group, label, colorClass, onRename, knownNamesListId, highlightQuery }) {
+function SpeakerLine({ group, label, variant, onRename, knownNamesListId, highlightQuery }) {
   return (
-    <div className="flex flex-wrap items-baseline gap-3.5">
-      <span className={`inline-flex shrink-0 min-w-[90px] items-baseline gap-1.5 text-[13px] font-semibold ${colorClass}`}>
-        <span className="self-center size-2 shrink-0 rounded-full bg-current" />
-        <input
-          key={label}
-          defaultValue={label}
-          list={knownNamesListId}
-          className={`w-24 rounded border border-transparent bg-transparent px-1 -mx-1 text-[13px] font-semibold outline-none hover:border-border hover:bg-accent/40 focus:border-primary focus:bg-accent/40 ${colorClass}`}
-          spellCheck={false}
-          title="Click to rename this speaker (suggestions from names you've used before)"
-          onFocus={(e) => e.target.select()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.target.blur();
-            }
-          }}
-          onBlur={(e) => onRename(e.target.value)}
-        />
-        <span className="text-[11.5px] font-normal text-muted-foreground">{formatTime(group.start)}</span>
-      </span>
-      <span className="flex-1 basis-80 text-foreground">{highlightText(group.transcript, highlightQuery)}</span>
+    <div className="flex gap-[var(--cr-space-3)]">
+      <TimeRail>{formatTime(group.start)}</TimeRail>
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <SpeakerTag variant={variant}>
+          <input
+            key={label}
+            defaultValue={label}
+            list={knownNamesListId}
+            className="w-24 bg-transparent uppercase outline-none"
+            style={{ fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', letterSpacing: 'inherit' }}
+            spellCheck={false}
+            title="Click to rename this speaker (suggestions from names you've used before)"
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+              }
+            }}
+            onBlur={(e) => onRename(e.target.value)}
+          />
+        </SpeakerTag>
+        <span className="flex-1 basis-80 text-[15px] text-foreground">{highlightText(group.transcript, highlightQuery)}</span>
+      </div>
     </div>
   );
 }

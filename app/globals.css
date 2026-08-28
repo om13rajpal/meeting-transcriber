@@ -3,66 +3,280 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   COURT REPORTER design tokens, merged from docs/design/brand-kit/tokens.css.
+   Two things live in this file and they are not the same thing.
+
+   1. The shadcn slot map (--background, --primary, ...), oklch, unchanged
+      variable names. This is what every shadcn/ui component already reads.
+   2. The --cr-* brand primitives, hex, human readable, the source of truth
+      for anything outside the shadcn component layer (marketing surfaces,
+      illustrations, the type ladder, motion tokens).
+
+   Naming trap: shadcn's --accent is NOT the brand accent. In shadcn it is
+   the subtle hover surface behind menu items and rows. The brand red lands
+   on --primary and --ring. Setting --accent to red would turn every
+   dropdown hover into a red block.
+
+   --primary is a SURFACE that carries --primary-foreground as its label.
+   It is --cr-red-fill (#B8202D), not --cr-red (#E63946), because paper on
+   #E63946 is 3.70:1 and fails AA body text. Paper on #B8202D is 5.67:1.
+   Never use text-primary / --primary as a text color on dark, #B8202D on
+   #0E0E0F is 3.02:1. Red text uses --destructive (#EC4B57, --cr-red-text).
+   ========================================================================= */
+
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.55 0.2 265);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.55 0.2 265);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.55 0.2 265);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.55 0.2 265);
+
+  /* shadcn slot map, light branch. The app ships always-dark (className="dark"
+     on <html> in layout.js, no toggle), so this branch is never active today.
+     Filled in anyway so it is not lying about the brand, and so the paper
+     side of Court Reporter (the transcript card, print, a future PDF export)
+     has real values to reach for. */
+  --background: oklch(0.958 0.010 87.47);   /* #F4F1EA */
+  --foreground: oklch(0.164 0.002 286.17);  /* #0E0E0F */
+  --card: oklch(0.982 0.007 88.64);         /* #FBF9F4 */
+  --card-foreground: oklch(0.164 0.002 286.17);
+  --popover: oklch(0.982 0.007 88.64);
+  --popover-foreground: oklch(0.164 0.002 286.17);
+  --primary: oklch(0.508 0.186 23.32);      /* #B8202D */
+  --primary-foreground: oklch(0.958 0.010 87.47);
+  --secondary: oklch(0.937 0.010 87.47);    /* #EDEAE3 */
+  --secondary-foreground: oklch(0.164 0.002 286.17);
+  --muted: oklch(0.937 0.010 87.47);
+  --muted-foreground: oklch(0.497 0.013 84.59); /* #66625A, 5.38:1 */
+  --accent: oklch(0.937 0.010 87.47);
+  --accent-foreground: oklch(0.164 0.002 286.17);
+  --destructive: oklch(0.508 0.186 23.32);  /* #B8202D, 5.67:1 on this ground */
+  --border: oklch(0.867 0.018 89.37);       /* #D8D3C6 */
+  --input: oklch(0.867 0.018 89.37);
+  --ring: oklch(0.508 0.186 23.32);
+  --sidebar: oklch(0.982 0.007 88.64);
+  --sidebar-foreground: oklch(0.164 0.002 286.17);
+  --sidebar-primary: oklch(0.508 0.186 23.32);
+  --sidebar-primary-foreground: oklch(0.958 0.010 87.47);
+  --sidebar-accent: oklch(0.937 0.010 87.47);
+  --sidebar-accent-foreground: oklch(0.164 0.002 286.17);
+  --sidebar-border: oklch(0.867 0.018 89.37);
+  --sidebar-ring: oklch(0.508 0.186 23.32);
+
+  /* ── brand primitives, neutrals ─────────────────────────────────────── */
+  --cr-ink:            #0E0E0F;  /* near black, the canvas, the record       */
+  --cr-ink-sunken:     #08080A;  /* wells, inset fields, code blocks         */
+  --cr-ink-app:        #111113;  /* authenticated app canvas, a hair lifted  */
+  --cr-ink-raised:     #141417;  /* cards, popovers, feature panels          */
+  --cr-ink-hover:      #1A1A1D;  /* row / menu-item hover surface            */
+  --cr-rule:           #1C1C1C;  /* heavy editorial rule, section divider    */
+  --cr-rule-soft:      #232327;  /* list hairline, card border               */
+  --cr-rule-strong:    #2A2A2E;  /* input border, chip border                */
+
+  --cr-paper:          #F4F1EA;  /* warm paper, primary text on ink          */
+  --cr-paper-lifted:   #FBF9F4;  /* elevated paper surface                   */
+  --cr-paper-dim:      #EDEAE3;  /* paper at rest inside the app             */
+  --cr-paper-rule:     #D8D3C6;  /* hairline on paper, never text            */
+
+  /* text tiers on dark. nothing dimmer than --cr-text-muted is legal text. */
+  --cr-text:           #F4F1EA;  /* 17.11:1 on --cr-ink                      */
+  --cr-text-secondary: #C9C6BD;  /* 11.30:1 on --cr-ink                      */
+  --cr-text-tertiary:  #A8A49B;  /*  7.76:1 on --cr-ink                      */
+  --cr-text-muted:     #8A8A86;  /*  5.57:1 on --cr-ink, the floor           */
+  --cr-text-on-paper:  #0E0E0F;  /* 17.11:1 on --cr-paper                    */
+  --cr-text-paper-mut: #66625A;  /*  5.38:1 on --cr-paper                    */
+
+  /* --cr-hairline is decoration only, 3.43:1. Never set it as a text color. */
+  --cr-hairline:       #6B675F;
+
+  /* ── brand primitives, stamp red ────────────────────────────────────── */
+  /* One red, three jobs, because one hex cannot pass AA in all three roles.
+     Which one to reach for is decided by what sits behind it. */
+  --cr-red:            #E63946;  /* strokes, rules, focus rings, icons,
+                                    display type, the ribbon. As text it is
+                                    legal on --cr-ink only (4.63:1), not on
+                                    raised surfaces.                          */
+  --cr-red-text:       #EC4B57;  /* red text on any dark surface, 5.25:1 on
+                                    ink, 5.00:1 on raised, 4.68:1 on the tint */
+  --cr-red-fill:       #B8202D;  /* solid red surface carrying a paper label,
+                                    5.67:1 with paper, and the only legal red
+                                    text on paper.                            */
+  --cr-red-fill-hover: #C82232;  /* 4.99:1 with paper                        */
+  --cr-red-fill-press: #A81B27;  /* 6.53:1 with paper                        */
+
+  /* ── brand primitives, highlighter yellow ───────────────────────────── */
+  /* Yellow is a highlighter. Its default job is a background ink sits on
+     top of. As text it is legal on dark and illegal on paper (1.28:1). */
+  --cr-yellow:         #FFD23F;  /* 13.36:1 on ink, 1.28:1 on paper          */
+  --cr-yellow-ink:     #0E0E0F;  /* the only text color allowed on yellow    */
+
+  /* ── brand primitives, semantic ─────────────────────────────────────── */
+  --cr-success:        #6FCF97;  /* 10.15:1 on ink, meeting status Complete  */
+  --cr-warning:        #FFD23F;  /* status Transcribing, shares highlighter  */
+  --cr-danger:         #EC4B57;  /* status Failed, the text-safe red         */
+
+  /* status chip fills, precomputed composites rather than rgba(), so their
+     contrast is a known fixed number regardless of what sits behind them. */
+  --cr-tint-red:       #2C1417;  /* --cr-red at 14% over --cr-ink            */
+  --cr-tint-yellow:    #2B2615;  /* --cr-yellow at 12% over --cr-ink         */
+  --cr-tint-green:     #1C2922;  /* --cr-success at 14% over --cr-ink        */
+
+  /* ── type ────────────────────────────────────────────────────────────
+     Font stacks point at the CSS variables next/font writes in layout.js.
+     See "Wire the fonts" in the implementation spec. */
+  --cr-font-display: var(--font-big-shoulders), 'Arial Narrow', system-ui, sans-serif;
+  --cr-font-mono:    var(--font-ibm-plex-mono), ui-monospace, 'SFMono-Regular', monospace;
+  --cr-font-body:    var(--font-geist-sans), system-ui, sans-serif;
+
+  /* the ladder. every size in the system is one of these eleven values. */
+  --cr-type-cover:    180px;  /* brand book / hero wordmark                 */
+  --cr-type-display:   84px;  /* landing h1, clamps down to 46px            */
+  --cr-type-h1:        48px;  /* landing section head                       */
+  --cr-type-h2:        30px;  /* app page title, landing sub-head           */
+  --cr-type-h3:        22px;  /* card title, feature head                   */
+  --cr-type-lede:      17px;  /* landing lede paragraph                     */
+  --cr-type-body:      15px;  /* the app's default reading size             */
+  --cr-type-sm:        13px;  /* dense UI, transcript line, snippet         */
+  --cr-type-mono:      12px;  /* eyebrow, section marker, timestamps        */
+  --cr-type-meta:      11px;  /* meta line: model, cost, duration, date     */
+  --cr-type-tiny:      10px;  /* speaker tag, status pill, exhibit label    */
+
+  --cr-weight-display: 900;
+  --cr-weight-heavy:   800;
+  --cr-weight-mono:    500;
+  --cr-weight-body:    400;
+  --cr-weight-strong:  600;
+
+  --cr-tracking-display: -0.01em;
+  --cr-tracking-eyebrow:  0.16em;
+  --cr-tracking-tag:      0.04em;
+  --cr-leading-display:   0.92;
+  --cr-leading-body:      1.65;
+  --cr-leading-mono:      1.90;
+
+  /* ── spacing ─────────────────────────────────────────────────────────  */
+  --cr-space-1:    4px;
+  --cr-space-2:    8px;
+  --cr-space-3:   12px;
+  --cr-space-4:   16px;
+  --cr-space-5:   24px;
+  --cr-space-6:   32px;
+  --cr-space-7:   40px;
+  --cr-space-8:   56px;
+  --cr-space-9:   88px;
+  --cr-space-10: 120px;
+
+  --cr-measure:      1180px; /* landing content column                     */
+  --cr-measure-app:  1040px; /* authenticated app column                   */
+  --cr-measure-read:  460px; /* max line length for lede / body prose      */
+
+  /* ── stroke ──────────────────────────────────────────────────────────
+     The border scale is one value. Emphasis is carried by the rule's
+     COLOR, never its weight. Blink floors sub-pixel border widths
+     (border: 1.5px paints as 1px in Chrome at any DPR, Safari and Firefox
+     honor it), so a two-tier scale is an inconsistency, not a system.
+     Reach for --cr-rule-soft, --cr-rule-strong, --cr-paper or --cr-red to
+     change how loud a rule reads. Never change its width. If a box seems
+     to need more weight than a hairline, it needs a different background
+     or more space, not a heavier border. */
+  --cr-stroke-hair:    1px;
+
+  /* Not borders, not on the scale above. Do not reach for these to draw a box. */
+  --cr-focus-ring:     2px;    /* accessibility affordance, the only line
+                                  in the UI heavier than a hairline          */
+  --cr-stroke-icon: 1.75px;    /* the icon family's drawn line               */
+  --cr-stroke-ribbon:  34px;   /* the hand-off ribbon's artwork line weight  */
+
+  /* ── radius ──────────────────────────────────────────────────────────  */
+  --cr-radius-sm:     6px;
+  --cr-radius-md:     8px;
+  --cr-radius-lg:    10px;   /* == --radius */
+  --cr-radius-xl:    14px;
+  --cr-radius-card:  16px;
+  --cr-radius-pill: 999px;
+
+  /* ── motion ──────────────────────────────────────────────────────────
+     Three curves, the whole vocabulary. Do not add a fourth. */
+  --cr-ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --cr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --cr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --cr-dur-press:     140ms;
+  --cr-dur-hover:     160ms;
+  --cr-dur-tooltip:   160ms;
+  --cr-dur-dropdown:  200ms;
+  --cr-dur-drawer:    320ms;
+  --cr-dur-modal:     400ms;  /* the product ceiling                        */
+  --cr-dur-reveal:    600ms;  /* marketing only                             */
+  --cr-dur-hero:      700ms;  /* marketing only                             */
+
+  --cr-stagger-row:      50ms;
+  --cr-stagger-reveal:  120ms;
+  --cr-stagger-line:    120ms;
+  --cr-stagger-char:     25ms; /* derived, --cr-stagger-row / 2, not a first-
+                                  class token, promote only if a second thing
+                                  uses it besides the landing hero headline  */
+
+  --cr-press-scale: 0.97;     /* every pressable element, no exceptions     */
+
+  /* Motion SHAPE, the part reduced motion flattens. Every entrance writes
+     its travel and scale through these instead of a literal, so reduced
+     motion can remove the movement without stranding anything positioned
+     by a transform (a centered modal, a pinned drawer). */
+  --m-y:          8px;
+  --m-y-lg:      12px;
+  --m-scale:     0.95;
+  --m-scale-tip: 0.97;
+  --m-blur:       2px;
+
+  /* ── elevation ───────────────────────────────────────────────────────
+     Court Reporter is a print system. Exactly one lift shadow (the landing
+     hero transcript card, literally a sheet of paper on a dark desk) and
+     one glow (the landing primary CTA). Everything else separates with a
+     rule, not a shadow. */
+  --cr-shadow-sheet: 0 50px 100px -30px rgba(0, 0, 0, 0.65);
+  --cr-shadow-cta:   0 14px 30px -12px rgba(184, 32, 45, 0.55);
 }
 
 /* This app is always dark, regardless of system preference, matching the
    product's existing look, so .dark is applied unconditionally on <html>
    in layout.js rather than toggled by prefers-color-scheme. */
 .dark {
-  --background: oklch(0.14 0.005 260);
-  --foreground: oklch(0.94 0.005 260);
-  --card: oklch(0.19 0.008 260);
-  --card-foreground: oklch(0.94 0.005 260);
-  --popover: oklch(0.19 0.008 260);
-  --popover-foreground: oklch(0.94 0.005 260);
-  --primary: oklch(0.65 0.18 265);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.24 0.01 260);
-  --secondary-foreground: oklch(0.94 0.005 260);
-  --muted: oklch(0.24 0.01 260);
-  --muted-foreground: oklch(0.65 0.01 260);
-  --accent: oklch(0.26 0.02 265);
-  --accent-foreground: oklch(0.94 0.005 260);
-  --destructive: oklch(0.7 0.19 22);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.65 0.18 265);
-  --sidebar: oklch(0.17 0.008 260);
-  --sidebar-foreground: oklch(0.94 0.005 260);
-  --sidebar-primary: oklch(0.65 0.18 265);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.24 0.01 260);
-  --sidebar-accent-foreground: oklch(0.94 0.005 260);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.18 265);
+  --background:                 oklch(0.164 0.002 286.17); /* #0E0E0F ink    */
+  --foreground:                 oklch(0.958 0.010 87.47);  /* #F4F1EA paper  */
+
+  --card:                       oklch(0.193 0.006 285.82); /* #141417        */
+  --card-foreground:            oklch(0.958 0.010 87.47);
+  --popover:                    oklch(0.193 0.006 285.82); /* #141417        */
+  --popover-foreground:         oklch(0.958 0.010 87.47);
+
+  --primary:                    oklch(0.508 0.186 23.32);  /* #B8202D        */
+  --primary-foreground:         oklch(0.958 0.010 87.47);  /* #F4F1EA 5.67:1 */
+
+  --secondary:                  oklch(0.226 0.000 89.88);  /* #1C1C1C rule   */
+  --secondary-foreground:       oklch(0.958 0.010 87.47);
+
+  --muted:                      oklch(0.219 0.006 285.91); /* #1A1A1D        */
+  --muted-foreground:           oklch(0.632 0.006 106.57); /* #8A8A86 5.57:1 */
+
+  /* hover surface, not stamp red, see the naming trap above the :root block */
+  --accent:                     oklch(0.219 0.006 285.91); /* #1A1A1D        */
+  --accent-foreground:          oklch(0.958 0.010 87.47);
+
+  /* the text-safe red, a destructive label reads at 5.25:1 on ink.
+     Destructive is differentiated from primary by shape (outline, never
+     filled), since primary is already red in this brand. */
+  --destructive:                oklch(0.642 0.197 20.58);  /* #EC4B57        */
+
+  --border:                     oklch(0.258 0.007 285.87); /* #232327        */
+  --input:                      oklch(0.287 0.007 285.93); /* #2A2A2E        */
+  --ring:                       oklch(0.612 0.208 22.24);  /* #E63946 4.63:1 */
+
+  --sidebar:                    oklch(0.179 0.004 285.98); /* #111113        */
+  --sidebar-foreground:         oklch(0.958 0.010 87.47);
+  --sidebar-primary:            oklch(0.508 0.186 23.32);  /* #B8202D        */
+  --sidebar-primary-foreground: oklch(0.958 0.010 87.47);
+  --sidebar-accent:             oklch(0.219 0.006 285.91); /* #1A1A1D        */
+  --sidebar-accent-foreground:  oklch(0.958 0.010 87.47);
+  --sidebar-border:             oklch(0.258 0.007 285.87); /* #232327        */
+  --sidebar-ring:                oklch(0.612 0.208 22.24); /* #E63946        */
 }
 
 @theme inline {
@@ -96,6 +310,14 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Without these three, Tailwind's font-sans / font-mono utilities keep
+     resolving to the framework defaults and a className="font-mono"
+     anywhere in the app silently renders in the wrong face. Colors are
+     already correct without touching this block; type is not. */
+  --font-sans:    var(--cr-font-body);
+  --font-mono:    var(--cr-font-mono);
+  --font-display: var(--cr-font-display);
 }
 
 @layer base {
@@ -104,5 +326,80 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* A "paper island" for shadcn primitives nested inside a light paper
+   surface on an otherwise always-dark page (the landing/share transcript
+   card). Redeclares every shadcn slot a component might read to its light
+   equivalent so Button/Tabs/Select read correctly against the paper
+   background instead of the page's dark .dark values. Brand red primitives
+   (--primary, --destructive, --ring) are the same hex in both branches, so
+   they are not restated here. */
+.cr-paper-scope {
+  --background: oklch(0.958 0.010 87.47);
+  --foreground: oklch(0.164 0.002 286.17);
+  --card: oklch(0.982 0.007 88.64);
+  --card-foreground: oklch(0.164 0.002 286.17);
+  --popover: oklch(0.982 0.007 88.64);
+  --popover-foreground: oklch(0.164 0.002 286.17);
+  --secondary: oklch(0.937 0.010 87.47);
+  --secondary-foreground: oklch(0.164 0.002 286.17);
+  --muted: oklch(0.937 0.010 87.47);
+  --muted-foreground: oklch(0.497 0.013 84.59);
+  --accent: oklch(0.937 0.010 87.47);
+  --accent-foreground: oklch(0.164 0.002 286.17);
+  --border: oklch(0.867 0.018 89.37);
+  --input: oklch(0.867 0.018 89.37);
+}
+
+/* Big Shoulders loads as a variable font (see layout.js). Pin the optical
+   size axis to 72, the old "Big Shoulders Display" cut, since this brand
+   only ever uses this face for headline-scale uppercase text. Tailwind
+   generates .font-display from --font-display in @theme inline above. */
+.font-display {
+  font-variation-settings: 'opsz' 72;
+}
+
+/* The brand's icon line is 1.75px with butt caps and miter joins, against
+   lucide-react's default 2px round/round. Set globally rather than
+   swapping the icon library, which keeps tree-shaking intact. Icons are
+   content, not chrome, so they sit above the 1px border scale on purpose:
+   the frame should recede, the mark should not. */
+.lucide {
+  stroke-width: var(--cr-stroke-icon);
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
+/* The Transcribing status dot, the one place opacity pulses rather than
+   the more common transform/opacity entrance pattern, since this is a
+   sustained state indicator, not an enter/exit. prefers-reduced-motion
+   is handled by Tailwind's motion-reduce: variant at each call site. */
+@keyframes cr-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --cr-dur-press:      1ms;
+    --cr-dur-hover:      1ms;
+    --cr-dur-tooltip:    1ms;
+    --cr-dur-dropdown:   1ms;
+    --cr-dur-drawer:     1ms;
+    --cr-dur-modal:      1ms;
+    --cr-dur-reveal:   200ms; /* opacity only, no transform */
+    --cr-dur-hero:     200ms;
+    --cr-stagger-row:    0ms;
+    --cr-stagger-reveal: 0ms;
+    --cr-stagger-line:   0ms;
+    --cr-stagger-char:   0ms;
+    --cr-press-scale:      1;
+    --m-y: 0px;
+    --m-y-lg: 0px;
+    --m-scale: 1;
+    --m-scale-tip: 1;
+    --m-blur: 0px;
   }
 }

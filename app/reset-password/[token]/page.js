@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation';
 import { getSessionUserId } from '@/app/lib/session';
 import { connectToDatabase } from '@/app/lib/db';
 import PasswordResetToken from '@/app/lib/models/PasswordResetToken';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import AuthShell from '@/components/brand/AuthShell';
 import ResetPasswordForm from './ResetPasswordForm';
 
 export const metadata = { title: 'Reset password - Meeting Transcriber' };
@@ -21,27 +21,23 @@ export default async function ResetPasswordPage({ params }) {
   const valid = await PasswordResetToken.exists({ _id: token });
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">Reset password</CardTitle>
-          <CardDescription>Choose a new password for your account.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {valid ? (
-            <ResetPasswordForm token={token} />
-          ) : (
-            <div className="flex flex-col gap-4">
-              <p className="text-sm text-muted-foreground">
-                This reset link is invalid or has expired.
-              </p>
-              <Button render={<a href="/forgot-password" />} nativeButton={false}>
-                Request a new link
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </main>
+    <AuthShell
+      side="transcript"
+      eyebrow="File 0142 · Recovery"
+      headline={['Choose a', 'new password.']}
+      lede="One more step and you're back in. Every other device gets signed out once this is set, in case this reset was not you."
+      stats={['1,284 meetings on record', 'Hinglish, 36 languages, one pass', 'Never used for model training']}
+      formEyebrow="Recover access"
+      formHeadline="Reset password"
+      formLede={valid ? 'Choose a new password for your account.' : 'This reset link is invalid or has expired.'}
+    >
+      {valid ? (
+        <ResetPasswordForm token={token} />
+      ) : (
+        <Button render={<a href="/forgot-password" />} nativeButton={false} size="lg" style={{ boxShadow: 'var(--cr-shadow-cta)' }}>
+          Request a new link
+        </Button>
+      )}
+    </AuthShell>
   );
 }

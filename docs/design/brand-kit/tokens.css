@@ -1,0 +1,364 @@
+/* @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: dcaa107b12ba380df533a7eed8334199d27f4c7380ce65ddafa48ad837190368
+artifact_role: tokens
+exports: [colors, typography, spacing, stroke, radius, motion, shadcn-slot-map]
+summary: Court Reporter production CSS custom properties. 34 color tokens, 11 type levels, 3 easing tokens, 8 duration tokens, plus the oklch shadcn slot map that drops straight into app/globals.css.
+*/
+
+/* ============================================================================
+   COURT REPORTER  ·  design tokens  ·  v1
+   ----------------------------------------------------------------------------
+   Two things live in this file and they are NOT the same thing:
+
+   1. BRAND PRIMITIVES  (--cr-*)  hex, human readable, the source of truth.
+      Use these in marketing surfaces, illustrations, and anywhere outside
+      the shadcn component layer.
+
+   2. APP SLOT MAP      (--background, --primary, ...) oklch, the exact
+      variable names app/globals.css already declares. Court Reporter is
+      applied by REPLACING the values in that file's .dark block, not by
+      adding a second theme layer. Copy section 9 verbatim.
+
+   HARD PRODUCT RULE (from CLAUDE.md, not negotiable):
+   Landing and auth surfaces get the full Court Reporter expression (stamps,
+   redaction bars, oversized display type, the hand-off ribbon).
+   The authenticated Dashboard and MeetingDetail screens use the SAME tokens
+   applied quietly: no stamps, no redaction, highlighter yellow reserved for
+   search-match <mark> only, stamp red reserved for primary actions and focus.
+   See section 10 for the enforcement list.
+   ========================================================================= */
+
+
+/* ── 0 · type resources ───────────────────────────────────────────────────
+   Both faces are free Google Fonts. Nothing here needs a licence purchase.
+   @import "https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap";
+   The UI/body face stays whatever the app already ships (Geist via the
+   shadcn nova preset). Do not introduce a third display face.
+   ------------------------------------------------------------------------ */
+
+
+:root {
+
+  /* ── 1 · brand primitives · neutrals ───────────────────────────────── */
+  --cr-ink:            #0E0E0F;  /* near black. the canvas, the record       */
+  --cr-ink-sunken:     #08080A;  /* wells, inset fields, code blocks         */
+  --cr-ink-app:        #111113;  /* authenticated app canvas, a hair lifted  */
+  --cr-ink-raised:     #141417;  /* cards, popovers, feature panels          */
+  --cr-ink-hover:      #1A1A1D;  /* row / menu-item hover surface            */
+  --cr-rule:           #1C1C1C;  /* heavy editorial rule, section divider    */
+  --cr-rule-soft:      #232327;  /* list hairline, card border               */
+  --cr-rule-strong:    #2A2A2E;  /* input border, chip border                */
+
+  --cr-paper:          #F4F1EA;  /* warm paper. primary text on ink          */
+  --cr-paper-lifted:   #FBF9F4;  /* elevated paper surface (light contexts)  */
+  --cr-paper-dim:      #EDEAE3;  /* paper at rest inside the app             */
+  --cr-paper-rule:     #D8D3C6;  /* hairline ON paper. NEVER text.           */
+
+  /* text tiers on dark. nothing dimmer than --cr-text-muted is legal text. */
+  --cr-text:           #F4F1EA;  /* 17.11:1 on --cr-ink                      */
+  --cr-text-secondary: #C9C6BD;  /* 11.30:1 on --cr-ink                      */
+  --cr-text-tertiary:  #A8A49B;  /*  7.76:1 on --cr-ink                      */
+  --cr-text-muted:     #8A8A86;  /*  5.57:1 on --cr-ink. THE FLOOR.          */
+  --cr-text-on-paper:  #0E0E0F;  /* 17.11:1 on --cr-paper                    */
+  --cr-text-paper-mut: #66625A;  /*  5.38:1 on --cr-paper                    */
+
+  /* --cr-hairline is decoration only. 3.43:1. Never set it as a color. */
+  --cr-hairline:       #6B675F;
+
+  /* ── 2 · brand primitives · stamp red ──────────────────────────────── */
+  /* One red, three jobs, because one hex cannot pass AA in all three.
+     Which one you reach for is decided by what sits behind it.            */
+  --cr-red:            #E63946;  /* THE brand red. strokes, rules, focus
+                                    rings, icons, display type, the ribbon.
+                                    As TEXT it is legal on --cr-ink only
+                                    (4.63:1). Not on raised surfaces.       */
+  --cr-red-text:       #EC4B57;  /* red TEXT on any dark surface.
+                                    5.25:1 on ink, 5.00:1 on raised,
+                                    4.68:1 on --cr-tint-red.                */
+  --cr-red-fill:       #B8202D;  /* solid red SURFACE carrying a paper
+                                    label. 5.67:1 with --cr-paper. Also the
+                                    only legal red text on paper.           */
+  --cr-red-fill-hover: #C82232;  /* 4.99:1 with --cr-paper                   */
+  --cr-red-fill-press: #A81B27;  /* 6.53:1 with --cr-paper                   */
+
+  /* ── 3 · brand primitives · highlighter yellow ─────────────────────── */
+  /* Yellow is a HIGHLIGHTER. Its default job is to be a background that
+     ink sits on top of. As text it is legal on dark and illegal on paper
+     (1.28:1). There is no yellow-on-paper exception.                      */
+  --cr-yellow:         #FFD23F;  /* 13.36:1 on ink · 1.28:1 on paper        */
+  --cr-yellow-ink:     #0E0E0F;  /* the only text color allowed on yellow   */
+
+  /* ── 4 · brand primitives · semantic ───────────────────────────────── */
+  --cr-success:        #6FCF97;  /* 10.15:1 on ink. Meeting status Complete */
+  --cr-warning:        #FFD23F;  /* status Transcribing. shares highlighter */
+  --cr-danger:         #EC4B57;  /* status Failed. the text-safe red        */
+
+  /* status chip fills. Precomputed composites, not rgba(), so they stay
+     stable over any surface and their contrast is a known number.         */
+  --cr-tint-red:       #2C1417;  /* --cr-red @ 14% over --cr-ink            */
+  --cr-tint-yellow:    #2B2615;  /* --cr-yellow @ 12% over --cr-ink         */
+  --cr-tint-green:     #1C2922;  /* --cr-success @ 14% over --cr-ink        */
+
+  /* ── 5 · type ──────────────────────────────────────────────────────── */
+  --cr-font-display: 'Big Shoulders Display', 'Arial Narrow', system-ui, sans-serif;
+  --cr-font-mono:    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --cr-font-body:    var(--font-geist-sans, 'Inter'), system-ui, sans-serif;
+
+  /* The ladder. Every size in the system is one of these eleven values.   */
+  --cr-type-cover:    180px;  /* brand book / hero wordmark                 */
+  --cr-type-display:   84px;  /* landing h1, clamps down to 46px           */
+  --cr-type-h1:        48px;  /* landing section head                       */
+  --cr-type-h2:        30px;  /* app page title, landing sub-head           */
+  --cr-type-h3:        22px;  /* card title, feature head                   */
+  --cr-type-lede:      17px;  /* landing lede paragraph                     */
+  --cr-type-body:      15px;  /* the app's default reading size             */
+  --cr-type-sm:        13px;  /* dense UI, transcript line, snippet         */
+  --cr-type-mono:      12px;  /* eyebrow, section marker, timestamps        */
+  --cr-type-meta:      11px;  /* meta line: model, cost, duration, date     */
+  --cr-type-tiny:      10px;  /* speaker tag, status pill, exhibit label    */
+
+  --cr-weight-display: 900;   /* Big Shoulders headline                     */
+  --cr-weight-heavy:   800;   /* Big Shoulders sub-head                     */
+  --cr-weight-mono:    500;   /* IBM Plex Mono default                      */
+  --cr-weight-body:    400;
+  --cr-weight-strong:  600;
+
+  --cr-tracking-display: -0.01em; /* Big Shoulders tightens as it grows     */
+  --cr-tracking-eyebrow:  0.16em; /* mono eyebrows open right up            */
+  --cr-tracking-tag:      0.04em;
+  --cr-leading-display:   0.92;
+  --cr-leading-body:      1.65;
+  --cr-leading-mono:      1.90;   /* transcript lines need air              */
+
+  /* ── 6 · spacing ───────────────────────────────────────────────────── */
+  --cr-space-1:    4px;
+  --cr-space-2:    8px;
+  --cr-space-3:   12px;
+  --cr-space-4:   16px;
+  --cr-space-5:   24px;
+  --cr-space-6:   32px;
+  --cr-space-7:   40px;
+  --cr-space-8:   56px;
+  --cr-space-9:   88px;
+  --cr-space-10: 120px;
+
+  --cr-measure:     1180px;  /* landing content column                      */
+  --cr-measure-app: 1040px;  /* authenticated app column                    */
+  --cr-measure-read: 460px;  /* max line length for lede / body prose       */
+
+  /* ── 7 · stroke ────────────────────────────────────────────────────── */
+  /* THE BORDER SCALE IS ONE VALUE. Emphasis is carried by the rule's
+     COLOUR, never by its weight. A quiet divider and a structural edge are
+     the same hairline in two different colours, which is how a printed page
+     does it. Reach for --cr-rule-soft, --cr-rule-strong, --cr-paper or
+     --cr-red to change how loud a rule is. Never change its width.
+
+     History, so this does not get undone:
+     v1 shipped --cr-stroke-emph (2px) and --cr-stroke-stamp (2.5px) and the
+     system read as a stack of thick bordered boxes. Both were removed.
+     A 1.5px middle tier was then tried and also removed, for a concrete
+     reason: Blink FLOORS sub-pixel border widths, so `border: 1.5px`
+     computes and paints as 1px in Chrome at any devicePixelRatio, while
+     Safari and Firefox honour it. A tier that only exists in two of three
+     engines is not a tier, it is an inconsistency.
+
+     If a box feels like it needs more weight than a hairline, it does not
+     need a heavier border. It needs a different background, or more space. */
+  --cr-stroke-hair:    1px;    /* the entire border scale. Cards, panels,
+                                  inputs, chips, badges, dividers, section
+                                  rules, hero block edges, accent edges,
+                                  the stamp outline. All of it.             */
+
+  /* The three below are NOT borders and are NOT on the scale above. Do not
+     reach for them to draw a box. */
+  --cr-focus-ring:     2px;    /* accessibility affordance, and now the only
+                                  line in the UI heavier than a hairline,
+                                  which is exactly what a focus indicator
+                                  should be. Never trade this down.         */
+  --cr-stroke-icon: 1.75px;    /* the icon family's drawn line, fixed at
+                                  every rendered size. Icons are content, so
+                                  they sit above the chrome scale on purpose:
+                                  the frame should recede, the mark should not. */
+  --cr-stroke-ribbon:  34px;   /* the hand-off ribbon's artwork line weight.
+                                  Illustration, not chrome. LOCKED.         */
+
+  /* ── 8 · radius ────────────────────────────────────────────────────── */
+  /* --radius stays 0.625rem (10px). It is NOT part of this redesign.      */
+  --cr-radius-sm:     6px;   /* chips, tags, marks                          */
+  --cr-radius-md:     8px;   /* buttons, inputs, small panels               */
+  --cr-radius-lg:    10px;   /* == --radius. cards, dialogs                 */
+  --cr-radius-xl:    14px;   /* feature panels                              */
+  --cr-radius-card:  16px;   /* the transcript hero card                    */
+  --cr-radius-pill: 999px;   /* status pills only                           */
+
+  /* ── 9 · motion ────────────────────────────────────────────────────── */
+  /* These three curves are the whole motion vocabulary. Do not add a
+     fourth without reading section 06 of the brand book first.            */
+  --cr-ease-out:    cubic-bezier(0.23, 1, 0.32, 1);     /* GSAP power3.out  */
+  --cr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --cr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --cr-dur-press:     140ms;  /* :active scale(0.97)                        */
+  --cr-dur-hover:     160ms;  /* background / color / border change         */
+  --cr-dur-tooltip:   160ms;
+  --cr-dur-dropdown:  200ms;
+  --cr-dur-drawer:    320ms;
+  --cr-dur-modal:     400ms;
+  --cr-dur-reveal:    600ms;  /* ScrollTrigger.batch entrance               */
+  --cr-dur-hero:      700ms;  /* landing hero timeline step. marketing only */
+
+  --cr-stagger-row:     50ms; /* app list rows. fast, this is a tool        */
+  --cr-stagger-reveal: 120ms; /* landing panels                             */
+  --cr-stagger-line:   120ms; /* transcript lines typing on                 */
+
+  --cr-press-scale: 0.97;     /* every pressable element, no exceptions     */
+
+  /* ── 10 · elevation ────────────────────────────────────────────────── */
+  /* Court Reporter is a print system. There is exactly one lift shadow
+     (the hero transcript card, which is literally a sheet of paper on a
+     dark desk) and one glow (the primary CTA). Everything else separates
+     with a rule, not a shadow.                                            */
+  --cr-shadow-sheet: 0 50px 100px -30px rgba(0, 0, 0, 0.65);
+  --cr-shadow-cta:   0 14px 30px -12px rgba(184, 32, 45, 0.55);
+}
+
+
+/* ============================================================================
+   SECTION 9 · APP SLOT MAP
+   ----------------------------------------------------------------------------
+   Paste the .dark block below over the existing .dark block in
+   app/globals.css. Variable names are unchanged, @theme inline is unchanged,
+   --radius is unchanged. Only the values move.
+
+   NAMING TRAP, read this: shadcn's --accent is NOT the brand accent. In
+   shadcn it is the subtle hover surface behind menu items and rows. The
+   brand's accent (stamp red) lands on --primary and --ring. Setting
+   --accent to red would turn every dropdown hover into a red block.
+   ========================================================================= */
+
+.dark {
+  --background:                 oklch(0.164 0.002 286.17); /* #0E0E0F ink    */
+  --foreground:                 oklch(0.958 0.010 87.47);  /* #F4F1EA paper  */
+
+  --card:                       oklch(0.193 0.006 285.82); /* #141417        */
+  --card-foreground:            oklch(0.958 0.010 87.47);  /* #F4F1EA 16.3:1 */
+  --popover:                    oklch(0.193 0.006 285.82); /* #141417        */
+  --popover-foreground:         oklch(0.958 0.010 87.47);
+
+  /* --primary is a SURFACE that carries --primary-foreground as its label.
+     It is --cr-red-fill (#B8202D), not --cr-red, because paper on #E63946
+     is 3.70:1 and fails AA body. Paper on #B8202D is 5.67:1.
+     Do not use text-primary / --primary as a text color on dark: #B8202D
+     on #0E0E0F is 3.02:1. Red text uses --cr-red-text (#EC4B57).           */
+  --primary:                    oklch(0.508 0.186 23.32);  /* #B8202D        */
+  --primary-foreground:         oklch(0.958 0.010 87.47);  /* #F4F1EA 5.67:1 */
+
+  --secondary:                  oklch(0.226 0.000 89.88);  /* #1C1C1C rule   */
+  --secondary-foreground:       oklch(0.958 0.010 87.47);
+
+  --muted:                      oklch(0.219 0.006 285.91); /* #1A1A1D        */
+  --muted-foreground:           oklch(0.632 0.006 106.57); /* #8A8A86 5.57:1 */
+
+  /* hover surface, NOT stamp red. see the naming trap above. */
+  --accent:                     oklch(0.219 0.006 285.91); /* #1A1A1D        */
+  --accent-foreground:          oklch(0.958 0.010 87.47);
+
+  /* the text-safe red, so a destructive label reads at 5.25:1 on ink.
+     Destructive is differentiated from primary by SHAPE (outline, never
+     filled), because in this brand primary is already red.                */
+  --destructive:                oklch(0.642 0.197 20.58);  /* #EC4B57        */
+
+  --border:                     oklch(0.258 0.007 285.87); /* #232327        */
+  --input:                      oklch(0.287 0.007 285.93); /* #2A2A2E        */
+  --ring:                       oklch(0.612 0.208 22.24);  /* #E63946 4.63:1 */
+
+  --sidebar:                    oklch(0.179 0.004 285.98); /* #111113        */
+  --sidebar-foreground:         oklch(0.958 0.010 87.47);
+  --sidebar-primary:            oklch(0.508 0.186 23.32);  /* #B8202D        */
+  --sidebar-primary-foreground: oklch(0.958 0.010 87.47);
+  --sidebar-accent:             oklch(0.219 0.006 285.91); /* #1A1A1D        */
+  --sidebar-accent-foreground:  oklch(0.958 0.010 87.47);
+  --sidebar-border:             oklch(0.258 0.007 285.87); /* #232327        */
+  --sidebar-ring:               oklch(0.612 0.208 22.24);  /* #E63946        */
+}
+
+/* The app ships always-dark (className="dark" on <html>, no toggle), so
+   this :root block is never active today. It is filled in anyway so the
+   light branch of globals.css is not lying about the brand, and so the
+   paper side of Court Reporter (the transcript card, print, PDF export)
+   has real values to reach for. */
+:root {
+  --background:                 oklch(0.958 0.010 87.47);  /* #F4F1EA        */
+  --foreground:                 oklch(0.164 0.002 286.17); /* #0E0E0F        */
+  --card:                       oklch(0.982 0.007 88.64);  /* #FBF9F4        */
+  --card-foreground:            oklch(0.164 0.002 286.17);
+  --popover:                    oklch(0.982 0.007 88.64);
+  --popover-foreground:         oklch(0.164 0.002 286.17);
+  --primary:                    oklch(0.508 0.186 23.32);  /* #B8202D        */
+  --primary-foreground:         oklch(0.958 0.010 87.47);
+  --secondary:                  oklch(0.937 0.010 87.47);  /* #EDEAE3        */
+  --secondary-foreground:       oklch(0.164 0.002 286.17);
+  --muted:                      oklch(0.937 0.010 87.47);
+  --muted-foreground:           oklch(0.497 0.013 84.59);  /* #66625A 5.38:1 */
+  --accent:                     oklch(0.937 0.010 87.47);
+  --accent-foreground:          oklch(0.164 0.002 286.17);
+  --destructive:                oklch(0.508 0.186 23.32);  /* #B8202D 5.67:1 */
+  --border:                     oklch(0.867 0.018 89.37);  /* #D8D3C6        */
+  --input:                      oklch(0.867 0.018 89.37);
+  --ring:                       oklch(0.508 0.186 23.32);
+  --sidebar:                    oklch(0.982 0.007 88.64);
+  --sidebar-foreground:         oklch(0.164 0.002 286.17);
+  --sidebar-primary:            oklch(0.508 0.186 23.32);
+  --sidebar-primary-foreground: oklch(0.958 0.010 87.47);
+  --sidebar-accent:             oklch(0.937 0.010 87.47);
+  --sidebar-accent-foreground:  oklch(0.164 0.002 286.17);
+  --sidebar-border:             oklch(0.867 0.018 89.37);
+  --sidebar-ring:               oklch(0.508 0.186 23.32);
+}
+
+
+/* ============================================================================
+   SECTION 10 · THE SURFACE SPLIT (enforcement list)
+   ----------------------------------------------------------------------------
+   MARKETING surfaces: app/page.js when signed out, /login, /signup,
+     /forgot-password, /reset-password, /share/[token].
+     ALLOWED: --cr-type-display and above, the DIARISED stamp, redaction
+     bars, the hand-off ribbon, --cr-shadow-cta, GSAP hero timeline,
+     ScrollTrigger.batch reveals, --cr-dur-hero.
+
+   PRODUCT surfaces: app/Dashboard.js, app/meeting/[id]/MeetingDetail.js,
+     every dialog reachable from them.
+     FORBIDDEN: stamps, redaction bars, --cr-type-display and larger,
+     --cr-shadow-cta, decorative ribbon, any duration above
+     --cr-dur-modal (400ms).
+     YELLOW: search-match <mark> and the Transcribing status only.
+     RED: primary action fill, focus ring, Failed status only.
+     Page titles cap at --cr-type-h2 (30px).
+
+   Both surfaces share: every token in this file, the type ladder, the
+   three easing curves, --cr-press-scale, the icon family.
+   ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --cr-dur-press:      1ms;
+    --cr-dur-hover:      1ms;
+    --cr-dur-tooltip:    1ms;
+    --cr-dur-dropdown:   1ms;
+    --cr-dur-drawer:     1ms;
+    --cr-dur-modal:      1ms;
+    --cr-dur-reveal:   200ms; /* opacity only, no transform. see brand book */
+    --cr-dur-hero:     200ms;
+    --cr-stagger-row:    0ms;
+    --cr-stagger-reveal: 0ms;
+    --cr-stagger-line:   0ms;
+    --cr-press-scale:      1;
+  }
+}

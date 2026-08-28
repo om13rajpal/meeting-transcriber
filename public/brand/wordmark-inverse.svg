@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: 34453a4a6a789c09d86678e5ae221d91bb1df65538f8ab2d878bc554f77ad288
+artifact_role: asset
+palette: [#F4F1EA, #0E0E0F, #B8202D]
+tokens_used: [--cr-paper, --cr-ink, --cr-red-fill, --cr-font-display]
+summary: Inverse wordmark on paper, PLACEHOLDER name. The period uses red-fill not red, because #E63946 on paper is 3.70:1 and fails AA.
+-->
+<!--
+  INVERSE WORDMARK  ·  PLACEHOLDER
+  ==========================================================================
+  For the paper side of the brand: printed transcripts, PDF export headers,
+  invoices, light-mode email templates.
+
+  NOTE THE RED. This variant uses --cr-red-fill (#B8202D), not --cr-red
+  (#E63946). On paper the brand red measures 3.70:1 and fails AA for
+  anything smaller than large text. The deeper red measures 5.67:1. This is
+  not an inconsistency, it is the same red at the intensity its background
+  requires.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 90" width="420" height="90"
+     role="img" aria-label="MEETING.TXT">
+  <rect width="420" height="90" fill="var(--cr-paper, #F4F1EA)"/>
+  <text x="0" y="70"
+        font-family="'Big Shoulders Display', 'Arial Narrow', system-ui, sans-serif"
+        font-weight="900" font-size="80" letter-spacing="0.5"
+        fill="var(--cr-ink, #0E0E0F)">MEETING<tspan fill="var(--cr-red-fill, #B8202D)">.</tspan>TXT</text>
+</svg>

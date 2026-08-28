@@ -1,0 +1,2374 @@
+<!-- @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: 33a18d6986e5e58394f0bcf8483415b29b2c020192ff07e56cdeb2d2662831b4
+palette: [#0E0E0F, #F4F1EA, #E63946, #FFD23F, #6FCF97, #8A8A86, #1C1C1C]
+fonts: [Big Shoulders Display 900, Big Shoulders Display 800, IBM Plex Mono 400/500/600, Inter 400/500/600]
+tokens_used: [--cr-ink, --cr-paper, --cr-red, --cr-red-text, --cr-red-fill, --cr-yellow, --cr-success, --cr-text-muted, --cr-font-display, --cr-font-mono, --cr-ease-out, --cr-ease-in-out, --cr-ease-drawer, --cr-dur-press, --cr-dur-tooltip, --cr-dur-drawer, --cr-dur-modal, --cr-stagger-line]
+screen: brand-book
+summary: Court Reporter brand book v1. Eleven sections, full WCAG matrix, 24-icon family, the locked hand-off ribbon, seven live motion demos with a slow-motion scrub and a reduced-motion simulator, and the shadcn slot map.
+-->
+<!doctype html>
+<html lang="en" data-reduced="false">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Court Reporter · Brand Kit v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<style>
+/* ==========================================================================
+   COURT REPORTER · BRAND BOOK
+   The book is built out of the system it documents. Every value below is a
+   token from tokens.css. If you see a raw hex outside :root, it is a bug.
+   ========================================================================== */
+:root{
+  /* neutrals */
+  --cr-ink:#0E0E0F; --cr-ink-sunken:#08080A; --cr-ink-app:#111113;
+  --cr-ink-raised:#141417; --cr-ink-hover:#1A1A1D;
+  --cr-rule:#1C1C1C; --cr-rule-soft:#232327; --cr-rule-strong:#2A2A2E;
+  --cr-paper:#F4F1EA; --cr-paper-lifted:#FBF9F4; --cr-paper-dim:#EDEAE3; --cr-paper-rule:#D8D3C6;
+  /* text tiers */
+  --cr-text:#F4F1EA; --cr-text-secondary:#C9C6BD; --cr-text-tertiary:#A8A49B;
+  --cr-text-muted:#8A8A86; --cr-text-on-paper:#0E0E0F; --cr-text-paper-mut:#66625A;
+  --cr-hairline:#6B675F;
+  /* stamp red */
+  --cr-red:#E63946; --cr-red-text:#EC4B57; --cr-red-fill:#B8202D;
+  --cr-red-fill-hover:#C82232; --cr-red-fill-press:#A81B27;
+  /* highlighter */
+  --cr-yellow:#FFD23F; --cr-yellow-ink:#0E0E0F;
+  /* semantic */
+  --cr-success:#6FCF97; --cr-warning:#FFD23F; --cr-danger:#EC4B57;
+  --cr-tint-red:#2C1417; --cr-tint-yellow:#2B2615; --cr-tint-green:#1C2922;
+  /* type */
+  --cr-font-display:'Big Shoulders Display','Arial Narrow',system-ui,sans-serif;
+  --cr-font-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',monospace;
+  --cr-font-body:'Inter',system-ui,sans-serif;
+  --cr-type-cover:180px; --cr-type-display:84px; --cr-type-h1:48px; --cr-type-h2:30px;
+  --cr-type-h3:22px; --cr-type-lede:17px; --cr-type-body:15px; --cr-type-sm:13px;
+  --cr-type-mono:12px; --cr-type-meta:11px; --cr-type-tiny:10px;
+  /* space */
+  --cr-space-1:4px; --cr-space-2:8px; --cr-space-3:12px; --cr-space-4:16px; --cr-space-5:24px;
+  --cr-space-6:32px; --cr-space-7:40px; --cr-space-8:56px; --cr-space-9:88px; --cr-space-10:120px;
+  --cr-measure:1180px; --cr-measure-app:1040px; --cr-measure-read:460px;
+  /* stroke: ONE border value. emphasis is carried by the rule's colour. */
+  --cr-stroke-hair:1px;
+  /* not chrome, so not on the scale above */
+  --cr-focus-ring:2px; --cr-stroke-icon:1.75px; --cr-stroke-ribbon:34px;
+  --cr-radius-sm:6px; --cr-radius-md:8px; --cr-radius-lg:10px; --cr-radius-xl:14px;
+  --cr-radius-card:16px; --cr-radius-pill:999px;
+  /* motion */
+  --cr-ease-out:cubic-bezier(0.23,1,0.32,1);
+  --cr-ease-in-out:cubic-bezier(0.77,0,0.175,1);
+  --cr-ease-drawer:cubic-bezier(0.32,0.72,0,1);
+  --cr-dur-press:140ms; --cr-dur-hover:160ms; --cr-dur-tooltip:160ms;
+  --cr-dur-dropdown:200ms; --cr-dur-drawer:320ms; --cr-dur-modal:400ms;
+  --cr-dur-reveal:600ms; --cr-dur-hero:700ms;
+  --cr-stagger-row:50ms; --cr-stagger-reveal:120ms; --cr-stagger-line:120ms;
+  --cr-press-scale:0.97;
+  /* elevation */
+  --cr-shadow-sheet:0 50px 100px -30px rgba(0,0,0,.65);
+  --cr-shadow-cta:0 14px 30px -12px rgba(184,32,45,.55);
+  /* book only: the slow-motion multiplier, see section 06 */
+  --slowmo:1;
+}
+/* reduced motion, both the real preference and the in-book simulator */
+@media (prefers-reduced-motion:reduce){
+  :root{--cr-dur-press:1ms;--cr-dur-hover:1ms;--cr-dur-tooltip:1ms;--cr-dur-dropdown:1ms;
+    --cr-dur-drawer:1ms;--cr-dur-modal:1ms;--cr-dur-reveal:200ms;--cr-dur-hero:200ms;
+    --cr-stagger-row:0ms;--cr-stagger-reveal:0ms;--cr-stagger-line:0ms;--cr-press-scale:1;}
+}
+html[data-reduced="true"]{
+  --cr-dur-press:1ms;--cr-dur-hover:1ms;--cr-dur-tooltip:1ms;--cr-dur-dropdown:1ms;
+  --cr-dur-drawer:1ms;--cr-dur-modal:1ms;--cr-dur-reveal:200ms;--cr-dur-hero:200ms;
+  --cr-stagger-row:0ms;--cr-stagger-reveal:0ms;--cr-stagger-line:0ms;--cr-press-scale:1;
+}
+html[data-slowmo="true"]{--slowmo:8;}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--cr-ink);color:var(--cr-text);
+  font-family:var(--cr-font-body);font-size:var(--cr-type-body);line-height:1.6;
+  -webkit-font-smoothing:antialiased;}
+img,svg{display:block;max-width:100%;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+a{color:var(--cr-text);}
+::selection{background:var(--cr-yellow);color:var(--cr-yellow-ink);}
+:focus-visible{outline:var(--cr-focus-ring) solid var(--cr-red);outline-offset:3px;border-radius:2px;}
+
+/* ── book chrome ───────────────────────────────────────────────────────── */
+.booknav{position:fixed;top:0;left:0;right:0;z-index:60;display:flex;gap:2px;align-items:center;
+  background:rgba(14,14,15,.92);backdrop-filter:blur(12px);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  padding:0 var(--cr-space-4);overflow-x:auto;scrollbar-width:none;}
+.booknav::-webkit-scrollbar{display:none;}
+.booknav a{font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cr-text-muted);text-decoration:none;
+  padding:14px 10px;white-space:nowrap;
+  transition:color var(--cr-dur-hover) var(--cr-ease-out);}
+.booknav a:hover{color:var(--cr-text);}
+.booknav a.on{color:var(--cr-red-text);}
+.booknav .nv-sp{flex:1 1 auto;}
+.booknav .nv-btn{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cr-text-muted);border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-sm);padding:5px 9px;margin-left:6px;white-space:nowrap;
+  transition:color var(--cr-dur-hover) var(--cr-ease-out),border-color var(--cr-dur-hover) var(--cr-ease-out),background var(--cr-dur-hover) var(--cr-ease-out);}
+.booknav .nv-btn[aria-pressed="true"]{color:var(--cr-yellow-ink);background:var(--cr-yellow);border-color:var(--cr-yellow);}
+
+.wrap{max-width:var(--cr-measure);margin:0 auto;padding:0 var(--cr-space-5);}
+section.sec{padding:var(--cr-space-9) 0;border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.marker{display:block;font-family:var(--cr-font-mono);font-size:var(--cr-type-mono);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--cr-red);margin-bottom:var(--cr-space-3);}
+.sec h2{font-family:var(--cr-font-display);font-weight:900;text-transform:uppercase;
+  font-size:var(--cr-type-h1);line-height:.95;letter-spacing:-.01em;margin:0 0 var(--cr-space-3);}
+.sec h3{font-family:var(--cr-font-display);font-weight:800;text-transform:uppercase;
+  font-size:var(--cr-type-h3);letter-spacing:.02em;margin:var(--cr-space-7) 0 var(--cr-space-3);}
+.sec h4{font-family:var(--cr-font-mono);font-weight:600;font-size:var(--cr-type-meta);
+  letter-spacing:.12em;text-transform:uppercase;color:var(--cr-text-tertiary);
+  margin:var(--cr-space-5) 0 var(--cr-space-3);}
+.lede{font-size:var(--cr-type-lede);line-height:1.65;color:var(--cr-text-secondary);
+  max-width:640px;margin:0 0 var(--cr-space-6);}
+p{max-width:640px;}
+.note{font-size:var(--cr-type-sm);color:var(--cr-text-muted);max-width:640px;}
+.rule{height:var(--cr-stroke-hair);background:var(--cr-rule-soft);margin:var(--cr-space-6) 0;}
+code,.mono{font-family:var(--cr-font-mono);font-size:.92em;}
+code{background:var(--cr-ink-raised);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-sm);padding:2px 6px;color:var(--cr-text-secondary);}
+pre{font-family:var(--cr-font-mono);font-size:var(--cr-type-sm);line-height:1.75;
+  background:var(--cr-ink-sunken);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-left:var(--cr-stroke-hair) solid var(--cr-red);
+  border-radius:var(--cr-radius-md);padding:var(--cr-space-4) var(--cr-space-5);
+  overflow-x:auto;color:var(--cr-text-secondary);margin:var(--cr-space-3) 0;}
+pre b{color:var(--cr-yellow);font-weight:400;}
+pre i{color:var(--cr-text-muted);font-style:normal;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--cr-space-5);}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--cr-space-5);}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--cr-space-4);}
+@media(max-width:860px){.grid2,.grid3,.grid4{grid-template-columns:1fr;}}
+.panel{background:var(--cr-ink-raised);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-xl);padding:var(--cr-space-5);}
+.tbl{width:100%;border-collapse:collapse;font-size:var(--cr-type-sm);}
+.tbl th{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--cr-text-muted);text-align:left;font-weight:600;
+  padding:var(--cr-space-2) var(--cr-space-3);border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-strong);}
+.tbl td{padding:var(--cr-space-3);border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  vertical-align:middle;}
+.tbl tr:hover td{background:var(--cr-ink-hover);}
+.tbl .num{font-family:var(--cr-font-mono);}
+.ok{color:var(--cr-success);font-weight:600;}
+.no{color:var(--cr-danger);font-weight:600;}
+.chipdot{display:inline-block;width:14px;height:14px;border-radius:3px;
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);vertical-align:-2px;margin-right:6px;}
+.badge{display:inline-block;font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:var(--cr-radius-sm);
+  background:var(--cr-rule);color:var(--cr-text-tertiary);}
+.badge.mk{background:var(--cr-tint-red);color:var(--cr-red-text);}
+.badge.pr{background:var(--cr-tint-green);color:var(--cr-success);}
+.badge.no{background:var(--cr-tint-red);color:var(--cr-red-text);}
+</style>
+<style>
+/* ── section-specific styles, part 2 ───────────────────────────────────── */
+
+/* COVER */
+#cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+  border-top:none;padding-top:var(--cr-space-10);position:relative;overflow:hidden;}
+#cover .cw{font-family:var(--cr-font-display);font-weight:900;text-transform:uppercase;
+  font-size:clamp(64px,17vw,180px);line-height:.82;letter-spacing:-.02em;margin:0;}
+#cover .cw span{color:var(--cr-red);}
+#cover .tag{font-family:var(--cr-font-mono);font-style:italic;font-size:clamp(15px,2vw,22px);
+  color:var(--cr-text-secondary);margin:var(--cr-space-5) 0 0;max-width:520px;}
+#cover .cover-rule{height:var(--cr-stroke-hair);background:var(--cr-red);margin:var(--cr-space-6) 0;}
+#cover .stampstamp{position:absolute;top:16vh;right:4vw;font-family:var(--cr-font-display);
+  font-weight:900;font-size:clamp(14px,1.6vw,20px);letter-spacing:.12em;color:var(--cr-red);
+  border:var(--cr-stroke-hair) solid var(--cr-red);padding:8px 16px;transform:rotate(-6deg);}
+#cover .vstamp{position:absolute;bottom:var(--cr-space-8);right:var(--cr-space-5);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);color:var(--cr-text-muted);
+  text-align:right;line-height:1.8;}
+#cover .meta-row{display:flex;flex-wrap:wrap;gap:var(--cr-space-5);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);color:var(--cr-text-muted);}
+#cover .meta-row b{color:var(--cr-text-secondary);font-weight:400;}
+
+/* MANIFESTO */
+#manifesto{background:var(--cr-paper);color:var(--cr-text-on-paper);}
+#manifesto .marker{color:var(--cr-red-fill);}
+#manifesto blockquote{font-family:var(--cr-font-mono);font-style:italic;
+  font-size:clamp(19px,2.6vw,30px);line-height:1.5;margin:0 0 var(--cr-space-7);max-width:820px;}
+#manifesto .will{display:grid;grid-template-columns:1fr 1fr;gap:var(--cr-space-6);
+  border-top:var(--cr-stroke-hair) solid var(--cr-text-on-paper);padding-top:var(--cr-space-5);}
+@media(max-width:860px){#manifesto .will{grid-template-columns:1fr;}}
+#manifesto h4{color:var(--cr-text-paper-mut);}
+#manifesto ul{margin:0;padding-left:1.1em;color:var(--cr-text-on-paper);font-size:var(--cr-type-body);}
+#manifesto li{margin-bottom:var(--cr-space-2);max-width:460px;}
+#manifesto .hl{background:var(--cr-yellow);padding:0 4px;border-radius:2px;}
+
+/* LOGO */
+.logostage{border:var(--cr-stroke-hair) solid var(--cr-rule-soft);border-radius:var(--cr-radius-xl);
+  padding:var(--cr-space-7) var(--cr-space-5);display:flex;align-items:center;justify-content:center;
+  min-height:180px;position:relative;}
+.logostage.on-paper{background:var(--cr-paper);border-color:var(--cr-paper-rule);}
+.logostage.on-red{background:var(--cr-red-fill);border-color:var(--cr-red-fill);}
+.logostage .cap{position:absolute;top:10px;left:12px;font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-tiny);letter-spacing:.1em;text-transform:uppercase;color:var(--cr-text-muted);}
+.logostage.on-paper .cap{color:var(--cr-text-paper-mut);}
+.logostage.on-red .cap{color:var(--cr-paper);}
+.wm{font-family:var(--cr-font-display);font-weight:900;font-size:44px;letter-spacing:.01em;
+  text-transform:uppercase;line-height:1;}
+.wm .dot{color:var(--cr-red);}
+.on-paper .wm{color:var(--cr-text-on-paper);}
+.on-paper .wm .dot{color:var(--cr-red-fill);}
+.on-red .wm{color:var(--cr-paper);}
+.on-red .wm .dot{color:var(--cr-ink);}
+.clearbox{position:relative;padding:36px;}
+.clearbox::before{content:'';position:absolute;inset:0;border:var(--cr-stroke-hair) dashed var(--cr-red);
+  border-radius:var(--cr-radius-sm);opacity:.55;}
+
+/* COLOR */
+.swatch{border:var(--cr-stroke-hair) solid var(--cr-rule-soft);border-radius:var(--cr-radius-lg);
+  overflow:hidden;background:var(--cr-ink-raised);}
+.swatch .chip{height:84px;}
+.swatch .body{padding:var(--cr-space-3);}
+.swatch .nm{font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);color:var(--cr-text);
+  letter-spacing:.02em;}
+.swatch .hex{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);
+  margin-top:3px;}
+.swatch .role{font-size:var(--cr-type-sm);color:var(--cr-text-tertiary);margin-top:var(--cr-space-2);
+  line-height:1.45;}
+.swatch .cr{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);margin-top:var(--cr-space-2);
+  color:var(--cr-text-muted);border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);padding-top:6px;}
+
+/* TYPE */
+.spec{border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);padding:var(--cr-space-5) 0;
+  display:grid;grid-template-columns:132px 1fr;gap:var(--cr-space-5);align-items:baseline;}
+@media(max-width:860px){.spec{grid-template-columns:1fr;gap:var(--cr-space-2);}}
+.spec .lbl{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cr-text-muted);line-height:1.7;}
+.spec .lbl b{display:block;color:var(--cr-red-text);font-weight:600;}
+.sp-cover{font-family:var(--cr-font-display);font-weight:900;font-size:clamp(56px,10vw,120px);
+  line-height:.85;text-transform:uppercase;letter-spacing:-.02em;}
+.sp-display{font-family:var(--cr-font-display);font-weight:900;font-size:clamp(46px,7vw,84px);
+  line-height:.92;text-transform:uppercase;letter-spacing:-.01em;}
+.sp-h1{font-family:var(--cr-font-display);font-weight:900;font-size:48px;line-height:.95;
+  text-transform:uppercase;letter-spacing:-.01em;}
+.sp-h2{font-family:var(--cr-font-display);font-weight:800;font-size:30px;line-height:1;
+  text-transform:uppercase;letter-spacing:.01em;}
+.sp-h3{font-family:var(--cr-font-display);font-weight:800;font-size:22px;line-height:1.1;
+  text-transform:uppercase;letter-spacing:.02em;}
+.sp-lede{font-size:17px;line-height:1.65;color:var(--cr-text-secondary);}
+.sp-body{font-size:15px;line-height:1.6;}
+.sp-sm{font-size:13px;line-height:1.5;color:var(--cr-text-secondary);}
+.sp-transcript{font-family:var(--cr-font-mono);font-size:13px;line-height:1.9;}
+.sp-mono{font-family:var(--cr-font-mono);font-weight:500;font-size:12px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--cr-yellow);}
+.sp-meta{font-family:var(--cr-font-mono);font-size:11px;letter-spacing:.02em;color:var(--cr-text-muted);}
+.sp-tiny{font-family:var(--cr-font-mono);font-weight:600;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cr-text-tertiary);}
+
+/* ICONS */
+.cr-icon{fill:none;stroke:currentColor;stroke-width:var(--cr-stroke-icon);
+  stroke-linecap:butt;stroke-linejoin:miter;}
+.icongrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:var(--cr-space-1);}
+.icell{display:flex;flex-direction:column;align-items:center;gap:var(--cr-space-2);
+  padding:var(--cr-space-4) var(--cr-space-2);border:var(--cr-stroke-hair) solid transparent;
+  border-radius:var(--cr-radius-md);transition:background var(--cr-dur-hover) var(--cr-ease-out),border-color var(--cr-dur-hover) var(--cr-ease-out);}
+.icell:hover{background:var(--cr-ink-hover);border-color:var(--cr-rule-soft);}
+.icell .nm{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);
+  letter-spacing:.04em;}
+.sizerow{display:flex;align-items:flex-end;gap:var(--cr-space-6);flex-wrap:wrap;}
+.sizerow figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:var(--cr-space-2);}
+.sizerow figcaption{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);}
+.tonebox{display:flex;gap:var(--cr-space-4);align-items:center;padding:var(--cr-space-4);
+  border-radius:var(--cr-radius-md);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+</style>
+<style>
+/* ── section-specific styles, part 3: key visual, motion, components ───── */
+
+/* KEY VISUAL */
+.ribbonstage{background:var(--cr-ink-app);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-xl);padding:var(--cr-space-5) var(--cr-space-4);overflow:hidden;}
+.cr-ribbon-path{fill:none;stroke:var(--cr-red);stroke-width:var(--cr-stroke-ribbon);stroke-linecap:round;}
+.motifcard{background:var(--cr-ink-raised);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-lg);padding:var(--cr-space-5);text-align:center;}
+.motifcard .stage{min-height:74px;display:flex;align-items:center;justify-content:center;
+  margin-bottom:var(--cr-space-3);}
+.stamp{display:inline-block;font-family:var(--cr-font-display);font-weight:900;font-size:13px;
+  letter-spacing:.12em;color:var(--cr-red);border:var(--cr-stroke-hair) solid var(--cr-red);
+  padding:5px 12px;transform:rotate(-6deg);}
+.redact{background:var(--cr-ink);color:var(--cr-ink);border-radius:2px;padding:0 3px;
+  font-family:var(--cr-font-mono);font-size:13px;}
+.on-paper-tile{background:var(--cr-paper);color:var(--cr-text-on-paper);border-radius:var(--cr-radius-md);
+  padding:var(--cr-space-4);}
+.t-tag{display:inline-block;background:var(--cr-ink);color:var(--cr-paper);font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-tiny);font-weight:600;padding:2px 7px;border-radius:var(--cr-radius-sm);}
+
+/* MOTION LAB */
+.demo{background:var(--cr-ink-raised);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-xl);overflow:hidden;display:flex;flex-direction:column;}
+.demo .head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--cr-space-3);
+  padding:var(--cr-space-4) var(--cr-space-4) var(--cr-space-3);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.demo .head .t{font-family:var(--cr-font-display);font-weight:800;font-size:18px;
+  text-transform:uppercase;letter-spacing:.02em;}
+.demo .head .d{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-red-text);
+  letter-spacing:.06em;white-space:nowrap;}
+.demo .stage{position:relative;flex:1;min-height:200px;background:var(--cr-ink);
+  display:flex;align-items:center;justify-content:center;padding:var(--cr-space-5);overflow:hidden;}
+.demo .foot{padding:var(--cr-space-3) var(--cr-space-4);font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-tiny);color:var(--cr-text-muted);line-height:1.7;
+  border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.demo .foot b{color:var(--cr-text-tertiary);font-weight:400;}
+
+/* buttons, the real component definitions */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--cr-space-2);
+  font-family:var(--cr-font-body);font-weight:600;font-size:14px;line-height:1;
+  padding:12px 20px;border-radius:var(--cr-radius-md);white-space:nowrap;
+  transition:transform calc(var(--cr-dur-press) * var(--slowmo)) var(--cr-ease-out),
+             background calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out),
+             border-color calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out),
+             color calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out),
+             opacity calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out);}
+.btn:active,.btn.is-active{transform:scale(var(--cr-press-scale));}
+.btn:disabled,.btn.is-disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-primary{background:var(--cr-red-fill);color:var(--cr-paper);}
+.btn-primary:hover:not(:disabled),.btn-primary.is-hover{background:var(--cr-red-fill-hover);}
+.btn-primary:active:not(:disabled),.btn-primary.is-active{background:var(--cr-red-fill-press);}
+.btn-secondary{background:transparent;color:var(--cr-text);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);padding:11px 19px;}
+.btn-secondary:hover:not(:disabled),.btn-secondary.is-hover{background:var(--cr-ink-hover);border-color:var(--cr-text-muted);}
+.btn-ghost{background:transparent;color:var(--cr-text-secondary);text-decoration:underline;
+  text-underline-offset:4px;text-decoration-thickness:1px;padding:12px 8px;}
+.btn-ghost:hover:not(:disabled),.btn-ghost.is-hover{color:var(--cr-text);}
+.btn-danger{background:transparent;color:var(--cr-danger);
+  border:var(--cr-stroke-hair) solid var(--cr-danger);padding:11px 19px;}
+.btn-danger:hover:not(:disabled),.btn-danger.is-hover{background:var(--cr-tint-red);}
+.btn-fab{width:44px;height:44px;padding:0;border-radius:var(--cr-radius-pill);
+  background:var(--cr-red-fill);color:var(--cr-paper);}
+.btn-fab:hover:not(:disabled),.btn-fab.is-hover{background:var(--cr-red-fill-hover);}
+.btn.is-focus{outline:var(--cr-focus-ring) solid var(--cr-red);outline-offset:3px;}
+.btn-sm{font-size:13px;padding:9px 15px;}
+
+/* tooltip demo */
+.tt-wrap{position:relative;display:inline-block;}
+.tooltip{position:absolute;bottom:calc(100% + 10px);left:50%;
+  transform-origin:bottom center;
+  background:var(--cr-paper);color:var(--cr-text-on-paper);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);white-space:nowrap;
+  padding:6px 10px;border-radius:var(--cr-radius-sm);pointer-events:none;
+  opacity:0;transform:translateX(-50%) scale(.97);
+  transition:opacity calc(var(--cr-dur-tooltip) * var(--slowmo)) var(--cr-ease-out),
+             transform calc(var(--cr-dur-tooltip) * var(--slowmo)) var(--cr-ease-out);}
+.tt-wrap:hover .tooltip,.tt-wrap:focus-within .tooltip,.tooltip.open{
+  opacity:1;transform:translateX(-50%) scale(1);}
+.tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:5px solid transparent;border-top-color:var(--cr-paper);}
+
+/* drawer demo */
+.drawerbox{position:relative;width:100%;max-width:300px;height:190px;border-radius:var(--cr-radius-lg);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);background:var(--cr-ink-app);overflow:hidden;}
+.drawerbox .scrim{position:absolute;inset:0;background:rgba(8,8,10,.6);opacity:0;
+  transition:opacity calc(var(--cr-dur-drawer) * var(--slowmo)) var(--cr-ease-drawer);}
+.drawerbox.open .scrim{opacity:1;}
+.drawerbox .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--cr-ink-raised);
+  border-top:var(--cr-stroke-hair) solid var(--cr-red);
+  border-radius:var(--cr-radius-card) var(--cr-radius-card) 0 0;padding:var(--cr-space-4);
+  transform:translateY(100%);
+  transition:transform calc(var(--cr-dur-drawer) * var(--slowmo)) var(--cr-ease-drawer);}
+.drawerbox.open .sheet{transform:translateY(0);}
+.drawerbox .grab{width:34px;height:4px;border-radius:2px;background:var(--cr-rule-strong);
+  margin:0 auto var(--cr-space-3);}
+
+/* modal demo */
+.modalbox{position:relative;width:100%;max-width:320px;height:200px;border-radius:var(--cr-radius-lg);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);background:var(--cr-ink-app);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;}
+.modalbox .scrim{position:absolute;inset:0;background:rgba(8,8,10,.72);opacity:0;pointer-events:none;
+  transition:opacity calc(var(--cr-dur-modal) * var(--slowmo)) var(--cr-ease-out);}
+.modalbox.open .scrim{opacity:1;}
+.modalbox .dlg{position:relative;width:82%;background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);border-radius:var(--cr-radius-lg);
+  padding:var(--cr-space-4);transform-origin:center;
+  opacity:0;transform:scale(.96);
+  transition:opacity calc(var(--cr-dur-modal) * var(--slowmo)) var(--cr-ease-out),
+             transform calc(var(--cr-dur-modal) * var(--slowmo)) var(--cr-ease-out);}
+.modalbox.open .dlg{opacity:1;transform:scale(1);}
+
+/* transcript stagger demo */
+.t-line{font-family:var(--cr-font-mono);font-size:13px;line-height:1.9;display:flex;gap:10px;
+  padding:5px 0;border-bottom:var(--cr-stroke-hair) dashed var(--cr-rule-strong);align-items:baseline;}
+.t-line:last-child{border-bottom:none;}
+.t-time{color:var(--cr-text-muted);flex:none;font-size:var(--cr-type-meta);}
+.t-hl{background:var(--cr-yellow);color:var(--cr-yellow-ink);padding:0 3px;border-radius:2px;}
+
+/* reveal batch demo */
+.revealcard{background:var(--cr-ink-raised);border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-lg);padding:var(--cr-space-4);}
+.revealcard .n{font-family:var(--cr-font-display);font-weight:900;font-size:36px;color:var(--cr-red);
+  line-height:1;}
+.revealcard .l{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--cr-text-muted);margin-top:6px;}
+
+/* COMPONENTS */
+.statebox{display:grid;grid-template-columns:96px 1fr;gap:var(--cr-space-4);align-items:center;
+  padding:var(--cr-space-3) 0;border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.statebox .sl{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cr-text-muted);}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field label{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cr-text-tertiary);}
+.input{background:var(--cr-ink-sunken);color:var(--cr-text);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);border-radius:var(--cr-radius-md);
+  padding:10px 13px;font-family:var(--cr-font-body);font-size:14px;width:100%;
+  transition:border-color calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out),
+             box-shadow calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out);}
+.input::placeholder{color:var(--cr-text-muted);}
+.input:focus{outline:none;border-color:var(--cr-red);box-shadow:0 0 0 3px rgba(230,57,70,.18);}
+.input[aria-invalid="true"]{border-color:var(--cr-danger);}
+.hint{font-size:var(--cr-type-sm);color:var(--cr-text-muted);}
+.hint.err{color:var(--cr-danger);}
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-tiny);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 10px;border-radius:var(--cr-radius-pill);}
+.pill.complete{background:var(--cr-tint-green);color:var(--cr-success);}
+.pill.processing{background:var(--cr-tint-yellow);color:var(--cr-yellow);}
+.pill.failed{background:var(--cr-tint-red);color:var(--cr-danger);}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:cr-pulse 1.1s ease-in-out infinite;}
+@keyframes cr-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.pill .dot{animation:none;opacity:.7;}}
+html[data-reduced="true"] .pill .dot{animation:none;opacity:.7;}
+.tagchip{display:inline-flex;align-items:center;gap:6px;font-size:var(--cr-type-tiny);font-weight:600;
+  font-family:var(--cr-font-mono);letter-spacing:.04em;text-transform:uppercase;
+  background:var(--cr-rule);color:var(--cr-text-tertiary);padding:4px 9px;border-radius:var(--cr-radius-sm);}
+.toggle{width:40px;height:23px;border-radius:var(--cr-radius-pill);background:var(--cr-rule-strong);
+  position:relative;padding:0;flex:none;
+  transition:background calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out);}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;
+  background:var(--cr-text);
+  transition:transform calc(var(--cr-dur-press) * var(--slowmo)) var(--cr-ease-out);}
+.toggle[aria-checked="true"]{background:var(--cr-red-fill);}
+.toggle[aria-checked="true"]::after{transform:translateX(17px);background:var(--cr-paper);}
+.heroblock{border-top:var(--cr-stroke-hair) solid var(--cr-paper);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-paper);padding:var(--cr-space-4) 0;
+  display:flex;align-items:baseline;justify-content:space-between;gap:var(--cr-space-4);flex-wrap:wrap;}
+.row{display:grid;grid-template-columns:22px 1fr auto;gap:var(--cr-space-4);align-items:center;
+  padding:var(--cr-space-4) 6px;border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  transition:background calc(var(--cr-dur-hover) * var(--slowmo)) var(--cr-ease-out);}
+.row:hover{background:var(--cr-ink-hover);}
+.row .title{font-size:15px;font-weight:600;}
+.row .snippet{font-size:13px;color:var(--cr-text-muted);line-height:1.5;max-width:520px;margin-top:3px;}
+.row mark{background:var(--cr-yellow);color:var(--cr-yellow-ink);padding:0 2px;border-radius:2px;}
+.row .side{text-align:right;}
+.row .meta-line{font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);color:var(--cr-text-muted);
+  margin-top:5px;}
+.row input[type=checkbox]{width:16px;height:16px;accent-color:var(--cr-red);}
+.timerail{border-left:var(--cr-stroke-hair) solid var(--cr-rule-strong);padding-left:var(--cr-space-3);}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);}
+.stat3 > div{padding:var(--cr-space-3) var(--cr-space-4);position:relative;}
+.stat3 > div + div::before{content:'';position:absolute;left:0;top:var(--cr-space-2);bottom:var(--cr-space-2);
+  width:var(--cr-stroke-hair);background:var(--cr-rule-soft);}
+.stat3 .v{font-family:var(--cr-font-display);font-weight:900;font-size:30px;line-height:1;}
+.stat3 .k{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--cr-text-muted);margin-top:6px;}
+.spacebar{height:22px;background:var(--cr-red);border-radius:2px;}
+.dodont{border-radius:var(--cr-radius-lg);padding:var(--cr-space-4);border:var(--cr-stroke-hair) solid;}
+.dodont.do{border-color:rgba(111,207,151,.35);background:var(--cr-tint-green);}
+.dodont.dont{border-color:rgba(236,75,87,.35);background:var(--cr-tint-red);}
+.dodont .k{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.12em;
+  text-transform:uppercase;margin-bottom:var(--cr-space-2);}
+.dodont.do .k{color:var(--cr-success);} .dodont.dont .k{color:var(--cr-danger);}
+.dodont p{margin:0;font-size:14px;color:var(--cr-text-secondary);}
+.voicecard{border-left:var(--cr-stroke-hair) solid var(--cr-red);padding-left:var(--cr-space-4);}
+.voicecard .k{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--cr-red-text);margin-bottom:var(--cr-space-2);}
+.voicecard p{margin:0 0 6px;font-size:15px;}
+.voicecard .why{font-size:13px;color:var(--cr-text-muted);}
+.reveal-up{opacity:0;transform:translateY(24px);}
+footer.bookfoot{border-top:var(--cr-stroke-hair) solid var(--cr-red);padding:var(--cr-space-7) 0 var(--cr-space-9);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);color:var(--cr-text-muted);
+  display:flex;justify-content:space-between;gap:var(--cr-space-4);flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<nav class="booknav" aria-label="Brand book sections">
+  <a href="#cover">Cover</a>
+  <a href="#manifesto">Manifesto</a>
+  <a href="#logo">01 Logo</a>
+  <a href="#color">02 Colour</a>
+  <a href="#type">03 Type</a>
+  <a href="#icons">04 Icons</a>
+  <a href="#keyvisual">05 Key visual</a>
+  <a href="#motion">06 Motion</a>
+  <a href="#components">07 Components</a>
+  <a href="#voice">08 Voice</a>
+  <a href="#layout">09 Layout</a>
+  <span class="nv-sp"></span>
+  <button class="nv-btn" id="tglSlow" aria-pressed="false">Slow motion 8x</button>
+  <button class="nv-btn" id="tglReduced" aria-pressed="false">Reduced motion</button>
+</nav>
+
+<!-- ══════════════════════════ COVER ══════════════════════════ -->
+<section class="sec" id="cover">
+  <div class="wrap">
+    <span class="marker">Court Reporter · Brand Kit</span>
+    <h1 class="cw">Meeting<span>.</span><br>Txt</h1>
+    <p class="tag">Every word. On record.</p>
+    <div class="cover-rule"></div>
+    <div class="meta-row">
+      <span>Theme <b>court-reporter</b></span>
+      <span>Palette <b>7 core / 34 tokens</b></span>
+      <span>Type <b>Big Shoulders Display + IBM Plex Mono</b></span>
+      <span>Motion <b>3 curves / 8 durations</b></span>
+    </div>
+  </div>
+  <div class="stampstamp">ON RECORD</div>
+  <div class="vstamp">v1.0 · 2026-08-28<br>moodforge round 3</div>
+</section>
+
+<!-- ══════════════════════════ MANIFESTO ══════════════════════════ -->
+<section class="sec" id="manifesto">
+  <div class="wrap">
+    <span class="marker">Manifesto</span>
+    <blockquote>
+      A meeting is the only kind of work that disappears the moment it finishes.
+      This product does one thing: it takes the words that were actually said, in the
+      language they were actually said in, and puts them on the record where you can
+      <span class="hl">find them again</span>.
+      We do not summarise, we do not advise, and we do not read your recordings for any
+      purpose other than transcribing them.
+    </blockquote>
+    <div class="will">
+      <div>
+        <h4>What this brand will do</h4>
+        <ul>
+          <li>Show the transcript. The real output is the hero graphic, not a stock illustration of a robot.</li>
+          <li>Print Hinglish as Hinglish. Code-switching mid-sentence is the normal case here, not an edge case.</li>
+          <li>Name the model and the price. Nova-3, and the exact dollar figure, on every completed meeting.</li>
+          <li>Say what failed and why, in the words a person can act on.</li>
+          <li>Get quiet the moment you sign in. The loud version is for the front door only.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>What this brand will not do</h4>
+        <ul>
+          <li>Say "AI-powered". It is a speech model with a name and a per-minute rate.</li>
+          <li>Promise insight, action items, or intelligence it does not produce.</li>
+          <li>Use a gradient, a glow, a glass panel, or a floating 3D orb.</li>
+          <li>Soften a delete. If something is about to be gone, the copy says gone.</li>
+          <li>Animate anything you will see a hundred times a day.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 01 LOGO ══════════════════════════ -->
+<section class="sec" id="logo">
+  <div class="wrap">
+    <span class="marker">§ 01 / Logo</span>
+    <h2>Logo</h2>
+    <p class="lede">
+      The wordmark is a <strong>placeholder</strong>. The product has no final name yet, so every
+      wordmark file uses live text rather than outlined paths: swapping the name is editing one
+      string, not redrawing vectors. The icon mark is not a placeholder, it carries no letterforms
+      and survives whatever the product ends up being called.
+    </p>
+
+    <div class="grid2">
+      <div class="logostage">
+        <span class="cap">Primary · paper on ink</span>
+        <span class="wm">Meeting<span class="dot">.</span>Txt</span>
+      </div>
+      <div class="logostage on-paper">
+        <span class="cap">Inverse · ink on paper</span>
+        <span class="wm">Meeting<span class="dot">.</span>Txt</span>
+      </div>
+      <div class="logostage">
+        <span class="cap">Mono · one colour, no red</span>
+        <span class="wm" style="color:var(--cr-paper)">Meeting.Txt</span>
+      </div>
+      <div class="logostage on-red">
+        <span class="cap">On accent · the period inverts to ink</span>
+        <span class="wm">Meeting<span class="dot">.</span>Txt</span>
+      </div>
+    </div>
+
+    <h3>The mark</h3>
+    <div class="grid3">
+      <div class="logostage" style="min-height:150px">
+        <span class="cap">Icon lockup · 64px</span>
+        <svg viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Product mark">
+          <rect width="64" height="64" rx="10" fill="var(--cr-ink-raised)"/>
+          <rect x="14" y="17" width="13" height="8" rx="2" fill="var(--cr-red)"/>
+          <rect x="31" y="18.5" width="19" height="5" rx="2.5" fill="var(--cr-paper)"/>
+          <rect x="14" y="30.5" width="36" height="5" rx="2.5" fill="var(--cr-paper)"/>
+          <rect x="14" y="42.5" width="24" height="5" rx="2.5" fill="var(--cr-paper)" opacity=".55"/>
+        </svg>
+      </div>
+      <div class="logostage" style="min-height:150px">
+        <span class="cap">Minimum size · 16, 20, 24, 32</span>
+        <div class="sizerow" style="gap:var(--cr-space-4)">
+          <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="10" fill="var(--cr-paper)"/><rect x="14" y="17" width="13" height="8" rx="2" fill="var(--cr-red-fill)"/><rect x="31" y="18.5" width="19" height="5" rx="2.5" fill="var(--cr-ink)"/><rect x="14" y="30.5" width="36" height="5" rx="2.5" fill="var(--cr-ink)"/></svg>
+          <svg viewBox="0 0 64 64" width="20" height="20"><rect width="64" height="64" rx="10" fill="var(--cr-paper)"/><rect x="14" y="17" width="13" height="8" rx="2" fill="var(--cr-red-fill)"/><rect x="31" y="18.5" width="19" height="5" rx="2.5" fill="var(--cr-ink)"/><rect x="14" y="30.5" width="36" height="5" rx="2.5" fill="var(--cr-ink)"/></svg>
+          <svg viewBox="0 0 64 64" width="24" height="24"><rect width="64" height="64" rx="10" fill="var(--cr-paper)"/><rect x="14" y="17" width="13" height="8" rx="2" fill="var(--cr-red-fill)"/><rect x="31" y="18.5" width="19" height="5" rx="2.5" fill="var(--cr-ink)"/><rect x="14" y="30.5" width="36" height="5" rx="2.5" fill="var(--cr-ink)"/><rect x="14" y="42.5" width="24" height="5" rx="2.5" fill="var(--cr-ink)" opacity=".55"/></svg>
+          <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="10" fill="var(--cr-paper)"/><rect x="14" y="17" width="13" height="8" rx="2" fill="var(--cr-red-fill)"/><rect x="31" y="18.5" width="19" height="5" rx="2.5" fill="var(--cr-ink)"/><rect x="14" y="30.5" width="36" height="5" rx="2.5" fill="var(--cr-ink)"/><rect x="14" y="42.5" width="24" height="5" rx="2.5" fill="var(--cr-ink)" opacity=".55"/></svg>
+        </div>
+      </div>
+      <div class="logostage" style="min-height:150px">
+        <span class="cap">Clear space · one cap height</span>
+        <span class="clearbox"><span class="wm" style="font-size:26px">Meeting<span class="dot">.</span>Txt</span></span>
+      </div>
+    </div>
+
+    <h3>Rules</h3>
+    <div class="grid2">
+      <div class="dodont do">
+        <div class="k">Do</div>
+        <p>Keep the full stop red. It is the smallest possible stamp and the only place the accent appears in the mark. On paper it becomes <code>--cr-red-fill</code>, because <code>--cr-red</code> on paper measures 3.70:1 and fails AA.</p>
+      </div>
+      <div class="dodont dont">
+        <div class="k">Do not</div>
+        <p>Colour the letterforms red, add a tagline lockup, rotate the wordmark, place it inside a rounded container, or use it below 90px wide. Below 90px the icon mark replaces it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 02 COLOUR ══════════════════════════ -->
+<section class="sec" id="color">
+  <div class="wrap">
+    <span class="marker">§ 02 / Colour</span>
+    <h2>Colour</h2>
+    <p class="lede">
+      Seven colours you can name, thirty-four tokens you can ship. The system has one hard idea:
+      <strong>ink and paper carry the meaning, red and yellow carry the emphasis</strong>, and
+      emphasis is rationed. Every swatch below shows its measured contrast against the surface it
+      is actually used on, not against an idealised white.
+    </p>
+
+    <h3>Neutrals · dark side</h3>
+    <div class="grid4">
+      <div class="swatch"><div class="chip" style="background:#0E0E0F"></div><div class="body">
+        <div class="nm">--cr-ink</div><div class="hex">#0E0E0F · rgb(14,14,15)</div>
+        <div class="role">The canvas and the record. Every screen starts here.</div>
+        <div class="cr">base surface</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#08080A"></div><div class="body">
+        <div class="nm">--cr-ink-sunken</div><div class="hex">#08080A · rgb(8,8,10)</div>
+        <div class="role">Wells: inset fields, code blocks, the search input.</div>
+        <div class="cr">base surface</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#111113"></div><div class="body">
+        <div class="nm">--cr-ink-app</div><div class="hex">#111113 · rgb(17,17,19)</div>
+        <div class="role">The authenticated app canvas, a hair lifted off the landing page.</div>
+        <div class="cr">base surface</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#141417"></div><div class="body">
+        <div class="nm">--cr-ink-raised</div><div class="hex">#141417 · rgb(20,20,23)</div>
+        <div class="role">Cards, popovers, dialogs. Maps to shadcn --card and --popover.</div>
+        <div class="cr">base surface</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#1A1A1D"></div><div class="body">
+        <div class="nm">--cr-ink-hover</div><div class="hex">#1A1A1D · rgb(26,26,29)</div>
+        <div class="role">Row and menu-item hover. Maps to shadcn --accent and --muted.</div>
+        <div class="cr">base surface</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#1C1C1C"></div><div class="body">
+        <div class="nm">--cr-rule</div><div class="hex">#1C1C1C · rgb(28,28,28)</div>
+        <div class="role">Heavy editorial rule, chip fill. Maps to shadcn --secondary.</div>
+        <div class="cr">non-text</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#232327"></div><div class="body">
+        <div class="nm">--cr-rule-soft</div><div class="hex">#232327 · rgb(35,35,39)</div>
+        <div class="role">List hairline, card border. Maps to shadcn --border.</div>
+        <div class="cr">non-text</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#2A2A2E"></div><div class="body">
+        <div class="nm">--cr-rule-strong</div><div class="hex">#2A2A2E · rgb(42,42,46)</div>
+        <div class="role">Input border, chip outline. Maps to shadcn --input.</div>
+        <div class="cr">non-text</div></div></div>
+    </div>
+
+    <h3>Neutrals · paper side</h3>
+    <div class="grid4">
+      <div class="swatch"><div class="chip" style="background:#F4F1EA"></div><div class="body">
+        <div class="nm">--cr-paper</div><div class="hex">#F4F1EA · rgb(244,241,234)</div>
+        <div class="role">Warm paper. Primary text on ink, and the transcript card's surface.</div>
+        <div class="cr">17.11:1 on --cr-ink <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#FBF9F4"></div><div class="body">
+        <div class="nm">--cr-paper-lifted</div><div class="hex">#FBF9F4 · rgb(251,249,244)</div>
+        <div class="role">Elevated paper surface in light contexts: PDF export, print.</div>
+        <div class="cr">non-text</div></div></div>
+      <div class="swatch"><div class="chip" style="background:#EDEAE3"></div><div class="body">
+        <div class="nm">--cr-paper-dim</div><div class="hex">#EDEAE3 · rgb(237,234,227)</div>
+        <div class="role">Paper at rest, secondary light surface.</div>
+        <div class="cr">15.70:1 on --cr-ink-app <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#D8D3C6"></div><div class="body">
+        <div class="nm">--cr-paper-rule</div><div class="hex">#D8D3C6 · rgb(216,211,198)</div>
+        <div class="role">Hairline on paper. Never text: 1.32:1 on paper.</div>
+        <div class="cr">non-text only</div></div></div>
+    </div>
+
+    <h3>Text tiers</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-4)">
+      Four tiers, in order. Nothing dimmer than <code>--cr-text-muted</code> is legal as text on a
+      dark surface. That rule exists because Round 2 shipped an 11px meta line at #6B675F, which
+      measures 3.43:1 and fails AA body. It has been replaced everywhere.
+    </p>
+    <div class="grid4">
+      <div class="swatch"><div class="chip" style="background:#F4F1EA"></div><div class="body">
+        <div class="nm">--cr-text</div><div class="hex">#F4F1EA</div>
+        <div class="role">Titles, primary reading text, transcript body.</div>
+        <div class="cr">17.11:1 <span class="ok">AA / AAA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#C9C6BD"></div><div class="body">
+        <div class="nm">--cr-text-secondary</div><div class="hex">#C9C6BD</div>
+        <div class="role">Lede paragraphs, descriptions, dialog body copy.</div>
+        <div class="cr">11.30:1 <span class="ok">AA / AAA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#A8A49B"></div><div class="body">
+        <div class="nm">--cr-text-tertiary</div><div class="hex">#A8A49B</div>
+        <div class="role">Field labels, feature paragraphs, tag text.</div>
+        <div class="cr">7.76:1 <span class="ok">AA / AAA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#8A8A86"></div><div class="body">
+        <div class="nm">--cr-text-muted</div><div class="hex">#8A8A86</div>
+        <div class="role">Meta line, timestamps, placeholders, footers. The floor.</div>
+        <div class="cr">5.57:1 <span class="ok">AA</span></div></div></div>
+    </div>
+
+    <h3>Core accents</h3>
+    <div class="grid4">
+      <div class="swatch"><div class="chip" style="background:#E63946"></div><div class="body">
+        <div class="nm">--cr-red</div><div class="hex">#E63946 · rgb(230,57,70)</div>
+        <div class="role">THE brand red. Strokes, rules, focus rings, icons, display type, the ribbon.
+          As text it is legal on <code>--cr-ink</code> only.</div>
+        <div class="cr">4.63:1 on ink <span class="ok">AA</span> · 3.70:1 on paper <span class="no">fail</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#EC4B57"></div><div class="body">
+        <div class="nm">--cr-red-text</div><div class="hex">#EC4B57 · rgb(236,75,87)</div>
+        <div class="role">Red as TEXT on any dark surface, including raised cards and tinted chips.
+          Maps to shadcn --destructive.</div>
+        <div class="cr">5.25:1 ink · 5.00:1 raised <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#B8202D"></div><div class="body">
+        <div class="nm">--cr-red-fill</div><div class="hex">#B8202D · rgb(184,32,45)</div>
+        <div class="role">Solid red SURFACE under a paper label. The primary button. Also the only
+          legal red text on paper. Maps to shadcn --primary.</div>
+        <div class="cr">5.67:1 with paper <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#FFD23F"></div><div class="body">
+        <div class="nm">--cr-yellow</div><div class="hex">#FFD23F · rgb(255,210,63)</div>
+        <div class="role">Highlighter. A background that ink sits on. As text, dark surfaces only.
+          Never a text colour on paper.</div>
+        <div class="cr">13.36:1 on ink <span class="ok">AA</span> · 1.28:1 on paper <span class="no">never</span></div></div></div>
+    </div>
+
+    <h3>Semantic · meeting status</h3>
+    <div class="grid4">
+      <div class="swatch"><div class="chip" style="background:#6FCF97"></div><div class="body">
+        <div class="nm">--cr-success</div><div class="hex">#6FCF97 · rgb(111,207,151)</div>
+        <div class="role">status Complete. Inherited from the app's existing success semantics.</div>
+        <div class="cr">10.15:1 on ink <span class="ok">AA / AAA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#FFD23F"></div><div class="body">
+        <div class="nm">--cr-warning</div><div class="hex">#FFD23F</div>
+        <div class="role">status Transcribing. Shares the highlighter, on purpose: both mean
+          "this is live, look here".</div>
+        <div class="cr">13.36:1 on ink <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#EC4B57"></div><div class="body">
+        <div class="nm">--cr-danger</div><div class="hex">#EC4B57</div>
+        <div class="role">status Failed, destructive actions, invalid fields.</div>
+        <div class="cr">5.25:1 on ink <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#6B675F"></div><div class="body">
+        <div class="nm">--cr-hairline</div><div class="hex">#6B675F</div>
+        <div class="role"><strong>Decoration only.</strong> Dividers and disabled icon strokes.
+          3.43:1 on ink, so it is never a text colour.</div>
+        <div class="cr">3.43:1 <span class="no">not text</span></div></div></div>
+    </div>
+
+    <h3>Status chip fills · precomputed composites</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-4)">
+      Round 2 tinted these with <code>rgba(..., .14)</code>. Composited values are stored instead,
+      so the contrast of the text sitting on them is a fixed, verified number rather than something
+      that shifts with whatever surface happens to be underneath.
+    </p>
+    <div class="grid3">
+      <div class="swatch"><div class="chip" style="background:#1C2922;display:flex;align-items:center;justify-content:center">
+        <span class="pill complete">Complete</span></div><div class="body">
+        <div class="nm">--cr-tint-green</div><div class="hex">#1C2922 · success @ 14% over ink</div>
+        <div class="cr">success on tint: 7.95:1 <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#2B2615;display:flex;align-items:center;justify-content:center">
+        <span class="pill processing"><span class="dot"></span>Transcribing</span></div><div class="body">
+        <div class="nm">--cr-tint-yellow</div><div class="hex">#2B2615 · yellow @ 12% over ink</div>
+        <div class="cr">yellow on tint: 10.46:1 <span class="ok">AA</span></div></div></div>
+      <div class="swatch"><div class="chip" style="background:#2C1417;display:flex;align-items:center;justify-content:center">
+        <span class="pill failed">Failed</span></div><div class="body">
+        <div class="nm">--cr-tint-red</div><div class="hex">#2C1417 · red @ 14% over ink</div>
+        <div class="cr">red-text on tint: 4.68:1 <span class="ok">AA</span></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 02b WCAG MATRIX ══════════════════════════ -->
+<section class="sec" id="wcag">
+  <div class="wrap">
+    <span class="marker">§ 02 / Colour · accessibility</span>
+    <h2>WCAG matrix</h2>
+    <p class="lede">
+      Every text-on-background pairing this system actually ships, measured with the WCAG 2.1
+      relative luminance formula. <strong>AA body</strong> is 4.5:1 and applies to everything under
+      24px (or under 18.66px at weight 700 and up). <strong>AA large</strong> is 3:1. If a pairing
+      is not in the first table, it has not been verified, so do not ship it.
+    </p>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Foreground</th><th>Background</th><th>Ratio</th><th>AA body</th><th>AA large</th><th>Where it is used</th></tr></thead>
+      <tbody>
+<tr><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-text</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">17.11:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Page titles, transcript body, row titles</td></tr>
+<tr><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-text</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td><span class="chipdot" style="background:#141417"></span><code>--cr-ink-raised</code> <span class="mono" style="color:var(--cr-text-muted)">#141417</span></td><td class="num">16.30:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Card and dialog body text</td></tr>
+<tr><td><span class="chipdot" style="background:#EDEAE3"></span><code>--cr-paper-dim</code> <span class="mono" style="color:var(--cr-text-muted)">#EDEAE3</span></td><td><span class="chipdot" style="background:#111113"></span><code>--cr-ink-app</code> <span class="mono" style="color:var(--cr-text-muted)">#111113</span></td><td class="num">15.70:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">App canvas reading text</td></tr>
+<tr><td><span class="chipdot" style="background:#FFD23F"></span><code>--cr-yellow</code> <span class="mono" style="color:var(--cr-text-muted)">#FFD23F</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">13.36:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Eyebrow labels, Transcribing status</td></tr>
+<tr><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-yellow-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td><span class="chipdot" style="background:#FFD23F"></span><code>--cr-yellow</code> <span class="mono" style="color:var(--cr-text-muted)">#FFD23F</span></td><td class="num">13.36:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Search-match &lt;mark&gt; text</td></tr>
+<tr><td><span class="chipdot" style="background:#C9C6BD"></span><code>--cr-text-secondary</code> <span class="mono" style="color:var(--cr-text-muted)">#C9C6BD</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">11.30:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Lede paragraphs, dialog copy</td></tr>
+<tr><td><span class="chipdot" style="background:#FFD23F"></span><code>--cr-yellow</code> <span class="mono" style="color:var(--cr-text-muted)">#FFD23F</span></td><td><span class="chipdot" style="background:#2B2615"></span><code>--cr-tint-yellow</code> <span class="mono" style="color:var(--cr-text-muted)">#2B2615</span></td><td class="num">10.46:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Transcribing pill label</td></tr>
+<tr><td><span class="chipdot" style="background:#6FCF97"></span><code>--cr-success</code> <span class="mono" style="color:var(--cr-text-muted)">#6FCF97</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">10.15:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Complete status text</td></tr>
+<tr><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td><span class="chipdot" style="background:#6FCF97"></span><code>--cr-success</code> <span class="mono" style="color:var(--cr-text-muted)">#6FCF97</span></td><td class="num">10.15:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Ink on a solid success fill</td></tr>
+<tr><td><span class="chipdot" style="background:#6FCF97"></span><code>--cr-success</code> <span class="mono" style="color:var(--cr-text-muted)">#6FCF97</span></td><td><span class="chipdot" style="background:#1C2922"></span><code>--cr-tint-green</code> <span class="mono" style="color:var(--cr-text-muted)">#1C2922</span></td><td class="num">7.95:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Complete pill label</td></tr>
+<tr><td><span class="chipdot" style="background:#A8A49B"></span><code>--cr-text-tertiary</code> <span class="mono" style="color:var(--cr-text-muted)">#A8A49B</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">7.76:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Field labels, feature copy</td></tr>
+<tr><td><span class="chipdot" style="background:#A8A49B"></span><code>--cr-text-tertiary</code> <span class="mono" style="color:var(--cr-text-muted)">#A8A49B</span></td><td><span class="chipdot" style="background:#141417"></span><code>--cr-ink-raised</code> <span class="mono" style="color:var(--cr-text-muted)">#141417</span></td><td class="num">7.40:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Labels inside cards</td></tr>
+<tr><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td><span class="chipdot" style="background:#A81B27"></span><code>--cr-red-fill-press</code> <span class="mono" style="color:var(--cr-text-muted)">#A81B27</span></td><td class="num">6.53:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Primary button label, pressed</td></tr>
+<tr><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td><span class="chipdot" style="background:#B8202D"></span><code>--cr-red-fill</code> <span class="mono" style="color:var(--cr-text-muted)">#B8202D</span></td><td class="num">5.67:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Primary button label, rest</td></tr>
+<tr><td><span class="chipdot" style="background:#B8202D"></span><code>--cr-red-fill</code> <span class="mono" style="color:var(--cr-text-muted)">#B8202D</span></td><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td class="num">5.67:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Red text on the transcript card</td></tr>
+<tr><td><span class="chipdot" style="background:#8A8A86"></span><code>--cr-text-muted</code> <span class="mono" style="color:var(--cr-text-muted)">#8A8A86</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">5.57:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Meta line: model, cost, duration, date</td></tr>
+<tr><td><span class="chipdot" style="background:#8A8A86"></span><code>--cr-text-muted</code> <span class="mono" style="color:var(--cr-text-muted)">#8A8A86</span></td><td><span class="chipdot" style="background:#111113"></span><code>--cr-ink-app</code> <span class="mono" style="color:var(--cr-text-muted)">#111113</span></td><td class="num">5.44:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Dashboard snippet, placeholders</td></tr>
+<tr><td><span class="chipdot" style="background:#66625A"></span><code>--cr-text-paper-mut</code> <span class="mono" style="color:var(--cr-text-muted)">#66625A</span></td><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td class="num">5.38:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Filename label on the transcript card</td></tr>
+<tr><td><span class="chipdot" style="background:#8A8A86"></span><code>--cr-text-muted</code> <span class="mono" style="color:var(--cr-text-muted)">#8A8A86</span></td><td><span class="chipdot" style="background:#141417"></span><code>--cr-ink-raised</code> <span class="mono" style="color:var(--cr-text-muted)">#141417</span></td><td class="num">5.31:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Muted text inside a card</td></tr>
+<tr><td><span class="chipdot" style="background:#EC4B57"></span><code>--cr-red-text</code> <span class="mono" style="color:var(--cr-text-muted)">#EC4B57</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">5.25:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Failed status, destructive labels</td></tr>
+<tr><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td><span class="chipdot" style="background:#C82232"></span><code>--cr-red-fill-hover</code> <span class="mono" style="color:var(--cr-text-muted)">#C82232</span></td><td class="num">4.99:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Primary button label, hover</td></tr>
+<tr><td><span class="chipdot" style="background:#EC4B57"></span><code>--cr-red-text</code> <span class="mono" style="color:var(--cr-text-muted)">#EC4B57</span></td><td><span class="chipdot" style="background:#141417"></span><code>--cr-ink-raised</code> <span class="mono" style="color:var(--cr-text-muted)">#141417</span></td><td class="num">5.00:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Exhibit labels, red text in cards</td></tr>
+<tr><td><span class="chipdot" style="background:#EC4B57"></span><code>--cr-red-text</code> <span class="mono" style="color:var(--cr-text-muted)">#EC4B57</span></td><td><span class="chipdot" style="background:#2C1417"></span><code>--cr-tint-red</code> <span class="mono" style="color:var(--cr-text-muted)">#2C1417</span></td><td class="num">4.68:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Failed pill label</td></tr>
+<tr><td><span class="chipdot" style="background:#E63946"></span><code>--cr-red</code> <span class="mono" style="color:var(--cr-text-muted)">#E63946</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">4.63:1</td><td><span class="ok">PASS</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Section markers on the base canvas. Focus ring. <span class="badge no">tight margin</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Failures found, and what replaced them</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-4)">
+      Seven pairings failed. Five of them were live in the approved Round 2 screens, so these are
+      real fixes to a real design, not hypotheticals. None of them ship. Each row names the token
+      that replaced it.
+    </p>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Foreground</th><th>Background</th><th>Ratio</th><th>AA body</th><th>AA large</th><th>Where it was, and the fix</th></tr></thead>
+      <tbody>
+<tr><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td><span class="chipdot" style="background:#E63946"></span><code>--cr-red</code> <span class="mono" style="color:var(--cr-text-muted)">#E63946</span></td><td class="num">3.70:1</td><td><span class="no">FAIL</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Was the Round 2 hero CTA label<br><strong style="color:var(--cr-success)">Fix:</strong> Use <code>--cr-red-fill</code> as the surface. 5.67:1.</td></tr>
+<tr><td><span class="chipdot" style="background:#E63946"></span><code>--cr-red</code> <span class="mono" style="color:var(--cr-text-muted)">#E63946</span></td><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td class="num">3.70:1</td><td><span class="no">FAIL</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Was the DIARISED stamp on the transcript card<br><strong style="color:var(--cr-success)">Fix:</strong> Use <code>--cr-red-fill</code> as the text colour. 5.67:1. Or keep #E63946 for the 1px stamp <em>border</em> only, which is a graphic and needs 3:1.</td></tr>
+<tr><td><span class="chipdot" style="background:#E63946"></span><code>--cr-red</code> <span class="mono" style="color:var(--cr-text-muted)">#E63946</span></td><td><span class="chipdot" style="background:#141417"></span><code>--cr-ink-raised</code> <span class="mono" style="color:var(--cr-text-muted)">#141417</span></td><td class="num">4.41:1</td><td><span class="no">FAIL</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Was the EXHIBIT A/B/C label on feature cards<br><strong style="color:var(--cr-success)">Fix:</strong> Use <code>--cr-red-text</code>. 5.00:1.</td></tr>
+<tr><td><span class="chipdot" style="background:#E63946"></span><code>--cr-red</code> <span class="mono" style="color:var(--cr-text-muted)">#E63946</span></td><td><span class="chipdot" style="background:#2C1417"></span><code>--cr-tint-red</code> <span class="mono" style="color:var(--cr-text-muted)">#2C1417</span></td><td class="num">4.13:1</td><td><span class="no">FAIL</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Was the Failed status pill label<br><strong style="color:var(--cr-success)">Fix:</strong> Use <code>--cr-red-text</code>. 4.68:1.</td></tr>
+<tr><td><span class="chipdot" style="background:#6B675F"></span><code>--cr-hairline</code> <span class="mono" style="color:var(--cr-text-muted)">#6B675F</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">3.43:1</td><td><span class="no">FAIL</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Was the 11px meta line and the landing footer<br><strong style="color:var(--cr-success)">Fix:</strong> Use <code>--cr-text-muted</code>. 5.57:1. #6B675F is demoted to decoration.</td></tr>
+<tr><td><span class="chipdot" style="background:#B8202D"></span><code>--cr-red-fill</code> <span class="mono" style="color:var(--cr-text-muted)">#B8202D</span></td><td><span class="chipdot" style="background:#0E0E0F"></span><code>--cr-ink</code> <span class="mono" style="color:var(--cr-text-muted)">#0E0E0F</span></td><td class="num">3.02:1</td><td><span class="no">FAIL</span></td><td><span class="ok">PASS</span></td><td style="color:var(--cr-text-tertiary)">Would be <code>text-primary</code> used as a text colour<br><strong style="color:var(--cr-success)">Fix:</strong> Never use shadcn <code>--primary</code> as text on dark. Use <code>--cr-red-text</code>.</td></tr>
+<tr><td><span class="chipdot" style="background:#FFD23F"></span><code>--cr-yellow</code> <span class="mono" style="color:var(--cr-text-muted)">#FFD23F</span></td><td><span class="chipdot" style="background:#F4F1EA"></span><code>--cr-paper</code> <span class="mono" style="color:var(--cr-text-muted)">#F4F1EA</span></td><td class="num">1.28:1</td><td><span class="no">FAIL</span></td><td><span class="no">FAIL</span></td><td style="color:var(--cr-text-tertiary)">Yellow used as a text colour on paper<br><strong style="color:var(--cr-success)">Fix:</strong> Never. Yellow on paper is a background only, with ink on top.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Non-text contrast</h3>
+    <p class="note">
+      WCAG 2.1 SC 1.4.11 asks for 3:1 on UI component boundaries and meaningful graphics.
+      The focus ring is <code>--cr-red</code> at 4.63:1 against the base canvas, which clears it.
+      Input borders (<code>--cr-rule-strong</code>, 1.44:1) do <em>not</em> clear it on their own,
+      which is why every field in this system pairs its border with a visible label and a focus ring
+      rather than relying on the border to communicate the boundary. The 1px stamp border at
+      <code>--cr-red</code> on paper is 3.70:1, which clears the graphic threshold even though the
+      same colour fails as text.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 03 TYPOGRAPHY ══════════════════════════ -->
+<section class="sec" id="type">
+  <div class="wrap">
+    <span class="marker">§ 03 / Typography</span>
+    <h2>Typography</h2>
+    <p class="lede">
+      Two voices, both free from Google Fonts, plus the body face the app already ships.
+      <strong>Big Shoulders Display</strong> is condensed, heavy and always uppercase: it is the
+      headline shouting across a courtroom. <strong>IBM Plex Mono</strong> is the stenographer: the
+      transcript, the timestamps, the costs, the speaker tags, every number the product produces.
+      Body copy stays on Geist so signed-in screens read like the tool they are.
+      There is no third display face and there will not be one.
+    </p>
+
+    <div class="grid3" style="margin-bottom:var(--cr-space-7)">
+      <div class="panel">
+        <h4 style="margin-top:0">Display</h4>
+        <div style="font-family:var(--cr-font-display);font-weight:900;font-size:52px;line-height:.9;text-transform:uppercase">Big Shoulders</div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Weights 800 and 900 only. Always uppercase.
+          Never below 22px, because condensed lowercase at small sizes is where legibility dies.
+          Tracking goes negative as it grows.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Data</h4>
+        <div style="font-family:var(--cr-font-mono);font-weight:500;font-size:30px;line-height:1.1">IBM Plex Mono</div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Weights 400, 500, 600, plus italic for the
+          tagline. Everything the machine produced: transcript lines, 00:00:04, $0.0187, S1, nova-3.mp4.
+          Line height 1.9 in transcript, so speech has room to breathe.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Body</h4>
+        <div style="font-size:30px;line-height:1.2;font-weight:600">Geist / Inter</div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Unchanged from the app's shadcn nova preset.
+          Paragraphs, buttons, form copy, anything a person reads for meaning rather than scans for a value.
+          Do not set body copy in the display face.</p>
+      </div>
+    </div>
+
+    <h3>The ladder</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-5)">
+      Eleven sizes. Every piece of text in the product is one of these. Nothing in between.
+      Product surfaces stop at 30px, marketing surfaces go all the way up.
+    </p>
+
+    <div class="spec">
+      <div class="lbl"><b>cover</b>180 / 0.9<br>display 900<br>track -0.02em</div>
+      <div class="sp-cover">On record</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>display</b>84 / 0.92<br>display 900<br>clamps to 46</div>
+      <div class="sp-display">Every word.<br>On record.</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>h1</b>48 / 0.95<br>display 900</div>
+      <div class="sp-h1">Said once. Kept forever.</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>h2</b>30 / 1.0<br>display 800<br><span style="color:var(--cr-yellow)">product ceiling</span></div>
+      <div class="sp-h2">Past meetings</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>h3</b>22 / 1.1<br>display 800</div>
+      <div class="sp-h3">Speaks Hinglish natively</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>lede</b>17 / 1.65<br>body 400</div>
+      <div class="sp-lede">Upload a recording. Nova-3 listens in Hinglish and hands back a searchable, speaker-labelled transcript, kept private to your account and nowhere else.</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>body</b>15 / 1.6<br>body 400</div>
+      <div class="sp-body">A meeting that failed will tell you why. If Deepgram timed out, the row says the request timed out, and the Retry button is right there.</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>sm</b>13 / 1.5<br>body 400</div>
+      <div class="sp-sm">3 selected. Add tag, or delete.</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>transcript</b>13 / 1.9<br>mono 400<br><span style="color:var(--cr-red-text)">the hero</span></div>
+      <div>
+        <div class="t-line"><span class="t-tag">S1</span><span class="t-time">00:00:04</span><span>Toh <span class="t-hl">Q3 ka number</span> kya laga?</span></div>
+        <div class="t-line"><span class="t-tag">S2</span><span class="t-time">00:00:09</span><span>Revenue is up eleven percent.</span></div>
+        <div class="t-line"><span class="t-tag">S1</span><span class="t-time">00:00:14</span><span><span class="t-hl">Bahut badhiya.</span> Send me the deck?</span></div>
+        <div class="t-line"><span class="t-tag">S2</span><span class="t-time">00:00:19</span><span>Haan bhej deta hoon, aaj shaam tak.</span></div>
+      </div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>mono</b>12 / 1.4<br>mono 500<br>track 0.16em</div>
+      <div class="sp-mono">Private · Hinglish · Diarised</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>meta</b>11 / 1.4<br>mono 400</div>
+      <div class="sp-meta">Nova-3 · $0.0187 · 26 min · Aug 26</div>
+    </div>
+    <div class="spec">
+      <div class="lbl"><b>tiny</b>10 / 1.2<br>mono 600<br>track 0.08em</div>
+      <div class="sp-tiny">Exhibit A &nbsp; S1 &nbsp; Complete &nbsp; tag: sales</div>
+    </div>
+
+    <h3>Rules</h3>
+    <div class="grid2">
+      <div class="dodont do">
+        <div class="k">Do</div>
+        <p>Set every number in mono. A duration, a cost, a timestamp, a file size, a percentage.
+          Mono is how the product signals "this value came from the machine, not from marketing".</p>
+      </div>
+      <div class="dodont dont">
+        <div class="k">Do not</div>
+        <p>Use Big Shoulders below 22px, set it in sentence case, use it for a paragraph, or let a
+          product-surface heading exceed 30px. Condensed heavy type at reading size is a headline
+          pretending to be prose.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 04 ICONOGRAPHY ══════════════════════════ -->
+<section class="sec" id="icons">
+  <div class="wrap">
+    <span class="marker">§ 04 / Iconography</span>
+    <h2>Iconography</h2>
+    <p class="lede">
+      Twenty-four icons on a 24 grid, stroke 1.75, <strong>butt terminals and miter joins</strong>.
+      Round caps were tried and rejected: they read soft and generic, and this brand is set in
+      rules and type. The project ships lucide, so anything outside this family uses lucide at
+      <code>strokeWidth={1.75}</code> and sits in family automatically. These twenty-four are the
+      ones lucide covers in the wrong voice or not at all: waveform, transcript, merge, webhook, cost.
+    </p>
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;width:0;height:0" aria-hidden="true">
+  <defs>
+    <style>
+      symbol { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: butt; stroke-linejoin: miter; }
+    </style>
+  </defs>
+
+  <!-- 01 upload · the product's primary verb -->
+  <symbol id="cr-i-upload" viewBox="0 0 24 24">
+    <path d="M12 3.5V14.5"/><path d="M7.5 8 12 3.5 16.5 8"/><path d="M4 15.5V20.5h16V15.5"/>
+  </symbol>
+
+  <!-- 02 mic · recording, the input side -->
+  <symbol id="cr-i-mic" viewBox="0 0 24 24">
+    <rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"/>
+    <path d="M12 18v3.5"/><path d="M8.5 21.5h7"/>
+  </symbol>
+
+  <!-- 03 waveform · audio before it becomes text -->
+  <symbol id="cr-i-waveform" viewBox="0 0 24 24">
+    <path d="M3.5 10v4"/><path d="M8 6v12"/><path d="M12 8.5v7"/><path d="M16 3.5v17"/><path d="M20.5 9v6"/>
+  </symbol>
+
+  <!-- 04 transcript · audio after it becomes text -->
+  <symbol id="cr-i-transcript" viewBox="0 0 24 24">
+    <rect x="4" y="3" width="16" height="18" rx="2"/>
+    <path d="M7.5 8h7"/><path d="M7.5 12h9"/><path d="M7.5 16h5.5"/>
+  </symbol>
+
+  <!-- 05 search · the dashboard's one search box -->
+  <symbol id="cr-i-search" viewBox="0 0 24 24">
+    <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5"/>
+  </symbol>
+
+  <!-- 06 tag · meeting tags -->
+  <symbol id="cr-i-tag" viewBox="0 0 24 24">
+    <path d="M3.5 3.5h8l9 9-8 8-9-9z"/><circle cx="7.75" cy="7.75" r="1.6"/>
+  </symbol>
+
+  <!-- 07 speaker · one diarised voice -->
+  <symbol id="cr-i-speaker" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-4.1 3.4-6.5 7.5-6.5s7.5 2.4 7.5 6.5"/>
+  </symbol>
+
+  <!-- 08 merge · fixing Deepgram's over-split diarisation -->
+  <symbol id="cr-i-merge" viewBox="0 0 24 24">
+    <path d="M3.5 4.5h4l5.5 7.5"/><path d="M3.5 19.5h4L13 12"/><path d="M13 12h7"/>
+    <path d="M17 8.5 20.5 12 17 15.5"/>
+  </symbol>
+
+  <!-- 09 clock · duration -->
+  <symbol id="cr-i-clock" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8.5"/><path d="M12 6.5V12l4 2.5"/>
+  </symbol>
+
+  <!-- 10 calendar · meeting date -->
+  <symbol id="cr-i-calendar" viewBox="0 0 24 24">
+    <rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17"/>
+    <path d="M8 2.75v4"/><path d="M16 2.75v4"/>
+  </symbol>
+
+  <!-- 11 cost · the per-transcript dollar figure -->
+  <symbol id="cr-i-cost" viewBox="0 0 24 24">
+    <path d="M12 2.75v18.5"/>
+    <path d="M16.5 7.5c0-2-2-3.25-4.5-3.25S7.5 5.5 7.5 7.5s1.9 2.9 4.5 3.75 4.5 1.75 4.5 3.75-2 3.25-4.5 3.25-4.5-1.25-4.5-3.25"/>
+  </symbol>
+
+  <!-- 12 download · export a transcript -->
+  <symbol id="cr-i-download" viewBox="0 0 24 24">
+    <path d="M12 3.5v11"/><path d="M7.5 10 12 14.5 16.5 10"/><path d="M4 16.5V20.5h16V16.5"/>
+  </symbol>
+
+  <!-- 13 share · the share link -->
+  <symbol id="cr-i-share" viewBox="0 0 24 24">
+    <path d="M14 3.5h6.5V10"/><path d="M20.5 3.5 11 13"/><path d="M17.5 14v6.5H3.5V6.5H10"/>
+  </symbol>
+
+  <!-- 14 link · a webhook destination URL -->
+  <symbol id="cr-i-link" viewBox="0 0 24 24">
+    <path d="M10.2 13.8a4.6 4.6 0 0 0 6.5 0l3-3a4.6 4.6 0 1 0-6.5-6.5l-1.7 1.7"/>
+    <path d="M13.8 10.2a4.6 4.6 0 0 0-6.5 0l-3 3a4.6 4.6 0 1 0 6.5 6.5l1.7-1.7"/>
+  </symbol>
+
+  <!-- 15 trash · delete a meeting, single or bulk -->
+  <symbol id="cr-i-trash" viewBox="0 0 24 24">
+    <path d="M3.5 6.5h17"/><path d="M9.5 6.5v-3h5v3"/><path d="M5.75 6.5 7 20.5h10l1.25-14"/>
+    <path d="M10 10.5v6"/><path d="M14 10.5v6"/>
+  </symbol>
+
+  <!-- 16 check · status Complete, notification delivered -->
+  <symbol id="cr-i-check" viewBox="0 0 24 24">
+    <path d="M4 12.5 9.5 18 20 6.5"/>
+  </symbol>
+
+  <!-- 17 close · dismiss, clear, remove a tag -->
+  <symbol id="cr-i-close" viewBox="0 0 24 24">
+    <path d="M5.5 5.5 18.5 18.5"/><path d="M18.5 5.5 5.5 18.5"/>
+  </symbol>
+
+  <!-- 18 alert · status Failed, an errorMessage -->
+  <symbol id="cr-i-alert" viewBox="0 0 24 24">
+    <path d="M12 2.75 22.25 20.75H1.75z"/><path d="M12 9.5v5"/><path d="M12 17.75v.5"/>
+  </symbol>
+
+  <!-- 19 retry · Resend notifications, retry an upload -->
+  <symbol id="cr-i-retry" viewBox="0 0 24 24">
+    <path d="M20.5 12a8.5 8.5 0 1 1-2.75-6.25"/><path d="M20.5 2.75V8H15.25"/>
+  </symbol>
+
+  <!-- 20 bell · email notification -->
+  <symbol id="cr-i-bell" viewBox="0 0 24 24">
+    <path d="M6 10.5a6 6 0 0 1 12 0c0 4.75 2 6.5 2 6.5H4s2-1.75 2-6.5z"/>
+    <path d="M9.5 20a2.5 2.5 0 0 0 5 0"/>
+  </symbol>
+
+  <!-- 21 webhook · one payload, several destinations, fired in parallel -->
+  <symbol id="cr-i-webhook" viewBox="0 0 24 24">
+    <circle cx="12" cy="5" r="2.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    <path d="M10.9 7.25 6.6 16.25"/><path d="M13.1 7.25 17.4 16.25"/><path d="M8 18.5h8"/>
+  </symbol>
+
+  <!-- 22 mail · the Resend notification email -->
+  <symbol id="cr-i-mail" viewBox="0 0 24 24">
+    <rect x="2.75" y="5" width="18.5" height="14" rx="2"/><path d="M2.75 7.5 12 14l9.25-6.5"/>
+  </symbol>
+
+  <!-- 23 lock · every recording stays private to your account -->
+  <symbol id="cr-i-lock" viewBox="0 0 24 24">
+    <rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+  </symbol>
+
+  <!-- 24 chevron · navigate into a meeting -->
+  <symbol id="cr-i-chevron" viewBox="0 0 24 24">
+    <path d="M9 4.5 16.5 12 9 19.5"/>
+  </symbol>
+</svg>
+
+    <h3>The family · 24 at 24px</h3>
+    <div class="icongrid" style="color:var(--cr-text-secondary)">
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-upload"/></svg><span class="nm">upload</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-mic"/></svg><span class="nm">mic</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-waveform"/></svg><span class="nm">waveform</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-transcript"/></svg><span class="nm">transcript</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-search"/></svg><span class="nm">search</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-tag"/></svg><span class="nm">tag</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-speaker"/></svg><span class="nm">speaker</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-merge"/></svg><span class="nm">merge</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-clock"/></svg><span class="nm">clock</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-calendar"/></svg><span class="nm">calendar</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-cost"/></svg><span class="nm">cost</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-download"/></svg><span class="nm">download</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-share"/></svg><span class="nm">share</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-link"/></svg><span class="nm">link</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-trash"/></svg><span class="nm">trash</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-check"/></svg><span class="nm">check</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-close"/></svg><span class="nm">close</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-alert"/></svg><span class="nm">alert</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-retry"/></svg><span class="nm">retry</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-bell"/></svg><span class="nm">bell</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-webhook"/></svg><span class="nm">webhook</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-mail"/></svg><span class="nm">mail</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-lock"/></svg><span class="nm">lock</span></div>
+      <div class="icell"><svg class="cr-icon" width="24" height="24" aria-hidden="true"><use href="#cr-i-chevron"/></svg><span class="nm">chevron</span></div>
+    </div>
+
+    <h3>Three sizes, no others</h3>
+    <div class="grid3">
+      <div class="panel">
+        <h4 style="margin-top:0">16 · dense</h4>
+        <div class="sizerow" style="color:var(--cr-text-muted)">
+          <figure><svg class="cr-icon" width="16" height="16"><use href="#cr-i-clock"/></svg><figcaption>16</figcaption></figure>
+          <figure><svg class="cr-icon" width="16" height="16"><use href="#cr-i-cost"/></svg><figcaption>16</figcaption></figure>
+          <figure><svg class="cr-icon" width="16" height="16"><use href="#cr-i-tag"/></svg><figcaption>16</figcaption></figure>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Inline with an 11px meta line. The stroke
+          thins optically at this size, which is intended: small icons should recede.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">20 · default</h4>
+        <div class="sizerow" style="color:var(--cr-text-secondary)">
+          <figure><svg class="cr-icon" width="20" height="20"><use href="#cr-i-upload"/></svg><figcaption>20</figcaption></figure>
+          <figure><svg class="cr-icon" width="20" height="20"><use href="#cr-i-search"/></svg><figcaption>20</figcaption></figure>
+          <figure><svg class="cr-icon" width="20" height="20"><use href="#cr-i-share"/></svg><figcaption>20</figcaption></figure>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Buttons, toolbars, menu items. This is the
+          size you use unless you have a reason not to.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">24 · display</h4>
+        <div class="sizerow" style="color:var(--cr-text)">
+          <figure><svg class="cr-icon" width="24" height="24"><use href="#cr-i-waveform"/></svg><figcaption>24</figcaption></figure>
+          <figure><svg class="cr-icon" width="24" height="24"><use href="#cr-i-transcript"/></svg><figcaption>24</figcaption></figure>
+          <figure><svg class="cr-icon" width="24" height="24"><use href="#cr-i-lock"/></svg><figcaption>24</figcaption></figure>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Empty states, section markers, feature
+          panels. Never larger. Above 24 use an illustration, not a scaled-up icon.</p>
+      </div>
+    </div>
+
+    <h3>Three tones</h3>
+    <div class="grid3">
+      <div class="tonebox" style="background:var(--cr-ink);color:var(--cr-text-secondary)">
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-mic"/></svg>
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-bell"/></svg>
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-webhook"/></svg>
+        <span class="note" style="margin-left:auto">Default<br><code>--cr-text-secondary</code></span>
+      </div>
+      <div class="tonebox" style="background:var(--cr-ink);color:var(--cr-red-text)">
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-alert"/></svg>
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-trash"/></svg>
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-retry"/></svg>
+        <span class="note" style="margin-left:auto">Accent<br><code>--cr-red-text</code></span>
+      </div>
+      <div class="tonebox" style="background:var(--cr-paper);color:var(--cr-text-on-paper)">
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-transcript"/></svg>
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-download"/></svg>
+        <svg class="cr-icon" width="24" height="24"><use href="#cr-i-lock"/></svg>
+        <span class="note" style="margin-left:auto;color:var(--cr-text-paper-mut)">On paper<br><code>--cr-text-on-paper</code></span>
+      </div>
+    </div>
+
+    <h3>Rules</h3>
+    <div class="grid2">
+      <div class="dodont do">
+        <div class="k">Do</div>
+        <p>Keep <code>stroke-width</code> at 1.75 at every rendered size. A 16px icon is a 24px icon
+          drawn smaller, not a redrawn icon with a thicker stroke. Use <code>currentColor</code> so a
+          parent colour change carries through.</p>
+      </div>
+      <div class="dodont dont">
+        <div class="k">Do not</div>
+        <p>Fill an icon, add a second colour inside one, use round caps, scale past 24, or apply a
+          sizing class to an icon inside a shadcn Button. The Button already sizes its icons; pass
+          <code>data-icon="inline-start"</code> and nothing else.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 05 KEY VISUAL ══════════════════════════ -->
+<section class="sec" id="keyvisual">
+  <div class="wrap">
+    <span class="marker">§ 05 / Key visual</span>
+    <h2>Key visual</h2>
+    <p class="lede">
+      There is no mascot. A private-recordings product does not need a cartoon character vouching
+      for it. The key visual is the <strong>hand-off ribbon</strong>: two illustrated hands and one
+      long impossible arm, carrying a waveform out of the left hand and delivering it to the right
+      hand as a page of transcript. It is the product mechanism drawn once, not decoration.
+    </p>
+
+    <div class="ribbonstage" style="margin-bottom:var(--cr-space-4)">
+      <svg viewBox="0 0 1200 340" id="ribbonSvg" role="img" aria-label="A voice handed across and returned as a written record">
+        <path class="cr-ribbon-path" id="ribbonPath"
+              d="M120,260 C260,260 300,60 480,60 C640,60 640,260 800,260 C920,260 960,90 1090,90"/>
+        <g class="cr-hand-a"><g fill="var(--cr-paper)" transform="translate(58,196)">
+          <rect x="-14" y="70" width="30" height="14" rx="7" transform="rotate(-30 1 77)"/>
+          <rect x="6" y="30" width="70" height="46" rx="23"/>
+          <rect x="6" y="0" width="14" height="34" rx="7" transform="rotate(-8 13 17)"/>
+          <rect x="22" y="-6" width="14" height="40" rx="7"/>
+          <rect x="38" y="-4" width="14" height="38" rx="7" transform="rotate(6 45 15)"/>
+          <rect x="54" y="2" width="13" height="32" rx="6.5" transform="rotate(14 60 18)"/>
+        </g></g>
+        <g class="cr-cargo-in"><g transform="translate(78,150)">
+          <rect x="0" y="0" width="56" height="42" rx="6" fill="var(--cr-ink)"/>
+          <rect x="8"  y="16" width="4" height="14" fill="var(--cr-yellow)"/>
+          <rect x="16" y="9"  width="4" height="26" fill="var(--cr-yellow)"/>
+          <rect x="24" y="17" width="4" height="10" fill="var(--cr-yellow)"/>
+          <rect x="32" y="5"  width="4" height="34" fill="var(--cr-yellow)"/>
+          <rect x="40" y="13" width="4" height="18" fill="var(--cr-yellow)"/>
+        </g></g>
+        <g class="cr-hand-b"><g fill="var(--cr-paper)" transform="translate(1148,26) scale(-1,1)">
+          <rect x="-14" y="70" width="30" height="14" rx="7" transform="rotate(-30 1 77)"/>
+          <rect x="6" y="30" width="70" height="46" rx="23"/>
+          <rect x="6" y="0" width="14" height="34" rx="7" transform="rotate(-8 13 17)"/>
+          <rect x="22" y="-6" width="14" height="40" rx="7"/>
+          <rect x="38" y="-4" width="14" height="38" rx="7" transform="rotate(6 45 15)"/>
+          <rect x="54" y="2" width="13" height="32" rx="6.5" transform="rotate(14 60 18)"/>
+        </g></g>
+        <g class="cr-cargo-out"><g transform="translate(978,-14)">
+          <rect x="0" y="0" width="72" height="50" rx="6" fill="var(--cr-paper)"/>
+          <rect x="9" y="11" width="42" height="4" rx="2" fill="var(--cr-ink)"/>
+          <rect x="9" y="21" width="54" height="4" rx="2" fill="var(--cr-ink)" opacity=".55"/>
+          <rect x="9" y="31" width="32" height="4" rx="2" fill="var(--cr-ink)" opacity=".55"/>
+        </g></g>
+      </svg>
+    </div>
+    <div style="display:flex;gap:var(--cr-space-3);align-items:center;flex-wrap:wrap;margin-bottom:var(--cr-space-7)">
+      <button class="btn btn-secondary btn-sm" id="replayRibbon">Replay entrance</button>
+      <span class="note" style="margin:0">Live demo. Full sequence documented in section 06.</span>
+    </div>
+
+    <h3>Where it may appear</h3>
+    <div class="grid3">
+      <div class="panel">
+        <h4 style="margin-top:0">Landing, full size</h4>
+        <p class="note">Its own section between the hero and the feature strip, with the draw
+          animation and the hand entrances. Stroke stays at 34.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Dashboard empty state</h4>
+        <p class="note">At 40% scale or smaller, no draw animation, opacity fade only. This is the
+          one place a product surface may use it, because an empty dashboard has nothing else to say.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Not the Transcribing row</h4>
+        <p class="note">Considered and rejected. A row that is mid-job needs a status pill and a
+          percentage, not an illustration. Motion during work is noise.</p>
+      </div>
+    </div>
+
+    <h3>Motifs</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-5)">
+      Four decorative devices. Three of them are <strong>marketing surfaces only</strong> and appear
+      on the forbidden list for the Dashboard and MeetingDetail screens. The speaker tag is the
+      exception, because it is not decoration, it is how a diarised speaker gets labelled.
+    </p>
+    <div class="grid4">
+      <div class="motifcard">
+        <div class="stage"><span class="stamp">DIARISED</span></div>
+        <div class="sp-tiny" style="color:var(--cr-text)">Stamp</div>
+        <p class="note" style="margin-top:6px">Rotated -6deg, 1px border. The word inside is always
+          a fact about the file: DIARISED, ON RECORD, HINGLISH, NOVA-3. Never a slogan.</p>
+        <span class="badge no" style="margin-top:var(--cr-space-2)">marketing only</span>
+      </div>
+      <div class="motifcard">
+        <div class="stage"><div class="on-paper-tile" style="font-family:var(--cr-font-mono);font-size:13px">
+          <span class="redact">██████ ██████</span> up eleven percent.</div></div>
+        <div class="sp-tiny" style="color:var(--cr-text)">Redaction</div>
+        <p class="note" style="margin-top:6px">Ink on ink, so the text is genuinely unreadable rather
+          than merely covered. The joke and the privacy promise in one shape. Demo content only.</p>
+        <span class="badge no" style="margin-top:var(--cr-space-2)">marketing only</span>
+      </div>
+      <div class="motifcard">
+        <div class="stage" style="gap:8px"><span class="t-tag">S1</span><span class="t-tag">S2</span><span class="t-tag">Priya</span></div>
+        <div class="sp-tiny" style="color:var(--cr-text)">Speaker tag</div>
+        <p class="note" style="margin-top:6px">Ink block, paper mono, radius 6. Shows the raw
+          Deepgram id until someone renames it, then shows the name. Same shape either way.</p>
+        <span class="badge pr" style="margin-top:var(--cr-space-2)">everywhere</span>
+      </div>
+      <div class="motifcard">
+        <div class="stage">
+          <svg viewBox="0 0 96 40" width="96" height="40" aria-hidden="true"><g fill="var(--cr-yellow)">
+            <rect x="2" y="14" width="4" height="12" rx="2"/><rect x="10" y="8" width="4" height="24" rx="2"/>
+            <rect x="18" y="16" width="4" height="8" rx="2"/><rect x="26" y="3" width="4" height="34" rx="2"/>
+            <rect x="34" y="12" width="4" height="16" rx="2"/><rect x="42" y="6" width="4" height="28" rx="2"/>
+            <rect x="50" y="15" width="4" height="10" rx="2"/><rect x="58" y="9" width="4" height="22" rx="2"/>
+            <rect x="66" y="17" width="4" height="6" rx="2"/><rect x="74" y="11" width="4" height="18" rx="2"/>
+            <rect x="82" y="14" width="4" height="12" rx="2"/><rect x="90" y="18" width="4" height="4" rx="2"/>
+          </g></svg>
+        </div>
+        <div class="sp-tiny" style="color:var(--cr-text)">Waveform strip</div>
+        <p class="note" style="margin-top:6px">Highlighter yellow, because this is sound not yet
+          committed to the record. Once it is text, it is ink. The colour carries the state change.</p>
+        <span class="badge no" style="margin-top:var(--cr-space-2)">marketing only</span>
+      </div>
+    </div>
+
+    <h3>Photographic treatment</h3>
+    <p class="note">
+      There is none. This product has no photography and should not acquire any. A stock photo of a
+      diverse team laughing at a laptop is exactly the generic-SaaS signal the whole direction exists
+      to avoid. If a real screenshot is ever needed, it goes on <code>--cr-paper</code> with a 1px
+      <code>--cr-paper-rule</code> border and no shadow, framed like a document, not a device.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 06 MOTION ══════════════════════════ -->
+<section class="sec" id="motion">
+  <div class="wrap">
+    <span class="marker">§ 06 / Motion</span>
+    <h2>Motion</h2>
+    <p class="lede">
+      This section is the contract. Three curves, eight durations, one press scale. Everything below
+      is live: press it, hover it, open it. Use <strong>Slow motion 8x</strong> in the top bar to
+      watch any of it frame by frame, and <strong>Reduced motion</strong> to see exactly what a
+      person with that preference gets.
+    </p>
+
+    <h3>The four questions, answered for this product</h3>
+    <div class="grid2">
+      <div class="panel">
+        <h4 style="margin-top:0">1 · Should this animate at all?</h4>
+        <p class="note">Frequency decides. The dashboard search box is typed into dozens of times a
+          day, so its results do not animate, they just change. The upload button is pressed a few
+          times a day, so it gets press feedback. The landing hero is seen once, so it gets a
+          timeline. <strong>Nothing keyboard-initiated animates</strong>, ever: Escape closing a
+          dialog, Enter submitting a tag, Cmd+K. Those are pressed hundreds of times and animation
+          makes them feel broken.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">2 · What is the purpose?</h4>
+        <p class="note">Every animation here answers this in one word.
+          <b style="color:var(--cr-text)">Feedback</b>: button press.
+          <b style="color:var(--cr-text)">Spatial consistency</b>: the drawer leaves the way it came in.
+          <b style="color:var(--cr-text)">Explanation</b>: the transcript stagger shows lines arriving
+          the way a stenographer types them. <b style="color:var(--cr-text)">Preventing a jarring
+          change</b>: the scroll reveal. If the answer is "it looks cool" and the user sees it daily,
+          it does not ship.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">3 · What easing?</h4>
+        <p class="note">Entering or exiting, use <code>--cr-ease-out</code>. Moving or morphing
+          on screen, use <code>--cr-ease-in-out</code>. Drawers and sheets, use
+          <code>--cr-ease-drawer</code>. That is the whole decision tree.
+          <strong>Never <code>ease-in</code> on UI.</strong> It delays the first movement, which is
+          the exact moment the user is watching, so a 200ms ease-in feels slower than a 200ms
+          ease-out even though the clock says otherwise.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">4 · How fast?</h4>
+        <p class="note">Press 140ms. Tooltip 160ms. Dropdown 200ms. Drawer 320ms. Modal 400ms.
+          <strong>Product surfaces cap at 400ms.</strong> Marketing may go to 700ms for the hero
+          timeline and 600ms for scroll reveals, because those are seen once by a person who is
+          reading, not working. Perceived speed is real speed: a 180ms select feels more responsive
+          than a 400ms one, and that difference is the entire reason for the cap.</p>
+      </div>
+    </div>
+
+    <h3>The three curves</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-4)">
+      Verbatim, and locked. The built-in CSS easings are too weak to read as intentional. These
+      three are the whole vocabulary. Adding a fourth is a design decision, not an implementation
+      detail, and it needs review.
+    </p>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Token</th><th>CSS value</th><th>GSAP equivalent</th><th>Use for</th></tr></thead>
+      <tbody>
+        <tr><td><code>--cr-ease-out</code></td><td class="num">cubic-bezier(0.23, 1, 0.32, 1)</td>
+            <td class="num">power3.out</td><td style="color:var(--cr-text-tertiary)">Entrances, exits, presses, hovers. The default. Starts fast, so it feels instantly responsive.</td></tr>
+        <tr><td><code>--cr-ease-in-out</code></td><td class="num">cubic-bezier(0.77, 0, 0.175, 1)</td>
+            <td class="num">power4.inOut</td><td style="color:var(--cr-text-tertiary)">Something already on screen moving or morphing to a new position.</td></tr>
+        <tr><td><code>--cr-ease-drawer</code></td><td class="num">cubic-bezier(0.32, 0.72, 0, 1)</td>
+            <td class="num">power2.out</td><td style="color:var(--cr-text-tertiary)">Drawers, sheets, anything a finger could have dragged. The iOS curve, from Ionic.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>The duration scale</h3>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Token</th><th>ms</th><th>Applies to</th><th>Surface</th></tr></thead>
+      <tbody>
+        <tr><td><code>--cr-dur-press</code></td><td class="num">140</td><td style="color:var(--cr-text-tertiary)">scale(0.97) on :active, toggle knob travel</td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-dur-hover</code></td><td class="num">160</td><td style="color:var(--cr-text-tertiary)">background, colour, border-colour change</td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-dur-tooltip</code></td><td class="num">160</td><td style="color:var(--cr-text-tertiary)">tooltips, small popovers</td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-dur-dropdown</code></td><td class="num">200</td><td style="color:var(--cr-text-tertiary)">dropdown menu, select, avatar menu</td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-dur-drawer</code></td><td class="num">320</td><td style="color:var(--cr-text-tertiary)">drawers and sheets</td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-dur-modal</code></td><td class="num">400</td><td style="color:var(--cr-text-tertiary)">dialogs. <strong>The product ceiling.</strong></td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-dur-reveal</code></td><td class="num">600</td><td style="color:var(--cr-text-tertiary)">ScrollTrigger.batch entrance</td><td><span class="badge mk">marketing</span></td></tr>
+        <tr><td><code>--cr-dur-hero</code></td><td class="num">700</td><td style="color:var(--cr-text-tertiary)">landing hero timeline step</td><td><span class="badge mk">marketing</span></td></tr>
+        <tr><td><code>--cr-stagger-row</code></td><td class="num">50</td><td style="color:var(--cr-text-tertiary)">app list rows. Fast, because this is a tool.</td><td><span class="badge pr">both</span></td></tr>
+        <tr><td><code>--cr-stagger-reveal</code></td><td class="num">120</td><td style="color:var(--cr-text-tertiary)">landing panels entering together</td><td><span class="badge mk">marketing</span></td></tr>
+        <tr><td><code>--cr-stagger-line</code></td><td class="num">120</td><td style="color:var(--cr-text-tertiary)">transcript lines typing on</td><td><span class="badge mk">marketing</span></td></tr>
+        <tr><td><code>--cr-press-scale</code></td><td class="num">0.97</td><td style="color:var(--cr-text-tertiary)">every pressable element, no exceptions</td><td><span class="badge pr">both</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>CSS or GSAP</h3>
+    <div class="grid2">
+      <div class="panel">
+        <h4 style="margin-top:0">CSS transitions · the default</h4>
+        <p class="note">Simple state changes: press, hover, focus, open, close. CSS runs off the main
+          thread, so it stays smooth while Next.js is hydrating or the dashboard is polling. It is
+          also interruptible and retargets mid-flight, which keyframes cannot do. Every component in
+          section 07 uses CSS.</p>
+<pre><span class="mono">.btn {
+  transition: transform <b>140ms</b> <b>var(--cr-ease-out)</b>;
+}
+.btn:active { transform: scale(<b>0.97</b>); }</span></pre>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">GSAP · sequences and scroll</h4>
+        <p class="note">Reach for GSAP when there is a timeline (the hero), a stagger across a
+          collection (transcript lines, dashboard rows), or anything scroll-driven
+          (ScrollTrigger.batch). Do not reach for it to fade one element.</p>
+<pre><span class="mono">gsap.to(el, {
+  scale: <b>0.97</b>, duration: <b>0.14</b>,
+  ease: <b>'power3.out'</b>
+});</span></pre>
+      </div>
+    </div>
+
+    <h3>Live demos</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-5)">
+      Seven, all real. Toggle Slow motion in the top bar and press them again: the emil-design-eng
+      rule is to review your own animation the next day, at 8x, frame by frame. This book has the
+      8x built in so there is no excuse.
+    </p>
+
+    <div class="grid2" style="margin-bottom:var(--cr-space-5)">
+
+      <!-- 1 · button press -->
+      <div class="demo">
+        <div class="head"><span class="t">1 · Button press</span><span class="d">140ms · ease-out</span></div>
+        <div class="stage" style="gap:var(--cr-space-3);flex-wrap:wrap">
+          <button class="btn btn-primary">Upload a recording</button>
+          <button class="btn btn-secondary">Cancel</button>
+          <button class="btn btn-fab" aria-label="Add"><svg class="cr-icon" width="20" height="20"><use href="#cr-i-upload"/></svg></button>
+        </div>
+        <div class="foot"><b>Why:</b> feedback. The interface confirms it heard you before the network does.
+          <br><b>CSS:</b> transform 140ms var(--cr-ease-out), scale(0.97) on :active.
+          <br><b>GSAP:</b> gsap.to(el, {scale:0.97, duration:0.14, ease:'power3.out'})
+          <br><b>Reduced:</b> press scale becomes 1. The colour change stays, because it still communicates.</div>
+      </div>
+
+      <!-- 2 · tooltip -->
+      <div class="demo">
+        <div class="head"><span class="t">2 · Tooltip</span><span class="d">160ms · ease-out</span></div>
+        <div class="stage" style="gap:var(--cr-space-5)">
+          <span class="tt-wrap"><button class="btn btn-secondary btn-sm">Hover me</button>
+            <span class="tooltip" role="tooltip">Nova-3 · $0.0071 / min</span></span>
+          <span class="tt-wrap"><button class="btn btn-secondary btn-sm">And me</button>
+            <span class="tooltip" role="tooltip">mip_opt_out=true</span></span>
+        </div>
+        <div class="foot"><b>Why:</b> it explains a value without spending layout on it.
+          <br><b>Origin:</b> transform-origin bottom center, so it grows out of its trigger, not out of nowhere.
+          <br><b>Scale:</b> from 0.97, never from 0. Nothing in the real world appears from nothing.
+          <br><b>Rule:</b> once one tooltip is open, adjacent ones open instantly with zero duration.</div>
+      </div>
+
+      <!-- 3 · drawer -->
+      <div class="demo">
+        <div class="head"><span class="t">3 · Drawer</span><span class="d">320ms · ease-drawer</span></div>
+        <div class="stage">
+          <div class="drawerbox" id="drawerBox">
+            <div style="padding:var(--cr-space-4)"><button class="btn btn-secondary btn-sm" id="drawerOpen">Open sheet</button></div>
+            <div class="scrim"></div>
+            <div class="sheet">
+              <div class="grab"></div>
+              <div class="sp-h3" style="font-size:16px;margin-bottom:6px">Add a tag</div>
+              <input class="input" placeholder="sales" aria-label="Tag name">
+              <div style="display:flex;gap:8px;margin-top:12px">
+                <button class="btn btn-primary btn-sm" id="drawerClose">Add</button>
+                <button class="btn btn-ghost btn-sm" id="drawerClose2">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><b>Why:</b> spatial consistency. It leaves the way it came in, so a downward swipe to dismiss feels obvious.
+          <br><b>Transform:</b> translateY(100%), a percentage of its own height, so content length never breaks it.
+          <br><b>Reduced:</b> no travel. Scrim and sheet cross-fade in place.</div>
+      </div>
+
+      <!-- 4 · modal -->
+      <div class="demo">
+        <div class="head"><span class="t">4 · Modal</span><span class="d">400ms · ease-out</span></div>
+        <div class="stage">
+          <div class="modalbox" id="modalBox">
+            <button class="btn btn-danger btn-sm" id="modalOpen">Delete 3 meetings</button>
+            <div class="scrim"></div>
+            <div class="dlg">
+              <div class="sp-h3" style="font-size:16px;margin-bottom:6px">Delete 3 meetings?</div>
+              <p class="note" style="margin:0 0 12px">Their transcripts go too. This cannot be undone.</p>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-danger btn-sm" id="modalClose">Delete</button>
+                <button class="btn btn-ghost btn-sm" id="modalClose2">Keep them</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><b>Origin:</b> center, and this is the one exception. A modal is not anchored to a trigger, so scaling it from one is a lie about where it came from.
+          <br><b>Scale:</b> 0.96 to 1 with opacity. <b>Escape closes it with no animation at all,</b> because Escape is keyboard-initiated.</div>
+      </div>
+
+      <!-- 5 · transcript stagger -->
+      <div class="demo">
+        <div class="head"><span class="t">5 · Transcript stagger</span><span class="d">400ms · stagger 120ms</span></div>
+        <div class="stage" style="align-items:flex-start">
+          <div class="on-paper-tile" style="width:100%" id="staggerCard">
+            <div class="sp-tiny" style="color:var(--cr-text-paper-mut);margin-bottom:10px">client_call_ranveer_aditi.mp3</div>
+            <div class="t-line stg" style="border-bottom-color:rgba(14,14,15,.13)"><span class="t-tag">S1</span><span class="t-time">00:00:04</span><span>Toh <span class="t-hl">Q3 ka number</span> kya laga?</span></div>
+            <div class="t-line stg" style="border-bottom-color:rgba(14,14,15,.13)"><span class="t-tag">S2</span><span class="t-time">00:00:09</span><span>Revenue is up eleven percent.</span></div>
+            <div class="t-line stg" style="border-bottom-color:rgba(14,14,15,.13)"><span class="t-tag">S1</span><span class="t-time">00:00:14</span><span><span class="t-hl">Bahut badhiya.</span> Send me the deck?</span></div>
+            <div class="t-line stg"><span class="t-tag">S2</span><span class="t-time">00:00:19</span><span>Haan bhej deta hoon, aaj shaam tak.</span></div>
+            <div style="margin-top:12px"><button class="btn btn-secondary btn-sm" id="replayStagger" style="color:var(--cr-text-on-paper);border-color:var(--cr-paper-rule)">Replay</button></div>
+          </div>
+        </div>
+        <div class="foot"><b>Why:</b> explanation. Lines arrive one after another the way a stenographer types them, so the graphic performs the product.
+          <br><b>GSAP:</b> gsap.from('.t-line', {opacity:0, x:-8, duration:0.4, stagger:0.12, ease:'power2.out'})
+          <br><b>Never block on it.</b> The lines are readable and selectable from frame one.</div>
+      </div>
+
+      <!-- 6 · scroll reveal -->
+      <div class="demo">
+        <div class="head"><span class="t">6 · ScrollTrigger.batch</span><span class="d">600ms · stagger 120ms</span></div>
+        <div class="stage" style="align-items:stretch;flex-direction:column;gap:var(--cr-space-3);justify-content:center">
+          <div class="revealcard batch-demo"><div class="n">128</div><div class="l">minutes this month</div></div>
+          <div class="revealcard batch-demo"><div class="n">$0.91</div><div class="l">estimated spend</div></div>
+          <div class="revealcard batch-demo"><div class="n">5</div><div class="l">meetings on record</div></div>
+          <button class="btn btn-secondary btn-sm" id="replayBatch" style="align-self:flex-start">Replay</button>
+        </div>
+        <div class="foot"><b>Why:</b> prevents a jarring change. Elements that pop into an empty viewport read as broken.
+          <br><b>Batch, not per-element:</b> ScrollTrigger.batch groups whatever entered together into one staggered tween, so three cards read as one gesture instead of three coincidences.
+          <br><b>once:true.</b> Re-animating on every scroll-by is the fastest way to make a page feel cheap.</div>
+      </div>
+    </div>
+
+    <!-- 7 · ribbon entrance -->
+    <div class="demo" style="margin-bottom:var(--cr-space-6)">
+      <div class="head"><span class="t">7 · Hand-off ribbon entrance</span><span class="d">1200ms draw · 700ms hands</span></div>
+      <div class="stage" style="padding:var(--cr-space-4)">
+        <div style="width:100%">
+          <svg viewBox="0 0 1200 340" id="ribbonSvg2" role="img" aria-label="Hand-off ribbon entrance demo">
+            <path class="cr-ribbon-path" id="ribbonPath2"
+                  d="M120,260 C260,260 300,60 480,60 C640,60 640,260 800,260 C920,260 960,90 1090,90"/>
+            <g class="r2-hand-a"><g fill="var(--cr-paper)" transform="translate(58,196)">
+              <rect x="-14" y="70" width="30" height="14" rx="7" transform="rotate(-30 1 77)"/>
+              <rect x="6" y="30" width="70" height="46" rx="23"/>
+              <rect x="6" y="0" width="14" height="34" rx="7" transform="rotate(-8 13 17)"/>
+              <rect x="22" y="-6" width="14" height="40" rx="7"/>
+              <rect x="38" y="-4" width="14" height="38" rx="7" transform="rotate(6 45 15)"/>
+              <rect x="54" y="2" width="13" height="32" rx="6.5" transform="rotate(14 60 18)"/>
+            </g></g>
+            <g class="r2-cargo-in"><g transform="translate(78,150)">
+              <rect x="0" y="0" width="56" height="42" rx="6" fill="var(--cr-ink)"/>
+              <rect x="8" y="16" width="4" height="14" fill="var(--cr-yellow)"/>
+              <rect x="16" y="9" width="4" height="26" fill="var(--cr-yellow)"/>
+              <rect x="24" y="17" width="4" height="10" fill="var(--cr-yellow)"/>
+              <rect x="32" y="5" width="4" height="34" fill="var(--cr-yellow)"/>
+              <rect x="40" y="13" width="4" height="18" fill="var(--cr-yellow)"/>
+            </g></g>
+            <g class="r2-hand-b"><g fill="var(--cr-paper)" transform="translate(1148,26) scale(-1,1)">
+              <rect x="-14" y="70" width="30" height="14" rx="7" transform="rotate(-30 1 77)"/>
+              <rect x="6" y="30" width="70" height="46" rx="23"/>
+              <rect x="6" y="0" width="14" height="34" rx="7" transform="rotate(-8 13 17)"/>
+              <rect x="22" y="-6" width="14" height="40" rx="7"/>
+              <rect x="38" y="-4" width="14" height="38" rx="7" transform="rotate(6 45 15)"/>
+              <rect x="54" y="2" width="13" height="32" rx="6.5" transform="rotate(14 60 18)"/>
+            </g></g>
+            <g class="r2-cargo-out"><g transform="translate(978,-14)">
+              <rect x="0" y="0" width="72" height="50" rx="6" fill="var(--cr-paper)"/>
+              <rect x="9" y="11" width="42" height="4" rx="2" fill="var(--cr-ink)"/>
+              <rect x="9" y="21" width="54" height="4" rx="2" fill="var(--cr-ink)" opacity=".55"/>
+              <rect x="9" y="31" width="32" height="4" rx="2" fill="var(--cr-ink)" opacity=".55"/>
+            </g></g>
+          </svg>
+          <button class="btn btn-secondary btn-sm" id="replayRibbon2" style="margin-top:var(--cr-space-3)">Replay</button>
+        </div>
+      </div>
+      <div class="foot"><b>Sequence:</b> hand A enters from x -20, the waveform scales 0.9 to 1, the ribbon draws left to right over 1200ms with power2.inOut, hand B enters from x +20, then the transcript page lands last. The payoff arrives after the mechanism, not before it.
+        <br><b>Draw:</b> stroke-dasharray set to the path's own getTotalLength(), stroke-dashoffset animated to 0. No plugin needed.
+        <br><b>Marketing only.</b> On the dashboard empty state this becomes a plain opacity fade with no draw and no travel.
+        <br><b>Reduced:</b> the whole timeline collapses to one 200ms opacity fade on the group.</div>
+    </div>
+
+    <h3>The ten hard rules</h3>
+    <div class="grid2">
+      <div class="panel">
+        <ol class="note" style="padding-left:1.2em;margin:0">
+          <li><strong>Never animate a keyboard-initiated action.</strong> Escape, Enter, Cmd+K, arrow keys. Those fire hundreds of times a day.</li>
+          <li><strong>Never use <code>ease-in</code> on UI.</strong> It delays the frame the user is watching hardest.</li>
+          <li><strong>Never animate from <code>scale(0)</code>.</strong> Start at 0.95 or higher, with opacity.</li>
+          <li><strong>Never use <code>transition: all</code>.</strong> Name the properties. <code>all</code> animates things you did not intend and pays for layout you did not need.</li>
+          <li><strong>Only animate <code>transform</code> and <code>opacity</code>.</strong> Width, height, margin and padding trigger layout on every frame.</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <ol class="note" style="padding-left:1.2em;margin:0" start="6">
+          <li><strong>Popovers scale from their trigger.</strong> <code>transform-origin: var(--transform-origin)</code>. Modals are the exception and stay centred.</li>
+          <li><strong>Exits are faster than entrances.</strong> The user has already decided; do not make them wait for the system to agree.</li>
+          <li><strong>Transitions, not keyframes,</strong> for anything that can be re-triggered mid-flight. Keyframes restart from zero; transitions retarget.</li>
+          <li><strong>Gate hover animations</strong> behind <code>@media (hover: hover) and (pointer: fine)</code>. Touch fires hover on tap.</li>
+          <li><strong>Reduced motion means fewer and gentler, not none.</strong> Keep opacity and colour, which aid comprehension. Remove travel, scale and draw.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:var(--cr-space-5);border-left:var(--cr-stroke-hair) solid var(--cr-red)">
+      <p style="margin:0;font-size:var(--cr-type-lede);color:var(--cr-text)">
+        All motion in this product is reviewed by <code>emil-design-eng</code>. Change an easing or a
+        duration without consulting it and you are breaking the system.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 07 COMPONENTS ══════════════════════════ -->
+<section class="sec" id="components">
+  <div class="wrap">
+    <span class="marker">§ 07 / Components</span>
+    <h2>Components</h2>
+    <p class="lede">
+      Every component here maps to a shadcn/ui primitive that is <strong>already installed</strong> in
+      this project. Court Reporter is applied by changing CSS variable values in
+      <code>app/globals.css</code>, not by restyling components with <code>className</code>.
+      If you find yourself writing <code>className="bg-[#E63946]"</code>, the token map is wrong,
+      not the component.
+    </p>
+
+    <div class="panel" style="border-left:var(--cr-stroke-hair) solid var(--cr-yellow);margin-bottom:var(--cr-space-6)">
+      <h4 style="margin-top:0;color:var(--cr-yellow)">Three traps in this specific project</h4>
+      <p class="note" style="margin:0">
+        <strong>1 · This is Base UI, not Radix.</strong> Use <code>render={&lt;a href="..." /&gt;}</code>,
+        never <code>asChild</code>. Pass <code>nativeButton={false}</code> when a Button renders as an anchor.
+        <code>DropdownMenuLabel</code> must sit inside a <code>DropdownMenuGroup</code>.<br>
+        <strong>2 · shadcn's <code>--accent</code> is not the brand accent.</strong> In shadcn it is the
+        subtle hover surface behind menu items and rows. Setting it to stamp red turns every dropdown
+        hover into a red block. The brand red lands on <code>--primary</code> and <code>--ring</code>.<br>
+        <strong>3 · Never use <code>text-primary</code> on dark.</strong> <code>--primary</code> is
+        <code>#B8202D</code>, a surface colour, and measures 3.02:1 as text on the canvas. Red text uses
+        <code>--cr-red-text</code>, which is what <code>--destructive</code> is set to.
+      </p>
+    </div>
+
+    <h3>Buttons</h3>
+    <div class="grid2">
+      <div class="panel">
+        <h4 style="margin-top:0">Live</h4>
+        <div style="display:flex;gap:var(--cr-space-3);flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary">Upload</button>
+          <button class="btn btn-secondary">Merge speakers</button>
+          <button class="btn btn-ghost">See a sample</button>
+          <button class="btn btn-danger">Delete</button>
+          <button class="btn btn-fab" aria-label="Upload"><svg class="cr-icon" width="20" height="20"><use href="#cr-i-upload"/></svg></button>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-4)">
+          Destructive is an <strong>outline</strong>, never a fill. In this brand the primary action is
+          already red, so a filled red delete button would be visually identical to "Upload". Shape
+          carries the difference, not colour.
+        </p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Every state</h4>
+        <div class="statebox"><span class="sl">default</span><span><button class="btn btn-primary btn-sm">Upload</button> <button class="btn btn-secondary btn-sm">Cancel</button></span></div>
+        <div class="statebox"><span class="sl">hover</span><span><button class="btn btn-primary btn-sm is-hover">Upload</button> <button class="btn btn-secondary btn-sm is-hover">Cancel</button></span></div>
+        <div class="statebox"><span class="sl">active</span><span><button class="btn btn-primary btn-sm is-active">Upload</button> <button class="btn btn-secondary btn-sm is-active">Cancel</button></span></div>
+        <div class="statebox"><span class="sl">focus</span><span><button class="btn btn-primary btn-sm is-focus">Upload</button> <button class="btn btn-secondary btn-sm is-focus">Cancel</button></span></div>
+        <div class="statebox" style="border-bottom:none"><span class="sl">disabled</span><span><button class="btn btn-primary btn-sm" disabled>Upload</button> <button class="btn btn-secondary btn-sm" disabled>Cancel</button></span></div>
+      </div>
+    </div>
+
+<pre style="margin-top:var(--cr-space-5)"><span class="mono"><i>// Already installed. No add needed for any of these.</i>
+<i>// components/ui/: alert avatar badge button card dialog dropdown-menu</i>
+<i>//                input label scroll-area select separator skeleton sonner tabs</i>
+
+&lt;Button&gt;Upload&lt;/Button&gt;                             <i>// primary   -&gt; --primary #B8202D</i>
+&lt;Button variant="outline"&gt;Merge speakers&lt;/Button&gt;    <i>// secondary -&gt; --input border</i>
+&lt;Button variant="ghost"&gt;See a sample&lt;/Button&gt;        <i>// ghost     -&gt; --accent hover</i>
+&lt;Button variant="destructive"&gt;Delete&lt;/Button&gt;        <i>// see note: restyle to outline</i>
+&lt;Button size="icon" aria-label="Upload"&gt;             <i>// FAB, 44px</i>
+  &lt;UploadIcon <b>data-icon="inline-start"</b> /&gt;          <i>// no size-4, Button sizes its own icons</i>
+&lt;/Button&gt;</span></pre>
+
+    <h3>Inputs and fields</h3>
+    <div class="grid3">
+      <div class="panel">
+        <div class="field"><label for="d1">Search</label>
+          <input class="input" id="d1" placeholder="Search transcripts, tags, speakers" value="pricing">
+          <span class="hint">Matches title, tags, and transcript body.</span></div>
+      </div>
+      <div class="panel">
+        <div class="field"><label for="d2">Webhook URL</label>
+          <input class="input" id="d2" value="http://localhost:3000/hook" aria-invalid="true">
+          <span class="hint err">Localhost and private IPs are rejected.</span></div>
+      </div>
+      <div class="panel">
+        <div class="field"><label for="d3">Focus ring</label>
+          <input class="input" id="d3" placeholder="Click me" style="border-color:var(--cr-red);box-shadow:0 0 0 3px rgba(230,57,70,.18)">
+          <span class="hint">3px ring at 18% stamp red, plus a solid border.</span></div>
+      </div>
+    </div>
+<pre><span class="mono"><i>// Field layout is FieldGroup + Field. Never a div with space-y-*.</i>
+&lt;FieldGroup&gt;
+  &lt;Field <b>data-invalid</b>&gt;
+    &lt;FieldLabel htmlFor="url"&gt;Webhook URL&lt;/FieldLabel&gt;
+    &lt;Input id="url" <b>aria-invalid</b> /&gt;
+    &lt;FieldDescription&gt;Localhost and private IPs are rejected.&lt;/FieldDescription&gt;
+  &lt;/Field&gt;
+&lt;/FieldGroup&gt;</span></pre>
+
+    <h3>Pills, tags, toggles</h3>
+    <div class="grid3">
+      <div class="panel">
+        <h4 style="margin-top:0">Status pill · Badge</h4>
+        <div style="display:flex;gap:var(--cr-space-2);flex-wrap:wrap">
+          <span class="pill complete">Complete</span>
+          <span class="pill processing"><span class="dot"></span>Transcribing</span>
+          <span class="pill failed">Failed</span>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Maps to <code>Badge</code>. The three
+          values of <code>Meeting.status</code>, one pill each. The pulsing dot is the only looping
+          animation in the entire system, and it stops under reduced motion.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Tag · Badge variant="secondary"</h4>
+        <div style="display:flex;gap:var(--cr-space-2);flex-wrap:wrap">
+          <span class="tagchip">sales</span><span class="tagchip">board</span>
+          <span class="tagchip">finance <svg class="cr-icon" width="12" height="12"><use href="#cr-i-close"/></svg></span>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-3)">Never a pill. Tags are square-ish
+          (<code>--cr-radius-sm</code>) so they never read as a status. Max 10 per meeting,
+          30 characters each, enforced server side.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Toggle · Switch</h4>
+        <div style="display:flex;gap:var(--cr-space-4);align-items:center">
+          <button class="toggle" role="switch" aria-checked="false" aria-label="Off"></button>
+          <button class="toggle" role="switch" aria-checked="true" aria-label="On"></button>
+          <span class="note" style="margin:0">Knob travels in 140ms</span>
+        </div>
+        <p class="note" style="margin-top:var(--cr-space-3)">On is <code>--cr-red-fill</code>, not
+          <code>--cr-red</code>, so the paper knob on top clears 5.67:1. Switch is not installed yet:
+          <code>npx shadcn@latest add switch</code>.</p>
+      </div>
+    </div>
+
+    <h3>Patterns</h3>
+    <h4>Hero block</h4>
+    <div class="heroblock">
+      <div><div class="sp-h2">Past meetings</div>
+        <div class="note" style="margin-top:4px">This month: <b style="color:var(--cr-text-secondary)">128 min</b> transcribed · <b style="color:var(--cr-text-secondary)">~$0.91</b> estimated</div></div>
+      <div style="display:flex;gap:var(--cr-space-2)"><input class="input" style="width:200px" placeholder="Search" aria-label="Search"><button class="btn btn-primary btn-sm">Upload</button></div>
+    </div>
+
+    <h4>Row</h4>
+    <div style="border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft)">
+      <div class="row">
+        <input type="checkbox" checked aria-label="Select">
+        <div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="title">Client Call, Ranveer and Aditi</span><span class="tagchip">sales</span></div>
+          <div class="snippet">toh <mark>pricing</mark> ke baare mein unhone poocha, humne bola annual plan pe discount hai</div>
+        </div>
+        <div class="side"><span class="pill complete">Complete</span><div class="meta-line">Nova-3 · $0.0187 · 26 min · Aug 26</div></div>
+      </div>
+      <div class="row">
+        <input type="checkbox" aria-label="Select">
+        <div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="title">Board Sync, Q3 numbers</span><span class="tagchip">board</span></div>
+          <div class="snippet">Uploading, 64%</div>
+        </div>
+        <div class="side"><span class="pill processing"><span class="dot"></span>Transcribing</span><div class="meta-line">nova-3.mp4 · 340 MB</div></div>
+      </div>
+      <div class="row">
+        <input type="checkbox" aria-label="Select">
+        <div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="title">Vendor Call, Zomato Ops</span></div>
+          <div class="snippet">Deepgram request timed out. No transcript was produced.</div>
+        </div>
+        <div class="side"><span class="pill failed">Failed</span><div class="meta-line">Retry available</div></div>
+      </div>
+    </div>
+
+    <h4>Time rail · the transcript view</h4>
+    <div class="timerail" style="margin-top:var(--cr-space-4);max-width:620px">
+      <div class="t-line"><span class="t-tag">S1</span><span class="t-time">00:00:04</span><span>Toh <span class="t-hl">Q3 ka number</span> kya laga?</span></div>
+      <div class="t-line"><span class="t-tag">S2</span><span class="t-time">00:00:09</span><span>Revenue is up eleven percent.</span></div>
+      <div class="t-line"><span class="t-tag">Priya</span><span class="t-time">00:00:14</span><span>Bahut badhiya. Send me the deck?</span></div>
+    </div>
+    <p class="note" style="margin-top:var(--cr-space-3)">
+      One 1px rule on the left, 12px of padding, nothing else. Renamed speakers keep the same tag
+      shape as raw Deepgram ids, so a half-renamed transcript never looks half-broken.
+    </p>
+
+    <h4>Stat triplet</h4>
+    <div class="stat3" style="border-top:var(--cr-stroke-hair) solid var(--cr-paper);border-bottom:var(--cr-stroke-hair) solid var(--cr-paper);margin-top:var(--cr-space-4)">
+      <div><div class="v">128</div><div class="k">minutes</div></div>
+      <div><div class="v">$0.91</div><div class="k">estimated</div></div>
+      <div><div class="v">5</div><div class="k">meetings</div></div>
+    </div>
+    <p class="note" style="margin-top:var(--cr-space-3)">
+      No gap. Separators are <code>::before</code> pseudo-elements on every child but the first, so
+      the group reads as one ruled block rather than three floating cards.
+    </p>
+
+    <h3>Full component map</h3>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Brand component</th><th>shadcn primitive</th><th>Status</th><th>Token override</th></tr></thead>
+      <tbody>
+        <tr><td>Primary button</td><td><code>Button</code></td><td><span class="ok">installed</span></td><td><code>--primary</code> = <code>#B8202D</code>, <code>--primary-foreground</code> = paper</td></tr>
+        <tr><td>Secondary button</td><td><code>Button variant="outline"</code></td><td><span class="ok">installed</span></td><td><code>--input</code> border, <code>--accent</code> hover</td></tr>
+        <tr><td>Ghost button</td><td><code>Button variant="ghost"</code></td><td><span class="ok">installed</span></td><td>add <code>underline underline-offset-4</code></td></tr>
+        <tr><td>Destructive button</td><td><code>Button variant="destructive"</code></td><td><span class="ok">installed</span></td><td>restyle to outline. <code>--destructive</code> = <code>#EC4B57</code></td></tr>
+        <tr><td>FAB</td><td><code>Button size="icon"</code></td><td><span class="ok">installed</span></td><td>44px, <code>--cr-radius-pill</code></td></tr>
+        <tr><td>Search / tag input</td><td><code>Input</code></td><td><span class="ok">installed</span></td><td><code>--input</code>, <code>--ring</code> = <code>#E63946</code></td></tr>
+        <tr><td>Status pill</td><td><code>Badge</code></td><td><span class="ok">installed</span></td><td>three tint fills, <code>--cr-radius-pill</code></td></tr>
+        <tr><td>Tag chip</td><td><code>Badge variant="secondary"</code></td><td><span class="ok">installed</span></td><td><code>--secondary</code> = <code>#1C1C1C</code>, radius sm</td></tr>
+        <tr><td>Meeting card</td><td><code>Card</code> + <code>CardHeader</code>/<code>CardContent</code></td><td><span class="ok">installed</span></td><td><code>--card</code> = <code>#141417</code></td></tr>
+        <tr><td>Delete confirm</td><td><code>Dialog</code> + <code>DialogTitle</code></td><td><span class="ok">installed</span></td><td>400ms, centred origin</td></tr>
+        <tr><td>Avatar menu</td><td><code>DropdownMenu</code> + <code>DropdownMenuGroup</code></td><td><span class="ok">installed</span></td><td>200ms, trigger origin</td></tr>
+        <tr><td>Failed banner</td><td><code>Alert</code></td><td><span class="ok">installed</span></td><td><code>--cr-tint-red</code> fill, <code>--cr-red-text</code> label</td></tr>
+        <tr><td>Loading row</td><td><code>Skeleton</code></td><td><span class="ok">installed</span></td><td><code>--muted</code> = <code>#1A1A1D</code></td></tr>
+        <tr><td>Speaker "Keep as"</td><td><code>Select</code> + <code>SelectGroup</code></td><td><span class="ok">installed</span></td><td>200ms, trigger origin</td></tr>
+        <tr><td>Toast</td><td><code>sonner</code></td><td><span class="ok">installed</span></td><td>card surface, 1px border, no shadow</td></tr>
+        <tr><td>Notifications toggle</td><td><code>Switch</code></td><td><span class="no">add it</span></td><td><code>npx shadcn@latest add switch</code></td></tr>
+        <tr><td>Bulk select</td><td><code>Checkbox</code></td><td><span class="no">add it</span></td><td><code>npx shadcn@latest add checkbox</code>, accent stamp red</td></tr>
+        <tr><td>Cost / model hint</td><td><code>Tooltip</code></td><td><span class="no">add it</span></td><td><code>npx shadcn@latest add tooltip</code>, 160ms</td></tr>
+        <tr><td>Meeting list</td><td><code>Table</code> or the row pattern above</td><td><span class="no">add it</span></td><td>the row pattern is preferred: no header chrome</td></tr>
+        <tr><td>Empty dashboard</td><td><code>Empty</code></td><td><span class="no">add it</span></td><td>ribbon at 40%, opacity fade only</td></tr>
+      </tbody>
+    </table>
+    </div>
+<pre style="margin-top:var(--cr-space-4)"><span class="mono"><i># the five that are missing, in one command</i>
+npx shadcn@latest add switch checkbox tooltip table empty
+
+<i># the preset this project is on, for reference. Do not re-apply it:</i>
+<i># that would overwrite the Court Reporter values in app/globals.css.</i>
+<i># style base-nova · base "base" (Base UI) · neutral · lucide · radius default</i></span></pre>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 08 VOICE ══════════════════════════ -->
+<section class="sec" id="voice">
+  <div class="wrap">
+    <span class="marker">§ 08 / Voice and tone</span>
+    <h2>Voice and tone</h2>
+    <p class="lede">
+      Court Reporter writes the way a good stenographer talks: plain, specific, and completely
+      uninterested in impressing you. Name the thing. Give the number. Never soften a consequence.
+      The one place warmth is allowed is Hinglish, because that is how the people using this actually
+      speak, and flattening it into corporate English would be its own kind of lie.
+    </p>
+
+    <h3>Word swaps</h3>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Instead of</th><th>Write</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="no">AI-powered transcription</td><td class="ok">Nova-3, $0.0071 per minute</td><td style="color:var(--cr-text-tertiary)">It is a named model with a published rate. "AI" is a shrug.</td></tr>
+        <tr><td class="no">transcription job</td><td class="ok">the recording, or the meeting</td><td style="color:var(--cr-text-tertiary)">Users have meetings. The queue is our problem, not theirs.</td></tr>
+        <tr><td class="no">user</td><td class="ok">you</td><td style="color:var(--cr-text-tertiary)">There is one account holder reading this. Address them.</td></tr>
+        <tr><td class="no">utterance</td><td class="ok">line</td><td style="color:var(--cr-text-tertiary)">A database field name leaked into the UI.</td></tr>
+        <tr><td class="no">diarization</td><td class="ok">who said what</td><td style="color:var(--cr-text-tertiary)">"Diarised" survives as a marketing eyebrow, never as an instruction.</td></tr>
+        <tr><td class="no">processing</td><td class="ok">Transcribing</td><td style="color:var(--cr-text-tertiary)">Says what is happening, not that a machine is busy.</td></tr>
+        <tr><td class="no">an error occurred</td><td class="ok">Deepgram timed out. Nothing was transcribed.</td><td style="color:var(--cr-text-tertiary)">What broke, and what it cost you.</td></tr>
+        <tr><td class="no">Indian English, or accented English</td><td class="ok">Hinglish</td><td style="color:var(--cr-text-tertiary)">It is its own thing and it has a name.</td></tr>
+        <tr><td class="no">meeting minutes, notes, summary</td><td class="ok">transcript</td><td style="color:var(--cr-text-tertiary)">We do not summarise. Do not imply we do.</td></tr>
+        <tr><td class="no">seamlessly, effortlessly, powerful, robust</td><td class="ok">cut the word</td><td style="color:var(--cr-text-tertiary)">If the sentence still works without it, it was filler.</td></tr>
+        <tr><td class="no">approximately $0.02</td><td class="ok">$0.0187 estimated</td><td style="color:var(--cr-text-tertiary)">Show the real number and label its confidence.</td></tr>
+        <tr style="background:var(--cr-tint-yellow)"><td class="ok" style="color:var(--cr-yellow)">delete</td><td class="ok" style="color:var(--cr-yellow)">delete</td><td style="color:var(--cr-text-secondary)"><strong>The anti-swap.</strong> Other brands write "let go" or "archive". This one does not. If the transcript is about to be gone, the word is gone.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>Four voices</h3>
+    <div class="grid2">
+      <div class="voicecard">
+        <div class="k">Formal · the share page</div>
+        <p>This transcript was shared with you by its owner. It is read-only, and the link can be revoked at any time.</p>
+        <div class="why">Someone outside the account is reading. State what they can do and who controls it. No warmth, no branding, no upsell.</div>
+      </div>
+      <div class="voicecard">
+        <div class="k">Casual · the empty dashboard</div>
+        <p>Nothing on record yet. Drop in an MP4 or MP3 and you will have a searchable transcript in a few minutes.</p>
+        <div class="why">First-run, low stakes. Still concrete: the file types, and a realistic time. No exclamation mark, no "Let's get started!".</div>
+      </div>
+      <div class="voicecard">
+        <div class="k">Error · a failed meeting</div>
+        <p>Deepgram timed out after three attempts. No transcript was produced and you were not charged. The recording is still on your machine, so you can retry.</p>
+        <div class="why">What broke, what it cost, what survived, what to do. In that order. Never "Oops!" and never a stack trace.</div>
+      </div>
+      <div class="voicecard">
+        <div class="k">Celebration · first transcript done</div>
+        <p>On record. 26 minutes, two speakers, $0.0187. Search it, rename the speakers, or share it.</p>
+        <div class="why">The celebration is the numbers. This brand does not throw confetti; it hands you the document and tells you what is in it.</div>
+      </div>
+    </div>
+
+    <h3>Do and do not</h3>
+    <div class="grid2">
+      <div class="dodont do">
+        <div class="k">Do</div>
+        <p>"Every recording stays private to your account."<br>
+          <span style="color:var(--cr-text-muted);font-size:13px">A promise the code actually keeps: every query filters by session userId, and Deepgram requests carry mip_opt_out.</span></p>
+      </div>
+      <div class="dodont dont">
+        <div class="k">Do not</div>
+        <p>"Bank-grade security. Your data is safe with us."<br>
+          <span style="color:var(--cr-text-muted);font-size:13px">Means nothing, cannot be verified, and invites a question the product cannot answer.</span></p>
+      </div>
+      <div class="dodont do">
+        <div class="k">Do</div>
+        <p>"Toh Q3 ka number kya laga?"<br>
+          <span style="color:var(--cr-text-muted);font-size:13px">Real Hinglish in the demo transcript. It is the product's hardest capability, so show it doing the hard thing.</span></p>
+      </div>
+      <div class="dodont dont">
+        <div class="k">Do not</div>
+        <p>"So what were the Q3 numbers?"<br>
+          <span style="color:var(--cr-text-muted);font-size:13px">A generic English demo transcript makes the product look like every other transcriber.</span></p>
+      </div>
+      <div class="dodont do">
+        <div class="k">Do</div>
+        <p>"Delete 3 meetings? Their transcripts go too. This cannot be undone."<br>
+          <span style="color:var(--cr-text-muted);font-size:13px">Count, consequence, finality. Three short sentences.</span></p>
+      </div>
+      <div class="dodont dont">
+        <div class="k">Do not</div>
+        <p>"Are you sure you want to proceed with this action?"<br>
+          <span style="color:var(--cr-text-muted);font-size:13px">Does not say what is being deleted, how many, or that it is permanent.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ 09 LAYOUT ══════════════════════════ -->
+<section class="sec" id="layout">
+  <div class="wrap">
+    <span class="marker">§ 09 / Layout</span>
+    <h2>Layout</h2>
+    <p class="lede">
+      Two column widths, ten spacing steps, four breakpoints. Court Reporter separates things with
+      <strong>rules, not shadows</strong>. There are exactly two shadows in the whole system and both
+      are marketing-only. If a product surface needs to show that one thing sits above another, it
+      uses a 1px hairline and a background shift.
+    </p>
+
+    <h3>Column widths</h3>
+    <div class="grid2">
+      <div class="panel">
+        <h4 style="margin-top:0">1180px · marketing</h4>
+        <div style="height:8px;background:var(--cr-red);border-radius:2px;margin-bottom:var(--cr-space-2)"></div>
+        <p class="note">Landing, auth, share. 24px gutters. The hero is a 1.05fr / 0.95fr two-column
+          grid that collapses at 940.</p>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">1040px · app</h4>
+        <div style="height:8px;background:var(--cr-red);border-radius:2px;margin-bottom:var(--cr-space-2);width:88%"></div>
+        <p class="note">Dashboard and MeetingDetail. Narrower on purpose: a list of meetings that
+          runs 1180px wide makes every row feel emptier than it is.</p>
+      </div>
+    </div>
+    <p class="note" style="margin-top:var(--cr-space-3)">
+      Prose caps at <strong>460px</strong> regardless of container. A lede that runs the full 1180
+      is unreadable no matter how good the type is.
+    </p>
+
+    <h3>Spacing scale</h3>
+    <div style="display:flex;align-items:flex-end;gap:var(--cr-space-3);flex-wrap:wrap;margin-bottom:var(--cr-space-3)">
+      <figure style="margin:0"><div class="spacebar" style="width:4px"></div><figcaption class="sp-tiny" style="margin-top:6px">4</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:8px"></div><figcaption class="sp-tiny" style="margin-top:6px">8</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:12px"></div><figcaption class="sp-tiny" style="margin-top:6px">12</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:16px"></div><figcaption class="sp-tiny" style="margin-top:6px">16</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:24px"></div><figcaption class="sp-tiny" style="margin-top:6px">24</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:32px"></div><figcaption class="sp-tiny" style="margin-top:6px">32</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:40px"></div><figcaption class="sp-tiny" style="margin-top:6px">40</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:56px"></div><figcaption class="sp-tiny" style="margin-top:6px">56</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:88px"></div><figcaption class="sp-tiny" style="margin-top:6px">88</figcaption></figure>
+      <figure style="margin:0"><div class="spacebar" style="width:120px"></div><figcaption class="sp-tiny" style="margin-top:6px">120</figcaption></figure>
+    </div>
+    <p class="note">
+      4, 8, 12, 16, 24, 32, 40, 56, 88, 120. Section padding is 88. Card padding is 24.
+      Row padding is 16. Gaps inside a control are 8. Nothing lands between two steps.
+    </p>
+
+    <h3>Stroke scale</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-4)">
+      <strong>The border scale is one value: 1px.</strong> Emphasis is carried by the rule's
+      <em>colour</em>, never by its weight. A quiet divider and a structural edge are the same
+      hairline in two different colours, which is how a printed page does it.
+    </p>
+    <p class="note" style="margin-bottom:var(--cr-space-5)">
+      v1 of this kit had a 2px <code>emph</code> and a 2.5px <code>stamp</code> weight and read as a
+      stack of thick bordered boxes. Both are gone. A 1.5px middle tier was tried as a replacement
+      and also removed, for a concrete reason: <strong>Blink floors sub-pixel border widths</strong>,
+      so <code>border: 1.5px</code> computes and paints as <code>1px</code> in Chrome at any device
+      pixel ratio, while Safari and Firefox honour it. A tier that only exists in two of three
+      engines is not a tier, it is an inconsistency. If a box seems to need more weight than a
+      hairline, it does not need a heavier border: it needs a different background, or more space.
+    </p>
+    <div class="grid2">
+      <div class="panel">
+        <h4 style="margin-top:0">One weight, four colours</h4>
+        <div class="statebox" style="grid-template-columns:130px 1fr">
+          <span class="sl">rule-soft</span>
+          <span><span style="display:block;height:0;border-top:1px solid var(--cr-rule-soft);margin-bottom:8px"></span>
+            <span class="note" style="display:block;margin:0">List dividers, card and panel borders. The quietest, and the most used.</span></span>
+        </div>
+        <div class="statebox" style="grid-template-columns:130px 1fr">
+          <span class="sl">rule-strong</span>
+          <span><span style="display:block;height:0;border-top:1px solid var(--cr-rule-strong);margin-bottom:8px"></span>
+            <span class="note" style="display:block;margin:0">Input borders, chip outlines, the time rail. A boundary you can act on.</span></span>
+        </div>
+        <div class="statebox" style="grid-template-columns:130px 1fr">
+          <span class="sl">paper</span>
+          <span><span style="display:block;height:0;border-top:1px solid var(--cr-paper);margin-bottom:8px"></span>
+            <span class="note" style="display:block;margin:0">Structural edges: the hero block's top and bottom, the stat triplet. Rationed.</span></span>
+        </div>
+        <div class="statebox" style="grid-template-columns:130px 1fr;border-bottom:none">
+          <span class="sl">red</span>
+          <span><span style="display:block;height:0;border-top:1px solid var(--cr-red);margin-bottom:8px"></span>
+            <span class="note" style="display:block;margin:0">The accent edge. Section openers, the stamp outline, accent left-borders. The heaviest thing this system says, said at 1px.</span></span>
+        </div>
+      </div>
+      <div class="panel">
+        <h4 style="margin-top:0">Not borders, not on the scale</h4>
+        <div class="statebox" style="grid-template-columns:110px 1fr">
+          <span class="sl">focus · 2px</span>
+          <span style="display:flex;align-items:center;gap:var(--cr-space-3);flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm is-focus">Focused</button>
+            <span class="note" style="margin:0;flex:1;min-width:180px">Accessibility affordance, and now the only line in the
+            UI heavier than a hairline, which is exactly what a focus indicator should be. Never trade this down.</span></span>
+        </div>
+        <div class="statebox" style="grid-template-columns:110px 1fr">
+          <span class="sl">icon · 1.75px</span>
+          <span style="display:flex;align-items:center;gap:var(--cr-space-3);flex-wrap:wrap;color:var(--cr-text-secondary)">
+            <svg class="cr-icon" width="24" height="24"><use href="#cr-i-waveform"/></svg>
+            <svg class="cr-icon" width="24" height="24"><use href="#cr-i-transcript"/></svg>
+            <span class="note" style="margin:0;flex:1;min-width:180px">A drawn line, not a frame. Icons are content, so they sit
+            above the chrome scale on purpose: the frame recedes, the mark does not.</span></span>
+        </div>
+        <div class="statebox" style="grid-template-columns:110px 1fr;border-bottom:none">
+          <span class="sl">ribbon · 34px</span>
+          <span style="display:flex;align-items:center;gap:var(--cr-space-3);flex-wrap:wrap">
+            <svg viewBox="0 0 120 40" width="96" height="32" aria-hidden="true"><path d="M8,32 C40,32 40,8 72,8 C96,8 100,26 112,26" fill="none" stroke="var(--cr-red)" stroke-width="11" stroke-linecap="round"/></svg>
+            <span class="note" style="margin:0;flex:1;min-width:180px">The hand-off ribbon's artwork line weight. Illustration,
+            not chrome, and unchanged.</span></span>
+        </div>
+      </div>
+    </div>
+
+    <h3>Breakpoints</h3>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Width</th><th>What changes</th></tr></thead>
+      <tbody>
+        <tr><td class="num">560</td><td style="color:var(--cr-text-tertiary)">Row side column drops below the title. Status pill and meta line stack left-aligned.</td></tr>
+        <tr><td class="num">860</td><td style="color:var(--cr-text-tertiary)">Feature strip and every 3-up or 4-up grid collapses to one column.</td></tr>
+        <tr><td class="num">940</td><td style="color:var(--cr-text-tertiary)">Landing hero collapses to one column. Transcript card moves below the headline.</td></tr>
+        <tr><td class="num">1180</td><td style="color:var(--cr-text-tertiary)">Marketing container stops growing. App container stopped at 1040 already.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h3>The five patterns</h3>
+<pre><span class="mono"><i>/* Hero block. The page title and its controls, ruled top and bottom. */</i>
+.heroblock {
+  border-top:    <b>1px</b> solid var(--cr-paper);
+  border-bottom: <b>1px</b> solid var(--cr-paper);
+  padding: <b>16px</b> 0;
+  display: flex; align-items: baseline; justify-content: space-between;
+}</span></pre>
+<pre><span class="mono"><i>/* Row. The dashboard meeting list. Checkbox, content, right-aligned status. */</i>
+.row {
+  display: grid;
+  grid-template-columns: <b>22px 1fr auto</b>;
+  gap: <b>16px</b>;
+  align-items: center;
+  padding: <b>16px 6px</b>;
+  border-bottom: <b>1px</b> solid var(--cr-rule-soft);
+  transition: background <b>160ms</b> var(--cr-ease-out);
+}
+.row:hover { background: var(--cr-ink-hover); }</span></pre>
+<pre><span class="mono"><i>/* Section marker. Mono, red, wide tracking. Never a heading tag on its own. */</i>
+&lt;span class="marker"&gt;§ 02 / Colour&lt;/span&gt;
+
+.marker {
+  font: <b>500 12px</b> var(--cr-font-mono);
+  text-transform: uppercase;
+  letter-spacing: <b>0.16em</b>;
+  color: var(--cr-red);
+}</span></pre>
+<pre><span class="mono"><i>/* Time rail. The transcript view. One rule, 12px of air, nothing else. */</i>
+.timerail {
+  border-left: <b>1px</b> solid var(--cr-rule-strong);
+  padding-left: <b>12px</b>;
+}</span></pre>
+<pre><span class="mono"><i>/* Stat triplet. No gap: separators are pseudo-elements, so it reads as</i>
+<i>   one ruled block instead of three floating cards. */</i>
+.stat3 { display: grid; grid-template-columns: <b>repeat(3, 1fr)</b>; }
+.stat3 &gt; div + div::before {
+  content: ''; position: absolute; left: 0;
+  top: <b>8px</b>; bottom: <b>8px</b>; width: <b>1px</b>;
+  background: var(--cr-rule-soft);
+}</span></pre>
+
+    <h3>Elevation</h3>
+    <div class="grid3">
+      <div class="panel"><h4 style="margin-top:0">Rules · everywhere</h4>
+        <p class="note">Always 1px. What changes is the colour: <code>--cr-rule-soft</code> between
+          list items, <code>--cr-paper</code> around a hero block, <code>--cr-red</code> to open a
+          section. This is the default and it covers about 95% of cases.</p></div>
+      <div class="panel"><h4 style="margin-top:0">Sheet shadow · marketing</h4>
+        <p class="note"><code>0 50px 100px -30px rgba(0,0,0,.65)</code>. Used once, on the hero
+          transcript card, because that card is literally a sheet of paper lying on a dark desk. The
+          shadow is doing representational work, not decorative work.</p></div>
+      <div class="panel"><h4 style="margin-top:0">CTA glow · marketing</h4>
+        <p class="note"><code>0 14px 30px -12px rgba(184,32,45,.55)</code>. The landing primary
+          button only. Never on the dashboard Upload button, which is the same component in a
+          quieter room.</p></div>
+    </div>
+
+    <h3>The surface split</h3>
+    <p class="note" style="margin-bottom:var(--cr-space-4)">
+      This is a hard product requirement from the project's own CLAUDE.md, not a style preference.
+      Same tokens, two intensities. It is the single most likely thing to get violated by accident,
+      so it is written out as a checklist.
+    </p>
+    <div class="grid2">
+      <div class="panel" style="border-left:var(--cr-stroke-hair) solid var(--cr-red)">
+        <h4 style="margin-top:0;color:var(--cr-red-text)">Marketing · full expression</h4>
+        <p class="note" style="margin-bottom:var(--cr-space-2)"><code>/</code> signed out, <code>/login</code>, <code>/signup</code>, <code>/forgot-password</code>, <code>/reset-password/[token]</code>, <code>/share/[token]</code></p>
+        <p class="note" style="margin:0"><strong>Allowed:</strong> the stamp, redaction bars, the hand-off
+          ribbon at full size, type up to 180px, the sheet shadow, the CTA glow, the GSAP hero timeline,
+          ScrollTrigger.batch reveals, durations up to 700ms.</p>
+      </div>
+      <div class="panel" style="border-left:var(--cr-stroke-hair) solid var(--cr-text-muted)">
+        <h4 style="margin-top:0">Product · restrained</h4>
+        <p class="note" style="margin-bottom:var(--cr-space-2)"><code>/</code> signed in, <code>/meeting/[id]</code>, and every dialog reachable from them</p>
+        <p class="note" style="margin:0"><strong>Forbidden:</strong> stamps, redaction, the ribbon (except
+          the empty state at 40%), type above 30px, the CTA glow, the hero timeline, any duration above
+          400ms.<br>
+          <strong>Yellow</strong> is search-match <code>&lt;mark&gt;</code> and the Transcribing status. Nothing else.<br>
+          <strong>Red</strong> is the primary action fill, the focus ring, and the Failed status. Nothing else.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="bookfoot">
+  <div class="wrap" style="display:flex;justify-content:space-between;gap:var(--cr-space-4);flex-wrap:wrap;width:100%">
+    <span>Court Reporter · brand kit v1.0 · 2026-08-28</span>
+    <span>tokens.css · tokens.ts · tokens.json · README.md · assets/</span>
+    <span>Wordmark is a placeholder pending a real product name.</span>
+  </div>
+</footer>
+
+<script>
+/* ==========================================================================
+   BRAND BOOK · live demo wiring
+   Every animation below obeys the same rules the book documents. The
+   reduced-motion path is a real code path, not a comment.
+   ========================================================================== */
+gsap.registerPlugin(ScrollTrigger);
+
+const root = document.documentElement;
+const prefersReduced = () =>
+  root.dataset.reduced === 'true' ||
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* the slow-motion multiplier the top bar toggles, mirrored from --slowmo */
+const k = () => (root.dataset.slowmo === 'true' ? 8 : 1);
+
+/* ── top bar toggles ──────────────────────────────────────────────────── */
+const tglSlow = document.getElementById('tglSlow');
+const tglReduced = document.getElementById('tglReduced');
+tglSlow.addEventListener('click', () => {
+  const on = root.dataset.slowmo !== 'true';
+  root.dataset.slowmo = String(on);
+  tglSlow.setAttribute('aria-pressed', String(on));
+});
+tglReduced.addEventListener('click', () => {
+  const on = root.dataset.reduced !== 'true';
+  root.dataset.reduced = String(on);
+  tglReduced.setAttribute('aria-pressed', String(on));
+});
+
+/* ── nav active state ─────────────────────────────────────────────────── */
+document.querySelectorAll('section[id]').forEach(sec => {
+  ScrollTrigger.create({
+    trigger: sec, start: 'top 40%', end: 'bottom 40%',
+    onToggle: s => {
+      if (!s.isActive) return;
+      document.querySelectorAll('.booknav a').forEach(a => a.classList.remove('on'));
+      const link = document.querySelector('.booknav a[href="#' + sec.id + '"]');
+      if (link) link.classList.add('on');
+    }
+  });
+});
+
+/* ── demo 3 · drawer ──────────────────────────────────────────────────── */
+const drawerBox = document.getElementById('drawerBox');
+document.getElementById('drawerOpen').addEventListener('click', () => drawerBox.classList.add('open'));
+['drawerClose','drawerClose2'].forEach(id =>
+  document.getElementById(id).addEventListener('click', () => drawerBox.classList.remove('open')));
+
+/* ── demo 4 · modal ───────────────────────────────────────────────────── */
+const modalBox = document.getElementById('modalBox');
+document.getElementById('modalOpen').addEventListener('click', () => modalBox.classList.add('open'));
+['modalClose','modalClose2'].forEach(id =>
+  document.getElementById(id).addEventListener('click', () => modalBox.classList.remove('open')));
+/* Escape closes with no animation at all. Keyboard-initiated actions never
+   animate, so the transition is suppressed for exactly this one frame. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  [modalBox, drawerBox].forEach(box => {
+    if (!box.classList.contains('open')) return;
+    const targets = box.querySelectorAll('.scrim, .dlg, .sheet');
+    targets.forEach(t => (t.style.transitionDuration = '0ms'));
+    box.classList.remove('open');
+    requestAnimationFrame(() => targets.forEach(t => (t.style.transitionDuration = '')));
+  });
+});
+
+/* ── demo 5 · transcript stagger ──────────────────────────────────────── */
+function playStagger() {
+  const lines = document.querySelectorAll('#staggerCard .stg');
+  if (prefersReduced()) {
+    gsap.fromTo(lines, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'none' });
+    return;
+  }
+  gsap.fromTo(lines,
+    { opacity: 0, x: -8 },
+    { opacity: 1, x: 0, duration: 0.4 * k(), stagger: 0.12 * k(), ease: 'power2.out' });
+}
+document.getElementById('replayStagger').addEventListener('click', playStagger);
+
+/* ── demo 6 · ScrollTrigger.batch ─────────────────────────────────────── */
+gsap.set('.batch-demo', { opacity: 0, y: 24 });
+ScrollTrigger.batch('.batch-demo', {
+  start: 'top 92%',
+  once: true,
+  onEnter: batch => {
+    if (prefersReduced()) { gsap.to(batch, { opacity: 1, y: 0, duration: 0.2 }); return; }
+    gsap.to(batch, { opacity: 1, y: 0, duration: 0.6 * k(), stagger: 0.12 * k(), ease: 'power3.out' });
+  }
+});
+document.getElementById('replayBatch').addEventListener('click', () => {
+  const cards = document.querySelectorAll('.batch-demo');
+  if (prefersReduced()) {
+    gsap.fromTo(cards, { opacity: 0 }, { opacity: 1, y: 0, duration: 0.2 });
+    return;
+  }
+  gsap.fromTo(cards, { opacity: 0, y: 24 },
+    { opacity: 1, y: 0, duration: 0.6 * k(), stagger: 0.12 * k(), ease: 'power3.out' });
+});
+
+/* ── demos 05 and 07 · the hand-off ribbon ────────────────────────────── */
+function ribbonTimeline(pathId, prefix) {
+  const path = document.getElementById(pathId);
+  const len = path.getTotalLength();
+  const g = sel => document.querySelector('#' + pathId.replace('Path', 'Svg') + ' .' + prefix + sel);
+  const handA = g('hand-a'), cargoIn = g('cargo-in'), handB = g('hand-b'), cargoOut = g('cargo-out');
+
+  if (prefersReduced()) {
+    /* reduced: no draw, no travel. One gentle fade for the whole group. */
+    gsap.set(path, { strokeDasharray: 'none', strokeDashoffset: 0 });
+    gsap.fromTo([path, handA, cargoIn, handB, cargoOut],
+      { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'none' });
+    return;
+  }
+
+  gsap.set(path, { strokeDasharray: len, strokeDashoffset: len, opacity: 1 });
+  gsap.set([handA, cargoIn, handB, cargoOut], { opacity: 0 });
+
+  const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+  tl.fromTo(handA,   { x: -20, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5 * k() })
+    .fromTo(cargoIn, { scale: 0.9, opacity: 0, transformOrigin: 'center' },
+                     { scale: 1, opacity: 1, duration: 0.4 * k() }, '-=' + 0.25 * k())
+    .to(path, { strokeDashoffset: 0, duration: 1.2 * k(), ease: 'power2.inOut' }, '-=' + 0.2 * k())
+    .fromTo(handB,   { x: 20, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5 * k() }, '-=' + 0.55 * k())
+    .fromTo(cargoOut,{ scale: 0.9, opacity: 0, transformOrigin: 'center' },
+                     { scale: 1, opacity: 1, duration: 0.5 * k() }, '-=' + 0.25 * k());
+  return tl;
+}
+document.getElementById('replayRibbon').addEventListener('click',
+  () => ribbonTimeline('ribbonPath', 'cr-'));
+document.getElementById('replayRibbon2').addEventListener('click',
+  () => ribbonTimeline('ribbonPath2', 'r2-'));
+
+/* play each ribbon once when it first scrolls into view */
+[['ribbonPath', 'cr-'], ['ribbonPath2', 'r2-']].forEach(([id, prefix]) => {
+  ScrollTrigger.create({
+    trigger: '#' + id, start: 'top 85%', once: true,
+    onEnter: () => ribbonTimeline(id, prefix)
+  });
+});
+
+/* transcript stagger plays once on first view too */
+ScrollTrigger.create({ trigger: '#staggerCard', start: 'top 85%', once: true, onEnter: playStagger });
+</script>
+
+</body>
+</html>

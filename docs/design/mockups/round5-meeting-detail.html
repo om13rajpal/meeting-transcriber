@@ -1,0 +1,1546 @@
+<!-- @moodforge
+schema: 1.0
+round: 5
+phase: all-screens
+worker: moodforge-screen-designer
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T09:36:10Z
+sha256: 70ed421782e814f136b1c4fdaafd8d1ed2d61dbb58601e7ba375c4b599036638
+palette: [#111113, #0E0E0F, #141417, #1A1A1D, #232327, #2A2A2E, #F4F1EA, #EDEAE3, #C9C6BD, #A8A49B, #8A8A86, #E63946, #EC4B57, #B8202D, #FFD23F, #6FCF97, #2C1417, #2B2615, #1C2922]
+fonts: [Big Shoulders Display 800/900, IBM Plex Mono 400/500/600, Inter 400/500/600]
+tokens_used: [--cr-ink, --cr-ink-app, --cr-ink-raised, --cr-ink-hover, --cr-ink-sunken, --cr-rule, --cr-rule-soft, --cr-rule-strong, --cr-paper, --cr-paper-dim, --cr-text, --cr-text-secondary, --cr-text-tertiary, --cr-text-muted, --cr-red, --cr-red-text, --cr-red-fill, --cr-red-fill-hover, --cr-red-fill-press, --cr-yellow, --cr-yellow-ink, --cr-success, --cr-danger, --cr-tint-red, --cr-tint-yellow, --cr-tint-green, --cr-font-display, --cr-font-mono, --cr-font-body, --cr-type-h2, --cr-type-h3, --cr-type-body, --cr-type-sm, --cr-type-mono, --cr-type-meta, --cr-type-tiny, --cr-stroke-hair, --cr-focus-ring, --cr-radius-sm, --cr-radius-md, --cr-radius-lg, --cr-ease-out, --cr-ease-in-out, --cr-dur-press, --cr-dur-hover, --cr-dur-dropdown, --cr-dur-modal, --cr-stagger-row, --cr-press-scale, --cr-measure-app]
+screen: meeting-detail
+summary: MeetingDetail production screen. Complete, Transcribing and Failed states, transcript with speaker tags and mono time rail, search jump-to-match, rename with datalist, merge dialog, notifications panel, tags, cost line, share link.
+-->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting detail · Court Reporter · Round 5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   TOKENS, lifted verbatim from docs/design/brand-kit/tokens.css.
+   Only the subset this screen actually uses. No invented values.
+   ========================================================================== */
+:root{
+  --cr-ink:#0E0E0F; --cr-ink-sunken:#08080A; --cr-ink-app:#111113;
+  --cr-ink-raised:#141417; --cr-ink-hover:#1A1A1D;
+  --cr-rule:#1C1C1C; --cr-rule-soft:#232327; --cr-rule-strong:#2A2A2E;
+
+  --cr-paper:#F4F1EA; --cr-paper-dim:#EDEAE3;
+
+  --cr-text:#F4F1EA; --cr-text-secondary:#C9C6BD; --cr-text-tertiary:#A8A49B;
+  --cr-text-muted:#8A8A86;
+
+  --cr-red:#E63946; --cr-red-text:#EC4B57; --cr-red-fill:#B8202D;
+  --cr-red-fill-hover:#C82232; --cr-red-fill-press:#A81B27;
+
+  --cr-yellow:#FFD23F; --cr-yellow-ink:#0E0E0F;
+
+  --cr-success:#6FCF97; --cr-warning:#FFD23F; --cr-danger:#EC4B57;
+  --cr-tint-red:#2C1417; --cr-tint-yellow:#2B2615; --cr-tint-green:#1C2922;
+
+  --cr-font-display:'Big Shoulders Display','Arial Narrow',system-ui,sans-serif;
+  --cr-font-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',monospace;
+  --cr-font-body:'Inter',system-ui,sans-serif;
+
+  --cr-type-h2:30px; --cr-type-h3:22px; --cr-type-body:15px; --cr-type-sm:13px;
+  --cr-type-mono:12px; --cr-type-meta:11px; --cr-type-tiny:10px;
+
+  --cr-tracking-eyebrow:0.16em; --cr-tracking-tag:0.04em;
+  --cr-leading-body:1.65; --cr-leading-mono:1.90;
+
+  --cr-space-1:4px; --cr-space-2:8px; --cr-space-3:12px; --cr-space-4:16px;
+  --cr-space-5:24px; --cr-space-6:32px; --cr-space-7:40px; --cr-space-8:56px;
+  --cr-measure-app:1040px;
+
+  --cr-stroke-hair:1px; --cr-focus-ring:2px;
+
+  --cr-radius-sm:6px; --cr-radius-md:8px; --cr-radius-lg:10px; --cr-radius-pill:999px;
+
+  --cr-ease-out:cubic-bezier(0.23,1,0.32,1);
+  --cr-ease-in-out:cubic-bezier(0.77,0,0.175,1);
+  --cr-dur-press:140ms; --cr-dur-hover:160ms; --cr-dur-tooltip:160ms;
+  --cr-dur-dropdown:200ms; --cr-dur-modal:400ms;
+  --cr-stagger-row:50ms;
+  --cr-press-scale:0.97;
+}
+@media (prefers-reduced-motion: reduce){
+  :root{
+    --cr-dur-press:1ms; --cr-dur-hover:1ms; --cr-dur-tooltip:1ms;
+    --cr-dur-dropdown:1ms; --cr-dur-modal:1ms; --cr-stagger-row:0ms;
+    --cr-press-scale:1;
+  }
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--cr-ink-app); color:var(--cr-text);
+  font-family:var(--cr-font-body); font-size:var(--cr-type-body);
+  line-height:var(--cr-leading-body);
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;}
+input,select{font:inherit;color:inherit;}
+:focus-visible{
+  outline:var(--cr-focus-ring) solid var(--cr-red);
+  outline-offset:2px; border-radius:var(--cr-radius-sm);
+  transition:outline-offset var(--cr-dur-press) var(--cr-ease-out);
+}
+::selection{background:var(--cr-yellow);color:var(--cr-yellow-ink);}
+
+.wrap{max-width:var(--cr-measure-app);margin:0 auto;padding:0 var(--cr-space-5);}
+
+/* Every pressable thing in this brand presses. No exceptions. */
+.press{transition:transform var(--cr-dur-press) var(--cr-ease-out),
+                  background-color var(--cr-dur-hover) ease,
+                  border-color var(--cr-dur-hover) ease,
+                  color var(--cr-dur-hover) ease;}
+.press:active{transform:scale(var(--cr-press-scale));}
+
+/* ==========================================================================
+   PREVIEW CHROME (not part of the product screen)
+   ========================================================================== */
+.pv-nav{
+  position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:80;
+  display:flex;gap:2px;background:rgba(20,20,23,.92);backdrop-filter:blur(10px);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-pill);padding:4px;
+}
+.pv-nav a{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-muted);text-decoration:none;padding:7px 13px;
+  border-radius:var(--cr-radius-pill);
+  transition:color var(--cr-dur-hover) ease,background-color var(--cr-dur-hover) ease;
+}
+.pv-nav a:hover{color:var(--cr-text-secondary);background:var(--cr-ink-hover);}
+.pv-nav a.on{background:var(--cr-paper-dim);color:var(--cr-ink);}
+
+.changelog{
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  background:var(--cr-ink);padding:var(--cr-space-8) 0 var(--cr-space-7);
+}
+.changelog .eyebrow{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow);text-transform:uppercase;
+  color:var(--cr-red-text);margin:0 0 var(--cr-space-3);
+}
+.changelog h1{
+  font-family:var(--cr-font-display);font-weight:900;font-size:var(--cr-type-h2);
+  text-transform:uppercase;letter-spacing:.01em;line-height:1;margin:0 0 var(--cr-space-4);
+}
+.changelog ul{margin:0;padding:0;list-style:none;max-width:760px;}
+.changelog li{
+  font-size:var(--cr-type-sm);color:var(--cr-text-tertiary);line-height:1.6;
+  padding:9px 0 9px 22px;position:relative;
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule);
+}
+.changelog li:last-child{border-bottom:none;}
+.changelog li::before{
+  content:"§";position:absolute;left:0;top:9px;color:var(--cr-red-text);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);
+}
+.changelog li b{color:var(--cr-text-secondary);font-weight:600;}
+
+.state-band{
+  border-top:var(--cr-stroke-hair) solid var(--cr-red);
+  background:var(--cr-ink);padding:var(--cr-space-5) 0 0;
+}
+.state-band .label{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow);text-transform:uppercase;
+  color:var(--cr-red-text);
+}
+.state-band .note{
+  font-size:var(--cr-type-sm);color:var(--cr-text-muted);margin:6px 0 var(--cr-space-5);
+  max-width:640px;
+}
+
+/* ==========================================================================
+   APP SHELL
+   ========================================================================== */
+.app{background:var(--cr-ink-app);padding:var(--cr-space-6) 0 var(--cr-space-8);}
+.appbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:var(--cr-space-4);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.mark{
+  font-family:var(--cr-font-display);font-weight:900;font-size:17px;
+  text-transform:uppercase;letter-spacing:.02em;color:var(--cr-text);
+}
+.mark span{color:var(--cr-red-text);}
+.crumb{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);font-weight:500;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-muted);text-decoration:none;
+}
+.crumb:hover{color:var(--cr-text-secondary);}
+.avatar{
+  width:28px;height:28px;border-radius:var(--cr-radius-pill);
+  background:var(--cr-ink-hover);border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  display:grid;place-items:center;font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-meta);font-weight:600;color:var(--cr-text-secondary);
+}
+
+/* ---- title block ---- */
+.head{padding:var(--cr-space-6) 0 var(--cr-space-4);}
+.head-top{display:flex;align-items:flex-start;gap:var(--cr-space-4);flex-wrap:wrap;}
+.title{
+  font-family:var(--cr-font-display);font-weight:800;font-size:var(--cr-type-h2);
+  text-transform:uppercase;letter-spacing:.01em;line-height:1.02;margin:0;
+  color:var(--cr-text);flex:1;min-width:280px;
+  border-bottom:var(--cr-stroke-hair) solid transparent;
+  padding-bottom:3px;cursor:text;
+  transition:border-color var(--cr-dur-hover) ease;
+}
+.title:hover{border-bottom-color:var(--cr-rule-strong);}
+.title:focus{outline:none;border-bottom-color:var(--cr-red);}
+.title-hint{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-muted);margin-top:7px;opacity:0;
+  transition:opacity var(--cr-dur-hover) ease;
+}
+.head:hover .title-hint{opacity:1;}
+
+.pill{
+  display:inline-flex;align-items:center;gap:6px;flex:none;
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  padding:5px 11px;border-radius:var(--cr-radius-pill);
+  border:var(--cr-stroke-hair) solid transparent;margin-top:4px;
+}
+.pill.complete{background:var(--cr-tint-green);color:var(--cr-success);}
+.pill.processing{background:var(--cr-tint-yellow);color:var(--cr-yellow);}
+.pill.failed{background:var(--cr-tint-red);color:var(--cr-danger);}
+.dot{width:5px;height:5px;border-radius:var(--cr-radius-pill);background:currentColor;}
+.pill.processing .dot{animation:beat 1.2s var(--cr-ease-in-out) infinite;}
+@keyframes beat{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+.meta{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);
+  color:var(--cr-text-muted);letter-spacing:.01em;
+  margin-top:var(--cr-space-4);display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+}
+.meta .sep{color:var(--cr-rule-strong);}
+.meta b{color:var(--cr-text-tertiary);font-weight:500;}
+.exact{
+  font-size:var(--cr-type-tiny);font-weight:600;letter-spacing:var(--cr-tracking-tag);
+  color:var(--cr-success);background:var(--cr-tint-green);
+  padding:2px 6px;border-radius:var(--cr-radius-sm);
+}
+.est{
+  font-size:var(--cr-type-tiny);font-weight:600;letter-spacing:var(--cr-tracking-tag);
+  color:var(--cr-text-muted);border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  padding:2px 6px;border-radius:var(--cr-radius-sm);
+}
+
+/* ---- tags ---- */
+.tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:var(--cr-space-4);}
+.tag{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:500;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-tertiary);background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  padding:4px 8px;border-radius:var(--cr-radius-sm);
+}
+.tag button{color:var(--cr-text-muted);line-height:1;font-size:12px;padding:0;}
+.tag button:hover{color:var(--cr-red-text);}
+.tag-add{
+  background:transparent;border:var(--cr-stroke-hair) dashed var(--cr-rule-strong);
+  border-radius:var(--cr-radius-sm);padding:4px 8px;width:112px;
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-secondary);
+}
+.tag-add::placeholder{color:var(--cr-text-muted);text-transform:uppercase;}
+.tag-add:focus{outline:none;border-style:solid;border-color:var(--cr-red);}
+.tag-cap{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);
+}
+
+/* ---- buttons ---- */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:var(--cr-type-sm);font-weight:500;
+  padding:8px 13px;border-radius:var(--cr-radius-md);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  color:var(--cr-text-secondary);background:var(--cr-ink-raised);
+}
+.btn:hover{background:var(--cr-ink-hover);color:var(--cr-text);border-color:#33333a;}
+.btn-primary{
+  background:var(--cr-red-fill);color:var(--cr-paper);font-weight:600;
+  border-color:var(--cr-red-fill);
+}
+.btn-primary:hover{background:var(--cr-red-fill-hover);border-color:var(--cr-red-fill-hover);}
+.btn-primary:active{background:var(--cr-red-fill-press);}
+/* destructive is differentiated by SHAPE, never by fill, because primary is
+   already red in this brand */
+.btn-danger{color:var(--cr-danger);border-color:#3a2126;background:transparent;}
+.btn-danger:hover{background:var(--cr-tint-red);color:var(--cr-danger);border-color:#4a272d;}
+.btn-sm{font-size:var(--cr-type-meta);padding:6px 10px;}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--cr-text-muted);}
+.btn-ghost:hover{background:var(--cr-ink-hover);color:var(--cr-text-secondary);border-color:transparent;}
+
+.actions{
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:var(--cr-space-5) 0;
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.actions .spacer{flex:1;}
+
+/* ==========================================================================
+   TRANSCRIPT
+   ========================================================================== */
+.sec{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow);text-transform:uppercase;
+  color:var(--cr-red-text);display:block;margin-bottom:var(--cr-space-3);
+}
+.grid{display:grid;grid-template-columns:1fr 320px;gap:var(--cr-space-7);
+      padding-top:var(--cr-space-6);align-items:start;}
+@media (max-width:900px){.grid{grid-template-columns:1fr;gap:var(--cr-space-6);}}
+
+.tools{display:flex;align-items:center;gap:8px;margin-bottom:var(--cr-space-4);flex-wrap:wrap;}
+.search{
+  position:relative;flex:1;min-width:220px;
+}
+.search input{
+  width:100%;background:var(--cr-ink-sunken);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);padding:9px 96px 9px 34px;
+  font-size:var(--cr-type-sm);color:var(--cr-text);
+  transition:border-color var(--cr-dur-hover) ease;
+}
+.search input::placeholder{color:var(--cr-text-muted);}
+.search input:focus{outline:none;border-color:var(--cr-red);}
+.search .ico{
+  position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  color:var(--cr-text-muted);pointer-events:none;display:flex;
+}
+.search .count{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  display:flex;align-items:center;gap:2px;
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);
+}
+.search .count b{color:var(--cr-text-tertiary);font-weight:500;padding-right:4px;}
+.step{
+  width:20px;height:20px;display:grid;place-items:center;border-radius:var(--cr-radius-sm);
+  color:var(--cr-text-tertiary);
+}
+.step:hover{background:var(--cr-ink-hover);color:var(--cr-text);}
+
+.seg{
+  display:flex;background:var(--cr-ink-sunken);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);padding:2px;flex:none;
+}
+.seg button{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  padding:6px 11px;border-radius:6px;color:var(--cr-text-muted);
+}
+.seg button.on{background:var(--cr-paper-dim);color:var(--cr-ink);}
+.seg button:not(.on):hover{color:var(--cr-text-secondary);}
+
+.pane{
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-lg);background:var(--cr-ink-raised);
+  max-height:620px;overflow-y:auto;scroll-behavior:smooth;
+}
+.pane::-webkit-scrollbar{width:10px;}
+.pane::-webkit-scrollbar-thumb{background:var(--cr-rule-strong);border-radius:99px;border:3px solid var(--cr-ink-raised);}
+
+.utt{
+  display:grid;grid-template-columns:74px 1fr;gap:0;
+  padding:14px var(--cr-space-5) 14px var(--cr-space-4);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-left:var(--cr-stroke-hair) solid transparent;
+  transition:background-color var(--cr-dur-hover) ease;
+}
+.utt:last-child{border-bottom:none;}
+.utt:hover{background:#161619;}
+.utt .time{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);font-weight:400;
+  color:var(--cr-text-muted);padding-top:3px;
+  border-right:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  align-self:stretch;
+}
+.utt .body{padding-left:var(--cr-space-4);min-width:0;}
+.speaker{display:flex;align-items:center;gap:9px;margin-bottom:5px;min-height:20px;}
+.stag{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);padding:2px 6px;border-radius:4px;flex:none;
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  background:var(--cr-ink-hover);color:var(--cr-text-tertiary);
+}
+/* the account owner's own tag inverts to paper, a quiet nod to the printed
+   record on the landing page */
+.stag.self{background:var(--cr-paper-dim);color:var(--cr-ink);border-color:var(--cr-paper-dim);}
+.stag.unnamed{border-style:dashed;color:var(--cr-text-muted);background:transparent;}
+.sname{
+  font-family:var(--cr-font-display);font-weight:800;font-size:14px;
+  text-transform:uppercase;letter-spacing:.03em;color:var(--cr-text-secondary);
+}
+.sname.unnamed{color:var(--cr-text-muted);font-style:normal;}
+.rename-btn{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-muted);opacity:0;padding:2px 5px;border-radius:4px;
+  transition:opacity var(--cr-dur-hover) ease,color var(--cr-dur-hover) ease;
+}
+.utt:hover .rename-btn{opacity:1;}
+.rename-btn:hover{color:var(--cr-text-secondary);background:var(--cr-ink-hover);}
+.line{
+  font-size:var(--cr-type-sm);line-height:var(--cr-leading-mono);
+  color:var(--cr-text-secondary);font-family:var(--cr-font-mono);font-weight:400;
+}
+.line mark{
+  background:var(--cr-yellow);color:var(--cr-yellow-ink);
+  padding:1px 3px;border-radius:2px;font-weight:500;
+}
+.line mark.on{box-shadow:0 0 0 1px var(--cr-yellow-ink) inset;}
+
+/* the jumped to match: an accent hairline, a tint, and a one shot flash.
+   No thicker rule, emphasis is carried by colour. */
+.utt.jumped{
+  background:#17161a;border-left-color:var(--cr-red);
+}
+.utt.jumped .time{color:var(--cr-text-tertiary);}
+.jump-flag{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-red-text);margin-bottom:6px;display:flex;align-items:center;gap:7px;
+}
+.jump-flag i{flex:1;height:1px;background:var(--cr-rule-strong);font-style:normal;}
+@keyframes flash{from{background:var(--cr-tint-red);}to{background:#17161a;}}
+.utt.flash{animation:flash 900ms var(--cr-ease-out) 1;}
+
+/* rename in place: a real input, because <datalist> needs one */
+.rename{display:flex;align-items:center;gap:8px;position:relative;}
+.rename input{
+  background:var(--cr-ink-sunken);
+  border:var(--cr-stroke-hair) solid var(--cr-red);
+  border-radius:var(--cr-radius-sm);padding:4px 9px;width:190px;
+  font-family:var(--cr-font-display);font-weight:800;font-size:14px;
+  text-transform:uppercase;letter-spacing:.03em;color:var(--cr-text);
+}
+.rename input:focus{outline:none;}
+.rename .hint{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+}
+/* a mock of the browser's own datalist popup, since a native one cannot be
+   forced open for a screenshot */
+.dl{
+  position:absolute;top:calc(100% + 5px);left:0;width:190px;z-index:20;
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);padding:4px;
+  box-shadow:0 18px 40px -22px rgba(0,0,0,.9);
+}
+.dl .dl-head{
+  font-family:var(--cr-font-mono);font-size:9px;letter-spacing:var(--cr-tracking-eyebrow);
+  text-transform:uppercase;color:var(--cr-text-muted);padding:5px 8px 6px;
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);margin-bottom:4px;
+}
+.dl div.opt{
+  font-size:var(--cr-type-sm);color:var(--cr-text-secondary);
+  padding:6px 8px;border-radius:5px;cursor:pointer;
+}
+.dl div.opt:hover,.dl div.opt.hot{background:var(--cr-ink-hover);color:var(--cr-text);}
+.dl div.opt b{color:var(--cr-text);font-weight:600;}
+
+.pane-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px var(--cr-space-4);
+  border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;color:var(--cr-text-muted);
+}
+
+/* the no matches state, an inline row, not a full page apology */
+.nomatch{
+  display:none;align-items:center;gap:10px;
+  padding:12px var(--cr-space-4);margin-bottom:var(--cr-space-3);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);background:var(--cr-ink-raised);
+  font-size:var(--cr-type-sm);color:var(--cr-text-tertiary);
+}
+.nomatch.show{display:flex;}
+.nomatch code{font-family:var(--cr-font-mono);color:var(--cr-text);}
+
+/* ==========================================================================
+   SIDE PANELS
+   ========================================================================== */
+.panel{
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-lg);background:var(--cr-ink-raised);
+  padding:var(--cr-space-4) var(--cr-space-4) var(--cr-space-3);
+  margin-bottom:var(--cr-space-4);
+}
+.panel h3{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow);text-transform:uppercase;
+  color:var(--cr-text-muted);margin:0 0 var(--cr-space-3);
+}
+.nrow{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 0;
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.nrow:last-of-type{border-bottom:none;}
+.nrow .ch{flex:1;min-width:0;}
+.nrow .who{
+  font-size:var(--cr-type-sm);color:var(--cr-text-secondary);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.nrow .when{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  color:var(--cr-text-muted);margin-top:3px;
+}
+.badge{
+  font-family:var(--cr-font-mono);font-size:9px;font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  padding:3px 7px;border-radius:var(--cr-radius-sm);flex:none;margin-top:2px;
+}
+.badge.ok{background:var(--cr-tint-green);color:var(--cr-success);}
+.badge.bad{background:var(--cr-tint-red);color:var(--cr-danger);}
+.badge.idle{background:var(--cr-ink-hover);color:var(--cr-text-muted);
+            border:var(--cr-stroke-hair) solid var(--cr-rule-strong);}
+.fmt{
+  font-family:var(--cr-font-mono);font-size:9px;font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;
+  color:var(--cr-text-muted);border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  padding:1px 5px;border-radius:4px;margin-right:7px;
+}
+.panel-foot{padding-top:var(--cr-space-3);border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+            display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.panel-foot small{font-family:var(--cr-font-mono);font-size:9px;color:var(--cr-text-muted);
+                  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;}
+
+.share-url{
+  display:flex;align-items:center;gap:8px;margin-top:var(--cr-space-3);
+  background:var(--cr-ink-sunken);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);padding:8px 9px;
+}
+.share-url code{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-meta);color:var(--cr-text-tertiary);
+  flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.panel p.help{font-size:var(--cr-type-meta);color:var(--cr-text-muted);
+              line-height:1.55;margin:var(--cr-space-3) 0 0;}
+
+.speakers-list{display:flex;flex-direction:column;gap:2px;}
+.sp-row{
+  display:flex;align-items:center;gap:9px;padding:7px 0;
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.sp-row:last-child{border-bottom:none;}
+.sp-row .n{flex:1;font-size:var(--cr-type-sm);color:var(--cr-text-secondary);}
+.sp-row .n.unnamed{color:var(--cr-text-muted);}
+.sp-row .stat{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);}
+
+/* ==========================================================================
+   FAILED STATE
+   ========================================================================== */
+.err{
+  display:flex;gap:12px;align-items:flex-start;
+  border:var(--cr-stroke-hair) solid #3a2126;background:var(--cr-tint-red);
+  border-radius:var(--cr-radius-lg);padding:var(--cr-space-4);
+  margin-top:var(--cr-space-5);
+}
+.err .k{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);font-weight:600;
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;color:var(--cr-danger);
+}
+.err .m{
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-sm);line-height:1.6;
+  color:var(--cr-text-secondary);margin-top:6px;
+}
+.err .m i{color:var(--cr-text-muted);font-style:normal;}
+
+/* ==========================================================================
+   SKELETON (transcribing)
+   ========================================================================== */
+.sk{background:var(--cr-rule-soft);border-radius:4px;height:11px;display:block;}
+.sk.tall{height:13px;}
+.skel .utt{animation:sk 1.2s var(--cr-ease-in-out) infinite;}
+.skel .utt:nth-child(2){animation-delay:.15s;}
+.skel .utt:nth-child(3){animation-delay:.3s;}
+.skel .utt:nth-child(4){animation-delay:.45s;}
+@keyframes sk{0%,100%{opacity:.4;}50%{opacity:.8;}}
+.progress{
+  height:2px;background:var(--cr-rule-soft);border-radius:99px;overflow:hidden;
+  margin-top:var(--cr-space-3);
+}
+.progress i{display:block;height:100%;width:38%;background:var(--cr-yellow);border-radius:99px;}
+
+/* ==========================================================================
+   DIALOG (shadcn Dialog shape, Base UI props in the real build)
+   ========================================================================== */
+.scrim{
+  position:fixed;inset:0;background:rgba(8,8,10,.72);backdrop-filter:blur(2px);
+  z-index:90;display:grid;place-items:center;padding:24px;
+  opacity:0;pointer-events:none;transition:opacity var(--cr-dur-modal) var(--cr-ease-out);
+}
+.scrim.open{opacity:1;pointer-events:auto;}
+.dialog{
+  width:min(440px,100%);background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-lg);
+  /* modals stay centre origin, they are not anchored to a trigger */
+  transform:scale(.96);opacity:0;transform-origin:center;
+  transition:transform var(--cr-dur-modal) var(--cr-ease-out),
+             opacity var(--cr-dur-modal) var(--cr-ease-out);
+}
+.scrim.open .dialog{transform:scale(1);opacity:1;}
+.dialog header{
+  padding:var(--cr-space-4);border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.dialog h2{
+  font-family:var(--cr-font-display);font-weight:800;font-size:var(--cr-type-h3);
+  text-transform:uppercase;letter-spacing:.02em;margin:0;
+}
+.dialog header p{font-size:var(--cr-type-sm);color:var(--cr-text-muted);margin:6px 0 0;line-height:1.5;}
+.dialog .content{padding:var(--cr-space-4);}
+.dialog footer{
+  padding:var(--cr-space-4);border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+.field{margin-bottom:var(--cr-space-4);}
+.field label{
+  display:block;font-family:var(--cr-font-mono);font-size:9px;font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow);text-transform:uppercase;
+  color:var(--cr-text-muted);margin-bottom:7px;
+}
+.select{
+  width:100%;background:var(--cr-ink-sunken);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);padding:9px 11px;font-size:var(--cr-type-sm);
+  color:var(--cr-text);appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8A86' stroke-width='1.75'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat;background-position:right 11px center;
+}
+.select:focus{outline:none;border-color:var(--cr-red);}
+.check{
+  display:flex;align-items:center;gap:11px;padding:11px;
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-md);margin-bottom:7px;cursor:pointer;
+  transition:border-color var(--cr-dur-hover) ease,background-color var(--cr-dur-hover) ease;
+}
+.check:hover{background:var(--cr-ink-hover);}
+.check input{accent-color:var(--cr-red);width:15px;height:15px;flex:none;}
+.check .t{flex:1;font-size:var(--cr-type-sm);color:var(--cr-text-secondary);}
+.check .s{font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);color:var(--cr-text-muted);}
+.check:has(input:checked){border-color:#3a2126;background:var(--cr-tint-red);}
+
+/* ==========================================================================
+   TOASTS (Sonner shape)
+   ========================================================================== */
+.toaster{position:fixed;right:20px;bottom:20px;z-index:120;display:flex;
+         flex-direction:column;gap:8px;align-items:flex-end;}
+.toast{
+  display:flex;align-items:center;gap:10px;min-width:250px;
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);padding:11px 13px;
+  font-size:var(--cr-type-sm);color:var(--cr-text-secondary);
+  box-shadow:0 18px 40px -22px rgba(0,0,0,.9);
+  opacity:1;transform:translateY(0);
+  transition:opacity var(--cr-dur-dropdown) var(--cr-ease-out),
+             transform var(--cr-dur-dropdown) var(--cr-ease-out);
+}
+@starting-style{.toast{opacity:0;transform:translateY(100%);}}
+.toast.out{opacity:0;transform:translateY(8px);}
+.toast .tick{color:var(--cr-success);display:flex;flex:none;}
+
+.foot{
+  border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  padding:var(--cr-space-6) 0 var(--cr-space-8);
+  font-family:var(--cr-font-mono);font-size:var(--cr-type-tiny);
+  letter-spacing:var(--cr-tracking-tag);text-transform:uppercase;color:var(--cr-text-muted);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+</style>
+</head>
+<body>
+
+<nav class="pv-nav">
+  <a href="#complete" class="on">Complete</a>
+  <a href="#transcribing">Transcribing</a>
+  <a href="#failed">Failed</a>
+</nav>
+
+<!-- ======================================================================
+     CHANGELOG
+     ====================================================================== -->
+<section class="changelog">
+  <div class="wrap">
+    <p class="eyebrow">Round 5 · Screen 2 of the product surface</p>
+    <h1>Meeting detail, on the record</h1>
+    <ul>
+      <li><b>The transcript stopped being a preview and became the page.</b> Round 2 showed four sample lines inside a marketing card. This is the real reading surface: a mono time rail, speaker tags, and 15 diarised Hinglish utterances with their own scroll.</li>
+      <li><b>The stamp and the redaction bars stayed on the landing page, where they belong.</b> What crossed over is the part that was always functional: the speaker tag, the timestamp in IBM Plex Mono, and the highlighter, which now has exactly one job, marking a search hit.</li>
+      <li><b>Every border in here is one hairline.</b> The jumped to match is emphasised with an accent coloured 1px rule and a tint, not a thicker line. Nothing on this page is heavier than a hairline except the focus ring, and that is deliberate.</li>
+      <li><b>Deepgram's over splitting is shown, not hidden.</b> Speaker 4 is Priya, cut off from herself at 00:02:31. The merge dialog exists because the diariser is imperfect, so the screen shows the imperfection alongside the fix.</li>
+      <li><b>Notification delivery is a first class panel.</b> A webhook that silently failed used to require reading the database by hand. Three channels, three honest badges, one Resend button.</li>
+      <li><b>Three states on one page.</b> Complete, Transcribing with skeleton rows that match the real utterance layout, and Failed with the Deepgram error passed straight through.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================================================================
+     STATE 1 · COMPLETE
+     ====================================================================== -->
+<section class="state-band" id="complete">
+  <div class="wrap">
+    <span class="label">State 01 · status complete</span>
+    <p class="note">The default. Transcript ready, cost upgraded from estimate to Deepgram's real billed figure, arrived here from the dashboard with an active search for "burn rate".</p>
+  </div>
+</section>
+
+<main class="app">
+  <div class="wrap">
+
+    <div class="appbar" data-anim>
+      <a class="crumb" href="#">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M15 18l-6-6 6-6"/></svg>
+        All meetings
+      </a>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <span class="mark">MEETING<span>.TXT</span></span>
+        <span class="avatar">OR</span>
+      </div>
+    </div>
+
+    <!-- ---------- title ---------- -->
+    <div class="head">
+      <div class="head-top" data-anim>
+        <h1 class="title" contenteditable="true" spellcheck="false" id="mtitle">Q3 revenue sync, Om + Priya + Kabir</h1>
+        <span class="pill complete"><span class="dot"></span>Complete</span>
+      </div>
+      <p class="title-hint">Click the title to rename. Enter saves, Escape cancels.</p>
+
+      <div class="meta" data-anim>
+        <span>26 Aug 2026, 4:12 PM</span>
+        <span class="sep">/</span>
+        <span>02:38 duration</span>
+        <span class="sep">/</span>
+        <span>q3-sync-26aug.mp4, 214 MB</span>
+        <span class="sep">/</span>
+        <span>Nova-3 <b>$0.0187</b></span>
+        <span class="exact" title="Deepgram's Management API returned the real billed amount for request 4f0a1c9e. The estimate was $0.0187.">Exact</span>
+        <span class="sep">/</span>
+        <span>4 speakers</span>
+      </div>
+
+      <div class="tags" data-anim>
+        <span class="tag">q3-planning <button aria-label="Remove tag q3-planning">&times;</button></span>
+        <span class="tag">revenue <button aria-label="Remove tag revenue">&times;</button></span>
+        <span class="tag">board-prep <button aria-label="Remove tag board-prep">&times;</button></span>
+        <span class="tag">zoho <button aria-label="Remove tag zoho">&times;</button></span>
+        <input class="tag-add" id="tagAdd" placeholder="+ Add tag" maxlength="30" aria-label="Add a tag">
+        <span class="tag-cap">4 / 10</span>
+      </div>
+    </div>
+
+    <!-- ---------- actions ---------- -->
+    <div class="actions" data-anim>
+      <button class="btn press" id="openMerge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M7 4v6a4 4 0 004 4h6M17 4v6a4 4 0 01-4 4H7"/><path d="M14 17l3 3 3-3"/></svg>
+        Merge speakers
+      </button>
+      <button class="btn press" id="copyBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
+        Copy transcript
+      </button>
+      <button class="btn press">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"/></svg>
+        Download .txt
+      </button>
+      <span class="spacer"></span>
+      <button class="btn btn-danger press">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+        Delete
+      </button>
+    </div>
+
+    <div class="grid">
+
+      <!-- ---------- transcript ---------- -->
+      <div>
+        <span class="sec">§ Transcript</span>
+
+        <div class="tools" data-anim>
+          <div class="search">
+            <span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+            <input id="q" value="burn rate" aria-label="Search inside this transcript">
+            <span class="count">
+              <b id="qcount">2 / 3</b>
+              <button class="step press" id="prevM" aria-label="Previous match"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg></button>
+              <button class="step press" id="nextM" aria-label="Next match"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+            </span>
+          </div>
+          <div class="seg">
+            <button class="on press">Speakers</button>
+            <button class="press">Plain text</button>
+          </div>
+        </div>
+
+        <div class="nomatch" id="nomatch">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A8A86" stroke-width="1.75"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <span>Nothing in this transcript matches <code id="nmq">bonus</code>. The dashboard search covers titles, tags and file names too.</span>
+        </div>
+
+        <div class="pane" id="pane">
+
+          <div class="utt" data-utt>
+            <span class="time">00:00:07</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S2</span><span class="sname">Priya Bansal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Recording start ho gayi hai. Toh agenda teen cheezein hai, Q3 numbers, Zoho migration, aur hiring.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:00:16</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag self">S1</span><span class="sname">Om Rajpal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Theek hai. Priya, tu numbers se shuru kar. Toh Q3 ka number kya laga finally?</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:00:24</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S2</span><span class="sname">Priya Bansal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Closed at 41.2 lakh, eleven percent up on Q2. Enterprise se 62 percent aaya, baaki self serve se.</p>
+            </div>
+          </div>
+
+          <!-- rename in progress, with the datalist affordance -->
+          <div class="utt" data-utt>
+            <span class="time">00:00:41</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S3</span>
+                <span class="rename">
+                  <input id="renameInput" list="known-speaker-names" value="Kabir Sheth" spellcheck="false" aria-label="Rename speaker 3">
+                  <span class="hint">Enter to save</span>
+                  <div class="dl" id="dlMock">
+                    <div class="dl-head">Names you have used before</div>
+                    <div class="opt hot"><b>Kabir</b> Sheth</div>
+                    <div class="opt"><b>Kab</b>ita Menon</div>
+                    <div class="opt">Priya Bansal</div>
+                    <div class="opt">Aanya Iyer</div>
+                    <div class="opt">Ritvik Nair</div>
+                    <div class="opt">Marcus Holm</div>
+                  </div>
+                </span>
+              </div>
+              <p class="line">Wait, 41.2 mein Meesho pilot include hai? Kyunki woh abhi invoice nahi hua hai.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:00:52</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S2</span><span class="sname">Priya Bansal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Nahi, Meesho excluded hai. Agar woh add karein toh 44.9 lakh ban jaata hai.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:01:04</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag self">S1</span><span class="sname">Om Rajpal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Bahut badhiya. Aur <mark>burn rate</mark>? Last board call mein humne 9.8 lakh a month bola tha.</p>
+            </div>
+          </div>
+
+          <!-- the jumped to match -->
+          <div class="utt jumped flash" data-utt id="activeMatch">
+            <span class="time">00:01:15</span>
+            <div class="body">
+              <div class="jump-flag">Match 2 of 3 <i></i> scrolled into view</div>
+              <div class="speaker">
+                <span class="stag">S2</span><span class="sname">Priya Bansal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line"><mark class="on">Burn rate</mark> ab 8.6 lakh hai, mostly kyunki Deepgram ka bill half ho gaya after we moved to batch.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:01:29</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S3</span><span class="sname">Kabir Sheth</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Haan, aur transcription cost per meeting ab literally do paise hai. Nova three pe switch karne se.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:01:41</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag self">S1</span><span class="sname">Om Rajpal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Okay, toh runway kitna banta hai at that <mark>burn rate</mark>?</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:01:48</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S2</span><span class="sname">Priya Bansal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Nineteen months, assuming zero new revenue. Realistically chaubis se upar.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:02:01</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S3</span><span class="sname">Kabir Sheth</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Ek cheez add karni hai. Zoho migration ke liye vendor ka SOC 2 report chahiye hoga, legal ne poocha hai.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:02:16</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag self">S1</span><span class="sname">Om Rajpal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Kabir, tu us pe follow up kar. Thursday tak chahiye, board deck se pehle.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:02:24</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag">S3</span><span class="sname">Kabir Sheth</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Done, main aaj hi mail kar deta hoon unko.</p>
+            </div>
+          </div>
+
+          <!-- Deepgram over split Priya into S2 and S4. Left visible on purpose. -->
+          <div class="utt" data-utt>
+            <span class="time">00:02:31</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag unnamed">S4</span><span class="sname unnamed">Speaker 4</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Hiring ko next Monday pe push kar dein? Aaj time nahi bachega.</p>
+            </div>
+          </div>
+
+          <div class="utt" data-utt>
+            <span class="time">00:02:35</span>
+            <div class="body">
+              <div class="speaker">
+                <span class="stag self">S1</span><span class="sname">Om Rajpal</span>
+                <button class="rename-btn">Rename</button>
+              </div>
+              <p class="line">Haan Monday theek hai. Main recording band kar deta hoon.</p>
+            </div>
+          </div>
+
+          <div class="pane-foot">
+            <span>15 utterances · 00:02:38 total</span>
+            <span>Diarised by Nova-3, language multi</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- side rail ---------- -->
+      <aside>
+
+        <div class="panel" data-anim>
+          <h3>Notifications</h3>
+
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Email</span>omrajpal.exe@gmail.com</div>
+              <div class="when">26 Aug, 4:15:02 PM</div>
+            </div>
+            <span class="badge ok">Delivered</span>
+          </div>
+
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Generic</span>n8n.omrajpal.dev/webhook/meeting</div>
+              <div class="when">26 Aug, 4:15:02 PM · HTTP 200</div>
+            </div>
+            <span class="badge ok">Delivered</span>
+          </div>
+
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Discord</span>discord.com/api/webhooks/1284…</div>
+              <div class="when">26 Aug, 4:15:04 PM · no response, status 0</div>
+            </div>
+            <span class="badge bad">Failed</span>
+          </div>
+
+          <div class="panel-foot">
+            <small>1 of 3 channels failed</small>
+            <button class="btn btn-sm press" data-resend>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+              Resend
+            </button>
+          </div>
+        </div>
+
+        <div class="panel" data-anim>
+          <h3>Speakers</h3>
+          <div class="speakers-list">
+            <div class="sp-row"><span class="stag self">S1</span><span class="n">Om Rajpal</span><span class="stat">5 lines · 51s</span></div>
+            <div class="sp-row"><span class="stag">S2</span><span class="n">Priya Bansal</span><span class="stat">5 lines · 62s</span></div>
+            <div class="sp-row"><span class="stag">S3</span><span class="n">Kabir Sheth</span><span class="stat">4 lines · 41s</span></div>
+            <div class="sp-row"><span class="stag unnamed">S4</span><span class="n unnamed">Speaker 4</span><span class="stat">1 line · 4s</span></div>
+          </div>
+          <p class="help">Deepgram split one voice into S2 and S4. Merge them and S4's line moves onto Priya.</p>
+          <div class="panel-foot" style="margin-top:12px;">
+            <small>Rename is per speaker, inline</small>
+            <button class="btn btn-sm press" data-open-merge>Merge</button>
+          </div>
+        </div>
+
+        <div class="panel" data-anim>
+          <h3>Share link</h3>
+          <div class="share-url">
+            <code>meeting.txt/share/7f3a9c2e41b8d05a</code>
+            <button class="btn btn-sm press" id="copyShare">Copy</button>
+          </div>
+          <p class="help">Anyone with this link can read the transcript without signing in. Revoking takes effect immediately, this lookup is never cached.</p>
+          <div class="panel-foot" style="margin-top:12px;">
+            <small>Created 26 Aug, 4:22 PM</small>
+            <button class="btn btn-sm btn-danger press">Revoke</button>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+  </div>
+</main>
+
+<!-- ======================================================================
+     STATE 2 · TRANSCRIBING
+     ====================================================================== -->
+<section class="state-band" id="transcribing">
+  <div class="wrap">
+    <span class="label">State 02 · status processing</span>
+    <p class="note">What a reload during a job looks like. The row survives because the Meeting document was created before a single byte was uploaded, and the page polls every 4 seconds on its own with no memory of the upload.</p>
+  </div>
+</section>
+
+<main class="app" style="padding-bottom:var(--cr-space-7);">
+  <div class="wrap">
+    <div class="head" style="padding-top:0;">
+      <div class="head-top">
+        <h1 class="title" contenteditable="true" spellcheck="false">Design review, mobile onboarding</h1>
+        <span class="pill processing"><span class="dot"></span>Transcribing</span>
+      </div>
+      <div class="meta">
+        <span>28 Aug 2026, 10:41 AM</span>
+        <span class="sep">/</span>
+        <span>design-review-28aug.mp4, 1.1 GB</span>
+        <span class="sep">/</span>
+        <span>Nova-3 <b>$0.0212</b></span>
+        <span class="est">Estimated</span>
+        <span class="sep">/</span>
+        <span>Started 3m 12s ago</span>
+      </div>
+      <div class="progress"><i></i></div>
+    </div>
+
+    <div class="grid" style="padding-top:var(--cr-space-5);">
+      <div>
+        <span class="sec">§ Transcript</span>
+        <div class="pane skel" style="max-height:none;">
+          <div class="utt">
+            <span class="time"><span class="sk" style="width:52px;"></span></span>
+            <div class="body">
+              <div class="speaker"><span class="sk" style="width:28px;height:16px;"></span><span class="sk" style="width:96px;height:13px;"></span></div>
+              <span class="sk tall" style="width:92%;margin-bottom:7px;"></span>
+              <span class="sk tall" style="width:64%;"></span>
+            </div>
+          </div>
+          <div class="utt">
+            <span class="time"><span class="sk" style="width:52px;"></span></span>
+            <div class="body">
+              <div class="speaker"><span class="sk" style="width:28px;height:16px;"></span><span class="sk" style="width:78px;height:13px;"></span></div>
+              <span class="sk tall" style="width:78%;"></span>
+            </div>
+          </div>
+          <div class="utt">
+            <span class="time"><span class="sk" style="width:52px;"></span></span>
+            <div class="body">
+              <div class="speaker"><span class="sk" style="width:28px;height:16px;"></span><span class="sk" style="width:110px;height:13px;"></span></div>
+              <span class="sk tall" style="width:88%;margin-bottom:7px;"></span>
+              <span class="sk tall" style="width:41%;"></span>
+            </div>
+          </div>
+          <div class="utt">
+            <span class="time"><span class="sk" style="width:52px;"></span></span>
+            <div class="body">
+              <div class="speaker"><span class="sk" style="width:28px;height:16px;"></span><span class="sk" style="width:88px;height:13px;"></span></div>
+              <span class="sk tall" style="width:70%;"></span>
+            </div>
+          </div>
+          <div class="pane-foot"><span>ffmpeg extract done, Deepgram running</span><span>Polling every 4s</span></div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="panel">
+          <h3>Notifications</h3>
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Email</span>omrajpal.exe@gmail.com</div>
+              <div class="when">Sends the moment the job leaves processing</div>
+            </div>
+            <span class="badge idle">Not sent</span>
+          </div>
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Generic</span>n8n.omrajpal.dev/webhook/meeting</div>
+              <div class="when">Queued</div>
+            </div>
+            <span class="badge idle">Not sent</span>
+          </div>
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Discord</span>discord.com/api/webhooks/1284…</div>
+              <div class="when">Queued</div>
+            </div>
+            <span class="badge idle">Not sent</span>
+          </div>
+          <div class="panel-foot">
+            <small>Nothing to resend yet</small>
+            <button class="btn btn-sm press" disabled style="opacity:.4;cursor:not-allowed;">Resend</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Tags</h3>
+          <div class="tags" style="margin-top:0;">
+            <input class="tag-add" placeholder="+ Add tag" maxlength="30" aria-label="Add a tag">
+          </div>
+          <p class="help">No tags on this one yet. Tags are searchable from the dashboard, so the search box doubles as the filter.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<!-- ======================================================================
+     STATE 3 · FAILED
+     ====================================================================== -->
+<section class="state-band" id="failed">
+  <div class="wrap">
+    <span class="label">State 03 · status failed</span>
+    <p class="note">Deepgram's own error messages are already safe to show, so this one is passed straight through. Anything else, including raw ffmpeg output, collapses to a generic line. Notifications still fired, so the panel and Resend are both here.</p>
+  </div>
+</section>
+
+<main class="app">
+  <div class="wrap">
+    <div class="head" style="padding-top:0;">
+      <div class="head-top">
+        <h1 class="title" contenteditable="true" spellcheck="false">Vendor call, Zoho migration</h1>
+        <span class="pill failed"><span class="dot"></span>Failed</span>
+      </div>
+      <div class="meta">
+        <span>27 Aug 2026, 11:04 AM</span>
+        <span class="sep">/</span>
+        <span>zoho-vendor-call-27aug.mp4, 1.4 GB</span>
+        <span class="sep">/</span>
+        <span>No transcript, no cost recorded</span>
+      </div>
+
+      <div class="err">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EC4B57" stroke-width="1.75" style="flex:none;margin-top:2px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg>
+        <div>
+          <div class="k">Transcription failed</div>
+          <p class="m">Deepgram returned 400. The media file could not be decoded, the audio stream appears to be empty.<br><i>Failed at 11:09:26 AM, 5m 22s after the upload finished.</i></p>
+        </div>
+      </div>
+
+      <div class="tags">
+        <span class="tag">zoho <button aria-label="Remove tag zoho">&times;</button></span>
+        <span class="tag">vendor <button aria-label="Remove tag vendor">&times;</button></span>
+        <input class="tag-add" placeholder="+ Add tag" maxlength="30" aria-label="Add a tag">
+        <span class="tag-cap">2 / 10</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary press">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 16V4m0 0l-4 4m4-4l4 4M5 20h14"/></svg>
+        Upload this file again
+      </button>
+      <button class="btn press">Check the source file</button>
+      <span class="spacer"></span>
+      <button class="btn btn-danger press">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+        Delete
+      </button>
+    </div>
+
+    <div class="grid">
+      <div>
+        <span class="sec">§ Transcript</span>
+        <div class="pane" style="max-height:none;">
+          <div class="utt" style="grid-template-columns:1fr;">
+            <div class="body" style="padding-left:0;text-align:left;">
+              <p class="line" style="color:var(--cr-text-muted);">
+                Nothing was transcribed. The 1.4 GB upload reached the backend and ffmpeg ran,<br>
+                but the extracted track had no decodable audio, so there is no record to show.
+              </p>
+            </div>
+          </div>
+          <div class="pane-foot">
+            <span>0 utterances</span>
+            <span>Failed jobs keep their row until you delete it</span>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="panel">
+          <h3>Notifications</h3>
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Email</span>omrajpal.exe@gmail.com</div>
+              <div class="when">27 Aug, 11:09:27 AM</div>
+            </div>
+            <span class="badge ok">Delivered</span>
+          </div>
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Generic</span>n8n.omrajpal.dev/webhook/meeting</div>
+              <div class="when">27 Aug, 11:09:28 AM · HTTP 500</div>
+            </div>
+            <span class="badge bad">Failed</span>
+          </div>
+          <div class="nrow">
+            <div class="ch">
+              <div class="who"><span class="fmt">Discord</span>discord.com/api/webhooks/1284…</div>
+              <div class="when">27 Aug, 11:09:28 AM · HTTP 204</div>
+            </div>
+            <span class="badge ok">Delivered</span>
+          </div>
+          <div class="panel-foot">
+            <small>1 of 3 channels failed</small>
+            <button class="btn btn-sm press" data-resend>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+              Resend
+            </button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Speakers</h3>
+          <p class="help" style="margin-top:0;">No diarisation ran, so there are no speakers to name or merge. Rename and Merge are hidden rather than disabled, there is nothing here to act on.</p>
+        </div>
+      </aside>
+    </div>
+
+    <div class="foot">
+      <span>Meeting detail · Court Reporter · product surface</span>
+      <span>Restrained tokens, one hairline, yellow for matches only</span>
+    </div>
+  </div>
+</main>
+
+<!-- the real datalist, shared by every rename input on the page -->
+<datalist id="known-speaker-names">
+  <option value="Om Rajpal"></option>
+  <option value="Priya Bansal"></option>
+  <option value="Kabir Sheth"></option>
+  <option value="Kabita Menon"></option>
+  <option value="Aanya Iyer"></option>
+  <option value="Ritvik Nair"></option>
+  <option value="Marcus Holm"></option>
+</datalist>
+
+<!-- ======================================================================
+     MERGE SPEAKERS DIALOG
+     ====================================================================== -->
+<div class="scrim" id="mergeScrim" role="dialog" aria-modal="true" aria-labelledby="mergeTitle">
+  <div class="dialog">
+    <header>
+      <h2 id="mergeTitle">Merge speakers</h2>
+      <p>Deepgram sometimes splits one voice across several ids. Pick the one to keep, then tick everyone who is really the same person.</p>
+    </header>
+    <div class="content">
+      <div class="field">
+        <label for="keepAs">Keep as</label>
+        <select class="select" id="keepAs">
+          <option selected>S2 · Priya Bansal</option>
+          <option>S1 · Om Rajpal</option>
+          <option>S3 · Kabir Sheth</option>
+          <option>S4 · Speaker 4</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Merge these into it</label>
+        <label class="check">
+          <input type="checkbox" checked>
+          <span class="t">S4 · Speaker 4</span>
+          <span class="s">1 line · 4s</span>
+        </label>
+        <label class="check">
+          <input type="checkbox">
+          <span class="t">S1 · Om Rajpal</span>
+          <span class="s">5 lines · 51s</span>
+        </label>
+        <label class="check">
+          <input type="checkbox">
+          <span class="t">S3 · Kabir Sheth</span>
+          <span class="s">4 lines · 41s</span>
+        </label>
+      </div>
+    </div>
+    <footer>
+      <button class="btn press" data-close-merge>Cancel</button>
+      <button class="btn btn-primary press" id="doMerge">Merge 1 speaker</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toaster" id="toaster"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- entrance, app weight. Nothing over 300ms. ---------- */
+  if (window.gsap) {
+    var tl = gsap.timeline({defaults:{ease:'power3.out', duration: reduce ? 0.2 : 0.28}});
+    tl.from('[data-anim]', {opacity:0, y: reduce ? 0 : 6, stagger: reduce ? 0 : 0.05})
+      .from('#pane [data-utt]', {opacity:0, y: reduce ? 0 : 4, stagger: reduce ? 0 : 0.05, duration: reduce ? 0.2 : 0.24}, '-=0.15');
+  }
+
+  /* ---------- jump to match, scoped to the transcript pane so the page
+       itself never moves under the reader ---------- */
+  var pane = document.getElementById('pane');
+  var hit  = document.getElementById('activeMatch');
+  if (pane && hit) {
+    var go = function(){
+      var top = hit.offsetTop - (pane.clientHeight / 2) + (hit.offsetHeight / 2);
+      pane.scrollTo({top: top, behavior: reduce ? 'auto' : 'smooth'});
+    };
+    setTimeout(go, reduce ? 0 : 620);
+  }
+
+  /* ---------- toasts, Sonner shape, bottom right ---------- */
+  var toaster = document.getElementById('toaster');
+  function toast(msg){
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = '<span class="tick"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12.5l5 5L20 6.5"/></svg></span><span>' + msg + '</span>';
+    toaster.appendChild(el);
+    setTimeout(function(){
+      el.classList.add('out');
+      setTimeout(function(){ el.remove(); }, 220);
+    }, 2600);
+  }
+
+  /* ---------- title, contentEditable, same pattern the app already uses ---------- */
+  var title = document.getElementById('mtitle');
+  if (title) {
+    var original = title.textContent;
+    title.addEventListener('keydown', function(e){
+      if (e.key === 'Enter'){ e.preventDefault(); title.blur(); }
+      if (e.key === 'Escape'){ title.textContent = original; title.blur(); }
+    });
+    title.addEventListener('blur', function(){
+      var next = title.textContent.trim();
+      if (!next){ title.textContent = original; return; }
+      if (next !== original){ original = next; toast('Title saved'); }
+    });
+  }
+
+  /* ---------- tags ---------- */
+  document.querySelectorAll('.tag-add').forEach(function(input){
+    input.addEventListener('keydown', function(e){
+      if (e.key !== 'Enter') return;
+      var v = input.value.trim();
+      if (!v) return;
+      var chip = document.createElement('span');
+      chip.className = 'tag';
+      chip.innerHTML = v.replace(/</g,'&lt;') + ' <button aria-label="Remove tag">&times;</button>';
+      input.parentNode.insertBefore(chip, input);
+      input.value = '';
+      toast('Tag added');
+    });
+  });
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.tag button');
+    if (b){ b.parentNode.remove(); }
+  });
+
+  /* ---------- search, live over the visible transcript ---------- */
+  var q = document.getElementById('q');
+  var count = document.getElementById('qcount');
+  var nomatch = document.getElementById('nomatch');
+  var nmq = document.getElementById('nmq');
+  var lines = Array.prototype.slice.call(document.querySelectorAll('#pane .line'));
+  var plain = lines.map(function(l){ return l.textContent; });
+
+  function esc(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+  function render(term){
+    var n = 0;
+    lines.forEach(function(l, i){
+      var text = plain[i];
+      if (!term){ l.textContent = text; return; }
+      var re = new RegExp('(' + esc(term) + ')','ig');
+      l.innerHTML = text.replace(/</g,'&lt;').replace(re, function(m){
+        n++;
+        return '<mark' + (n === 2 ? ' class="on"' : '') + '>' + m + '</mark>';
+      });
+    });
+    count.textContent = term ? (n ? Math.min(2, n) + ' / ' + n : '0 / 0') : '0 / 0';
+    if (term && n === 0){ nmq.textContent = term; nomatch.classList.add('show'); }
+    else { nomatch.classList.remove('show'); }
+  }
+  if (q){
+    q.addEventListener('input', function(){ render(q.value.trim()); });
+  }
+
+  /* ---------- merge dialog ---------- */
+  var scrim = document.getElementById('mergeScrim');
+  function openMerge(){ scrim.classList.add('open'); document.getElementById('keepAs').focus(); }
+  function closeMerge(instant){
+    if (instant){
+      // keyboard initiated closes are never animated
+      scrim.style.transitionDuration = '0ms';
+      var d = scrim.querySelector('.dialog');
+      d.style.transitionDuration = '0ms';
+      scrim.classList.remove('open');
+      setTimeout(function(){ scrim.style.transitionDuration = ''; d.style.transitionDuration = ''; }, 30);
+    } else {
+      scrim.classList.remove('open');
+    }
+  }
+  document.querySelectorAll('#openMerge, [data-open-merge]').forEach(function(b){
+    b.addEventListener('click', openMerge);
+  });
+  document.querySelectorAll('[data-close-merge]').forEach(function(b){
+    b.addEventListener('click', function(){ closeMerge(false); });
+  });
+  scrim.addEventListener('click', function(e){ if (e.target === scrim) closeMerge(false); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && scrim.classList.contains('open')) closeMerge(true);
+  });
+
+  var checks = scrim.querySelectorAll('.check input');
+  var doMerge = document.getElementById('doMerge');
+  function syncMergeLabel(){
+    var n = 0;
+    checks.forEach(function(c){ if (c.checked) n++; });
+    doMerge.textContent = n === 1 ? 'Merge 1 speaker' : 'Merge ' + n + ' speakers';
+    doMerge.disabled = n === 0;
+    doMerge.style.opacity = n === 0 ? '.45' : '1';
+  }
+  checks.forEach(function(c){ c.addEventListener('change', syncMergeLabel); });
+  doMerge.addEventListener('click', function(){
+    closeMerge(false);
+    toast('Speaker 4 merged into Priya Bansal');
+  });
+
+  /* ---------- rename input ---------- */
+  var rn = document.getElementById('renameInput');
+  var dl = document.getElementById('dlMock');
+  if (rn){
+    rn.addEventListener('keydown', function(e){
+      if (e.key === 'Enter'){ e.preventDefault(); dl.style.display = 'none'; rn.blur(); toast('Speaker renamed to ' + rn.value.trim()); }
+      if (e.key === 'Escape'){ dl.style.display = 'none'; rn.blur(); }
+    });
+    dl.querySelectorAll('.opt').forEach(function(o){
+      o.addEventListener('click', function(){
+        rn.value = o.textContent;
+        dl.style.display = 'none';
+        toast('Speaker renamed to ' + o.textContent);
+      });
+    });
+  }
+
+  /* ---------- misc actions ---------- */
+  var copyBtn = document.getElementById('copyBtn');
+  if (copyBtn) copyBtn.addEventListener('click', function(){ toast('Transcript copied, 15 utterances'); });
+  var copyShare = document.getElementById('copyShare');
+  if (copyShare) copyShare.addEventListener('click', function(){ toast('Share link copied'); });
+  document.querySelectorAll('[data-resend]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var panel = b.closest('.panel');
+      var bad = panel.querySelector('.badge.bad');
+      b.textContent = 'Sending';
+      setTimeout(function(){
+        if (bad){ bad.className = 'badge ok'; bad.textContent = 'Delivered'; }
+        var small = panel.querySelector('.panel-foot small');
+        if (small) small.textContent = 'All 3 channels delivered';
+        b.innerHTML = 'Resend';
+        toast('Notifications re-attempted, 3 of 3 delivered');
+      }, 900);
+    });
+  });
+
+  /* ---------- preview nav ---------- */
+  var navLinks = document.querySelectorAll('.pv-nav a');
+  var targets = ['complete','transcribing','failed'].map(function(id){ return document.getElementById(id); });
+  window.addEventListener('scroll', function(){
+    var y = window.scrollY + 140, on = 0;
+    targets.forEach(function(t, i){ if (t && t.offsetTop <= y) on = i; });
+    navLinks.forEach(function(a, i){ a.classList.toggle('on', i === on); });
+  }, {passive:true});
+})();
+</script>
+</body>
+</html>

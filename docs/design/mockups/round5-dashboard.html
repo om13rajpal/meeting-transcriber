@@ -1,0 +1,1276 @@
+<!-- @moodforge
+schema: 1.0
+round: 5
+phase: all-screens
+worker: moodforge-screen-designer
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T09:39:45Z
+sha256: 5788b9ce779974770719364c2400b28c173aa4c7f96c9c5e440167a35753798b
+palette: [#111113, #0E0E0F, #141417, #F4F1EA, #B8202D, #E63946, #EC4B57, #FFD23F, #6FCF97, #232327, #2A2A2E, #8A8A86]
+fonts: [Big Shoulders Display 800, IBM Plex Mono 400/500/600, Geist 400/500/600]
+tokens_used: [--cr-ink-app, --cr-ink-raised, --cr-ink-hover, --cr-rule-soft, --cr-rule-strong, --cr-text, --cr-text-secondary, --cr-text-tertiary, --cr-text-muted, --cr-red, --cr-red-text, --cr-red-fill, --cr-red-fill-hover, --cr-red-fill-press, --cr-yellow, --cr-success, --cr-tint-red, --cr-tint-yellow, --cr-tint-green, --cr-font-display, --cr-font-mono, --cr-font-body, --cr-type-h2, --cr-type-body, --cr-type-sm, --cr-type-mono, --cr-type-meta, --cr-type-tiny, --cr-space-1, --cr-space-2, --cr-space-3, --cr-space-4, --cr-space-5, --cr-space-6, --cr-space-7, --cr-measure-app, --cr-stroke-hair, --cr-focus-ring, --cr-radius-sm, --cr-radius-md, --cr-radius-lg, --cr-radius-pill, --cr-ease-out, --cr-ease-in-out, --cr-dur-press, --cr-dur-hover, --cr-dur-dropdown, --cr-dur-modal, --cr-stagger-row, --cr-press-scale]
+screen: dashboard
+summary: Production Dashboard screen, Court Reporter restrained. Five live states (working session with concurrent uploads, active search with bulk select, first run, loading skeleton, no results) plus delete and add-tag dialogs and the avatar menu, all on real Hinglish meeting data.
+-->
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Court Reporter · Meeting Transcriber</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   Tokens, copied verbatim from docs/design/brand-kit/tokens.css.
+   Nothing here is invented. Only the tokens this screen actually uses.
+   ========================================================================== */
+:root{
+  --cr-ink:            #0E0E0F;
+  --cr-ink-app:        #111113;
+  --cr-ink-raised:     #141417;
+  --cr-ink-hover:      #1A1A1D;
+  --cr-rule:           #1C1C1C;
+  --cr-rule-soft:      #232327;
+  --cr-rule-strong:    #2A2A2E;
+
+  --cr-paper:          #F4F1EA;
+  --cr-text:           #F4F1EA;
+  --cr-text-secondary: #C9C6BD;
+  --cr-text-tertiary:  #A8A49B;
+  --cr-text-muted:     #8A8A86;
+
+  --cr-red:            #E63946;
+  --cr-red-text:       #EC4B57;
+  --cr-red-fill:       #B8202D;
+  --cr-red-fill-hover: #C82232;
+  --cr-red-fill-press: #A81B27;
+
+  --cr-yellow:         #FFD23F;
+  --cr-yellow-ink:     #0E0E0F;
+
+  --cr-success:        #6FCF97;
+
+  --cr-tint-red:       #2C1417;
+  --cr-tint-yellow:    #2B2615;
+  --cr-tint-green:     #1C2922;
+
+  --cr-font-display: 'Big Shoulders Display', 'Arial Narrow', system-ui, sans-serif;
+  --cr-font-mono:    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --cr-font-body:    'Geist', system-ui, sans-serif;
+
+  --cr-type-h2:    30px;
+  --cr-type-h3:    22px;
+  --cr-type-body:  15px;
+  --cr-type-sm:    13px;
+  --cr-type-mono:  12px;
+  --cr-type-meta:  11px;
+  --cr-type-tiny:  10px;
+
+  --cr-tracking-eyebrow: 0.16em;
+  --cr-tracking-tag:     0.04em;
+  --cr-leading-body:     1.65;
+
+  --cr-space-1:  4px;  --cr-space-2:  8px;  --cr-space-3: 12px;
+  --cr-space-4: 16px;  --cr-space-5: 24px;  --cr-space-6: 32px;
+  --cr-space-7: 40px;  --cr-space-8: 56px;
+
+  --cr-measure-app: 1040px;
+
+  --cr-stroke-hair: 1px;
+  --cr-focus-ring:  2px;
+  --cr-stroke-icon: 1.75px;
+
+  --cr-radius-sm:    6px;
+  --cr-radius-md:    8px;
+  --cr-radius-lg:   10px;
+  --cr-radius-pill: 999px;
+
+  --cr-ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --cr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --cr-dur-press:    140ms;
+  --cr-dur-hover:    160ms;
+  --cr-dur-dropdown: 200ms;
+  --cr-dur-modal:    400ms;
+  --cr-stagger-row:   50ms;
+  --cr-press-scale:  0.97;
+
+  /* Reduced motion flattens travel and scale to identity through these two,
+     rather than a blanket transform:none, so pinned things do not strand.
+     Locked in Round 4. */
+  --m-y: 1;
+  --m-scale: 1;
+}
+
+@media (prefers-reduced-motion: reduce){
+  :root{
+    --cr-dur-press: 1ms; --cr-dur-hover: 1ms; --cr-dur-dropdown: 1ms;
+    --cr-dur-modal: 1ms; --cr-stagger-row: 0ms; --cr-press-scale: 1;
+    --m-y: 0; --m-scale: 1;
+  }
+}
+
+/* ==========================================================================
+   Preview chrome. Everything in this block sits OUTSIDE the product surface
+   and is not part of the shipped screen.
+   ========================================================================== */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--cr-ink);
+  color:var(--cr-text);
+  font-family:var(--cr-font-body);
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;}
+
+.pv-nav{
+  position:sticky; top:0; z-index:60;
+  display:flex; gap:2px; align-items:center; flex-wrap:wrap;
+  padding:10px 20px;
+  background:rgba(14,14,15,.86);
+  backdrop-filter:blur(10px);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.pv-nav .pv-brand{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta);
+  letter-spacing:var(--cr-tracking-eyebrow); text-transform:uppercase;
+  color:var(--cr-text-muted); margin-right:auto;
+}
+.pv-nav a{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta);
+  letter-spacing:.06em; text-transform:uppercase; text-decoration:none;
+  color:var(--cr-text-muted); padding:6px 10px; border-radius:var(--cr-radius-sm);
+  transition:color var(--cr-dur-hover) var(--cr-ease-out), background-color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .pv-nav a:hover{color:var(--cr-text); background:var(--cr-ink-hover);}
+}
+.pv-nav a.on{color:var(--cr-text); background:var(--cr-ink-hover);}
+
+.pv-wrap{max-width:1180px; margin:0 auto; padding:56px 20px 120px;}
+
+.pv-title{
+  font-family:var(--cr-font-display); font-weight:800; font-size:var(--cr-type-h2);
+  text-transform:uppercase; letter-spacing:.005em; margin:0 0 6px;
+}
+.pv-sub{
+  font-size:var(--cr-type-sm); color:var(--cr-text-tertiary);
+  line-height:var(--cr-leading-body); max-width:62ch; margin:0 0 var(--cr-space-6);
+}
+.changelog{
+  border-top:var(--cr-stroke-hair) solid var(--cr-red);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  padding:var(--cr-space-5) 0 var(--cr-space-5);
+  margin:0 0 var(--cr-space-8);
+}
+.changelog h2{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow); text-transform:uppercase;
+  color:var(--cr-text-muted); margin:0 0 var(--cr-space-4);
+}
+.changelog ul{margin:0; padding:0; list-style:none; display:grid; gap:10px; max-width:82ch;}
+.changelog li{
+  position:relative; padding-left:22px;
+  font-size:var(--cr-type-sm); color:var(--cr-text-secondary); line-height:1.6;
+}
+.changelog li::before{
+  content:"§"; position:absolute; left:0; top:0;
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta);
+  color:var(--cr-red-text);
+}
+.changelog b{color:var(--cr-text); font-weight:600;}
+
+.state{margin:0 0 var(--cr-space-8); scroll-margin-top:64px;}
+.state-head{display:flex; align-items:baseline; gap:var(--cr-space-3); flex-wrap:wrap; margin-bottom:var(--cr-space-3);}
+.state-num{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow); text-transform:uppercase; color:var(--cr-red-text);
+}
+.state-name{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); font-weight:500;
+  letter-spacing:var(--cr-tracking-eyebrow); text-transform:uppercase; color:var(--cr-text);
+}
+.state-note{font-size:var(--cr-type-sm); color:var(--cr-text-muted); flex:1 1 320px; min-width:0;}
+
+/* ==========================================================================
+   PRODUCT SURFACE. Everything below is the real screen.
+   Rules in force: no stamps, no redaction, nothing above 30px, no CTA glow,
+   nothing slower than 400ms. Yellow is the search mark and the Transcribing
+   status only. Red is the primary fill, the focus ring, and Failed only.
+   Every border on this surface is 1px. The focus ring is the only 2px line.
+   ========================================================================== */
+.app{
+  background:var(--cr-ink-app);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-lg);
+  overflow:hidden;
+  color:var(--cr-text);
+}
+.app button, .app input{font-family:inherit;}
+.app button{background:none; border:0; padding:0; color:inherit; cursor:pointer;}
+.app :focus-visible{
+  outline:var(--cr-focus-ring) solid var(--cr-red);
+  outline-offset:2px;
+  border-radius:var(--cr-radius-sm);
+  transition:outline-offset var(--cr-dur-press) var(--cr-ease-out);
+}
+
+/* header ------------------------------------------------------------------ */
+.app-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px var(--cr-space-5);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+}
+.wordmark{
+  font-family:var(--cr-font-display); font-weight:800; font-size:18px;
+  letter-spacing:.01em; text-transform:uppercase; color:var(--cr-text);
+}
+.wordmark span{color:var(--cr-red-text);}
+.avatar-wrap{position:relative;}
+.avatar{
+  width:32px; height:32px; border-radius:var(--cr-radius-pill);
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  display:grid; place-items:center;
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); font-weight:600;
+  color:var(--cr-text-secondary);
+  transition:transform var(--cr-dur-press) var(--cr-ease-out), border-color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .avatar:hover{border-color:var(--cr-hairline,#6B675F);} }
+.avatar:active{transform:scale(var(--cr-press-scale));}
+
+.menu{
+  position:absolute; right:0; top:calc(100% + 8px); z-index:40;
+  min-width:230px;
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);
+  padding:6px;
+  transform-origin:top right;
+  opacity:0; transform:scale(.97) translateY(calc(-4px * var(--m-y)));
+  pointer-events:none;
+  transition:opacity var(--cr-dur-dropdown) var(--cr-ease-out), transform var(--cr-dur-dropdown) var(--cr-ease-out);
+}
+.menu[data-open="true"]{opacity:1; transform:none; pointer-events:auto;}
+.menu-label{
+  padding:8px 10px 6px; font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+  overflow:hidden; text-overflow:ellipsis;
+}
+.menu-sep{height:var(--cr-stroke-hair); background:var(--cr-rule-soft); margin:4px 0;}
+.menu-item{
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:8px 10px; border-radius:var(--cr-radius-sm);
+  font-size:var(--cr-type-sm); color:var(--cr-text-secondary); text-align:left;
+  transition:background-color var(--cr-dur-hover) var(--cr-ease-out), color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .menu-item:hover{background:var(--cr-ink-hover); color:var(--cr-text);}
+  .menu-item.danger:hover{color:var(--cr-red-text);}
+}
+
+/* main -------------------------------------------------------------------- */
+.app-main{max-width:var(--cr-measure-app); margin:0 auto; padding:var(--cr-space-6) var(--cr-space-5) var(--cr-space-7);}
+
+.eyebrow{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); font-weight:600;
+  letter-spacing:var(--cr-tracking-eyebrow); text-transform:uppercase;
+  color:var(--cr-text-muted); margin:0 0 var(--cr-space-3);
+}
+
+/* dropzone ---------------------------------------------------------------- */
+.dropzone{
+  display:flex; flex-direction:column; align-items:center; gap:var(--cr-space-2);
+  padding:var(--cr-space-7) var(--cr-space-5);
+  border:var(--cr-stroke-hair) dashed var(--cr-rule-strong);
+  border-radius:var(--cr-radius-lg);
+  background:transparent; text-align:center; width:100%;
+  transition:border-color var(--cr-dur-hover) var(--cr-ease-out), background-color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){
+  .dropzone:hover{border-color:var(--cr-text-muted); background:rgba(255,255,255,.012);}
+}
+.dropzone[data-drag="true"]{border-color:var(--cr-red); background:var(--cr-tint-red);}
+.dropzone svg{color:var(--cr-text-tertiary); margin-bottom:var(--cr-space-1);}
+.dropzone .dz-title{font-size:var(--cr-type-body); font-weight:500; color:var(--cr-text);}
+.dropzone .dz-sub{font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted);}
+
+/* upload queue ------------------------------------------------------------ */
+.queue{display:flex; flex-direction:column; gap:var(--cr-space-2); margin-top:var(--cr-space-3);}
+.file-row{
+  display:flex; align-items:center; gap:var(--cr-space-3);
+  padding:var(--cr-space-3) var(--cr-space-4);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  border-radius:var(--cr-radius-md);
+  background:var(--cr-ink-raised);
+}
+.file-row svg{color:var(--cr-text-muted); flex:0 0 auto;}
+.file-main{min-width:0; flex:1 1 auto;}
+.file-name{display:flex; align-items:baseline; gap:var(--cr-space-2); font-size:var(--cr-type-sm);}
+.file-name b{font-weight:500; color:var(--cr-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.file-name span{font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted); flex:0 0 auto;}
+.file-note{margin-top:3px; font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted);}
+.file-note.err{color:var(--cr-red-text);}
+.track{
+  margin-top:8px; height:4px; border-radius:var(--cr-radius-pill);
+  background:var(--cr-rule-strong); overflow:hidden;
+}
+/* scaleX rather than width: the fill runs on the compositor, and a progress
+   bar is constant motion, so it eases linear. */
+.track i{
+  display:block; height:100%; border-radius:inherit; background:var(--cr-red-fill);
+  transform-origin:left center; transform:scaleX(0);
+  transition:transform 300ms linear;
+}
+.file-actions{display:flex; align-items:center; gap:var(--cr-space-2); flex:0 0 auto;}
+.queue-foot{display:flex; justify-content:flex-end; gap:var(--cr-space-2); margin-top:var(--cr-space-1);}
+
+/* buttons ----------------------------------------------------------------- */
+.btn{
+  display:inline-flex; align-items:center; gap:7px;
+  height:34px; padding:0 14px;
+  border-radius:var(--cr-radius-md);
+  font-size:var(--cr-type-sm); font-weight:500; white-space:nowrap;
+  transition:background-color var(--cr-dur-hover) var(--cr-ease-out),
+             border-color var(--cr-dur-hover) var(--cr-ease-out),
+             color var(--cr-dur-hover) var(--cr-ease-out),
+             transform var(--cr-dur-press) var(--cr-ease-out);
+}
+.btn:active{transform:scale(var(--cr-press-scale));}
+.btn-sm{height:30px; padding:0 11px; font-size:var(--cr-type-mono);}
+.btn-primary{background:var(--cr-red-fill); color:var(--cr-paper); font-weight:600;}
+@media (hover:hover) and (pointer:fine){ .btn-primary:hover{background:var(--cr-red-fill-hover);} }
+.btn-primary:active{background:var(--cr-red-fill-press);}
+.btn-primary[disabled]{opacity:.45; cursor:not-allowed;}
+.btn-outline{
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  color:var(--cr-text-secondary); background:transparent;
+}
+@media (hover:hover) and (pointer:fine){
+  .btn-outline:hover{background:var(--cr-ink-hover); color:var(--cr-text);}
+}
+/* Destructive is an OUTLINE, never a fill. In this brand the primary action
+   is already red, so a filled red Delete would read as the same button as
+   Upload. Open item 2 in the brand kit README, resolved here. */
+.btn-danger{
+  border:var(--cr-stroke-hair) solid var(--cr-red-text);
+  color:var(--cr-red-text); background:transparent;
+}
+@media (hover:hover) and (pointer:fine){ .btn-danger:hover{background:var(--cr-tint-red);} }
+.btn-ghost{color:var(--cr-text-muted); padding:0 8px;}
+@media (hover:hover) and (pointer:fine){ .btn-ghost:hover{color:var(--cr-text);} }
+.icon-btn{
+  width:28px; height:28px; display:grid; place-items:center;
+  border-radius:var(--cr-radius-sm); color:var(--cr-text-muted);
+  transition:color var(--cr-dur-hover) var(--cr-ease-out), background-color var(--cr-dur-hover) var(--cr-ease-out), transform var(--cr-dur-press) var(--cr-ease-out);
+}
+.icon-btn:active{transform:scale(var(--cr-press-scale));}
+@media (hover:hover) and (pointer:fine){
+  .icon-btn:hover{background:var(--cr-ink-hover); color:var(--cr-text);}
+  .icon-btn.danger:hover{color:var(--cr-red-text);}
+}
+
+/* list header ------------------------------------------------------------- */
+.list-head{
+  display:flex; align-items:flex-end; justify-content:space-between; gap:var(--cr-space-5);
+  flex-wrap:wrap; margin:var(--cr-space-8) 0 var(--cr-space-4);
+}
+.list-head h1{
+  font-family:var(--cr-font-display); font-weight:800; font-size:var(--cr-type-h2);
+  line-height:1; text-transform:uppercase; letter-spacing:.005em; margin:0;
+}
+.usage{
+  margin:8px 0 0; font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+}
+.usage b{color:var(--cr-text-secondary); font-weight:500;}
+.search{position:relative; width:264px; max-width:100%;}
+.search svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--cr-text-muted); pointer-events:none;}
+.search input{
+  width:100%; height:34px; padding:0 12px 0 33px;
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);
+  color:var(--cr-text); font-size:var(--cr-type-sm);
+  transition:border-color var(--cr-dur-hover) var(--cr-ease-out);
+}
+.search input::placeholder{color:var(--cr-text-muted);}
+.search input:focus{outline:var(--cr-focus-ring) solid var(--cr-red); outline-offset:2px; border-color:var(--cr-rule-strong);}
+.search input::-webkit-search-cancel-button{filter:grayscale(1) opacity(.5);}
+
+/* bulk bar ---------------------------------------------------------------- */
+/* Round 2 painted this bar highlighter yellow. Yellow is reserved for the
+   search mark and the Transcribing status, so it is a neutral raised surface
+   here and the count carries the emphasis. */
+.bulkbar{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--cr-space-4);
+  padding:9px 10px 9px var(--cr-space-4);
+  margin-bottom:var(--cr-space-2);
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-md);
+  font-size:var(--cr-type-sm); color:var(--cr-text-secondary);
+  opacity:0; transform:translateY(calc(-6px * var(--m-y)));
+  transition:opacity var(--cr-dur-dropdown) var(--cr-ease-out), transform var(--cr-dur-dropdown) var(--cr-ease-out);
+}
+.bulkbar[hidden]{display:none;}
+.bulkbar[data-in="true"]{opacity:1; transform:none;}
+.bulkbar b{font-family:var(--cr-font-mono); font-weight:600; color:var(--cr-text);}
+.bulk-actions{display:flex; align-items:center; gap:var(--cr-space-2);}
+
+/* rows -------------------------------------------------------------------- */
+.rows{border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.row{
+  display:grid; grid-template-columns:18px minmax(0,1fr) auto 28px;
+  align-items:start; gap:var(--cr-space-4);
+  padding:var(--cr-space-4) var(--cr-space-3);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  cursor:pointer;
+  transition:background-color var(--cr-dur-hover) var(--cr-ease-out);
+}
+@media (hover:hover) and (pointer:fine){ .row:hover{background:var(--cr-ink-hover);} }
+.row[data-selected="true"]{background:var(--cr-ink-hover);}
+
+.cb{
+  appearance:none; -webkit-appearance:none; margin:2px 0 0;
+  width:16px; height:16px; flex:0 0 auto;
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:4px; background:var(--cr-ink-raised); cursor:pointer;
+  position:relative;
+  transition:background-color var(--cr-dur-hover) var(--cr-ease-out), border-color var(--cr-dur-hover) var(--cr-ease-out);
+}
+.cb:checked{background:var(--cr-red-fill); border-color:var(--cr-red-fill);}
+.cb:checked::after{
+  content:""; position:absolute; left:4.5px; top:1.5px;
+  width:4px; height:8px; border:solid var(--cr-paper);
+  border-width:0 var(--cr-stroke-hair) var(--cr-stroke-hair) 0;
+  transform:rotate(42deg);
+}
+
+.row-title{
+  font-size:var(--cr-type-body); font-weight:500; color:var(--cr-text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.row-snip{
+  margin-top:5px; font-size:var(--cr-type-sm); color:var(--cr-text-tertiary);
+  line-height:1.55; max-width:60ch;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.row-snip mark{background:var(--cr-yellow); color:var(--cr-yellow-ink); padding:0 2px; border-radius:2px;}
+.row-live{
+  margin-top:6px; display:flex; align-items:center; gap:7px;
+  font-size:var(--cr-type-sm); color:var(--cr-text-tertiary);
+}
+.row-live.err{color:var(--cr-red-text);}
+.row-live span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.tags{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;}
+.tag{
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); font-weight:500;
+  text-transform:uppercase; letter-spacing:var(--cr-tracking-tag);
+  color:var(--cr-text-tertiary);
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-sm); padding:2px 7px;
+}
+
+.row-side{display:flex; flex-direction:column; align-items:flex-end; gap:7px; text-align:right;}
+.pill{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:3px 9px; border-radius:var(--cr-radius-pill);
+  font-family:var(--cr-font-mono); font-size:var(--cr-type-tiny); font-weight:600;
+  text-transform:uppercase; letter-spacing:var(--cr-tracking-tag);
+}
+.pill.complete{background:var(--cr-tint-green); color:var(--cr-success);}
+.pill.processing{background:var(--cr-tint-yellow); color:var(--cr-yellow);}
+.pill.failed{background:var(--cr-tint-red); color:var(--cr-red-text);}
+.dot{width:6px; height:6px; border-radius:50%; background:currentColor;}
+.pill.processing .dot{animation:beat 1.4s var(--cr-ease-in-out) infinite;}
+.row-live .dot{width:6px; height:6px; border-radius:50%; background:var(--cr-yellow); animation:beat 1.4s var(--cr-ease-in-out) infinite;}
+@keyframes beat{0%,100%{opacity:1;} 50%{opacity:.28;}}
+@media (prefers-reduced-motion: reduce){
+  .pill.processing .dot, .row-live .dot{animation:none; opacity:.8;}
+}
+.meta{font-family:var(--cr-font-mono); font-size:var(--cr-type-meta); color:var(--cr-text-muted); line-height:1.5;}
+.meta em{font-style:normal; color:var(--cr-text-tertiary);}
+
+/* empty and no-result states ---------------------------------------------- */
+.blank{
+  border:var(--cr-stroke-hair) dashed var(--cr-rule-strong);
+  border-radius:var(--cr-radius-lg);
+  padding:var(--cr-space-8) var(--cr-space-5);
+  text-align:center;
+}
+.blank svg{color:var(--cr-text-muted); opacity:.85;}
+.blank h3{
+  font-family:var(--cr-font-display); font-weight:800; font-size:var(--cr-type-h3);
+  text-transform:uppercase; letter-spacing:.01em; margin:var(--cr-space-4) 0 var(--cr-space-2);
+}
+.blank p{
+  margin:0 auto; max-width:46ch;
+  font-size:var(--cr-type-sm); color:var(--cr-text-tertiary); line-height:var(--cr-leading-body);
+}
+.blank .blank-mono{
+  margin-top:var(--cr-space-4); font-family:var(--cr-font-mono);
+  font-size:var(--cr-type-meta); color:var(--cr-text-muted);
+}
+/* No highlighter in the empty states. Yellow is a real search match and the
+   Transcribing status, never decoration. A suggested query is neither. */
+.blank .blank-mono b{color:var(--cr-text-secondary); font-weight:600;}
+
+/* skeleton ---------------------------------------------------------------- */
+/* The skeleton is the row, not a grey box: same grid, same checkbox square,
+   same two right-hand mono lines. */
+.sk-rows{border-top:var(--cr-stroke-hair) solid var(--cr-rule-soft);}
+.sk-row{
+  display:grid; grid-template-columns:18px minmax(0,1fr) auto;
+  align-items:start; gap:var(--cr-space-4);
+  padding:var(--cr-space-4) var(--cr-space-3);
+  border-bottom:var(--cr-stroke-hair) solid var(--cr-rule-soft);
+  animation:sk 1.2s var(--cr-ease-in-out) infinite;
+}
+.sk-row:nth-child(2){animation-delay:.15s;}
+.sk-row:nth-child(3){animation-delay:.3s;}
+.sk-row:nth-child(4){animation-delay:.45s;}
+@keyframes sk{0%,100%{opacity:.4;} 50%{opacity:.8;}}
+@media (prefers-reduced-motion: reduce){ .sk-row{animation:none; opacity:.6;} }
+.sk{background:var(--cr-rule-strong); border-radius:4px; height:10px;}
+.sk-box{width:16px; height:16px; border-radius:4px; background:var(--cr-rule-strong); margin-top:2px;}
+.sk-side{display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
+
+/* dialog ------------------------------------------------------------------ */
+.scrim{
+  position:fixed; inset:0; z-index:80;
+  background:rgba(8,8,10,.66);
+  display:grid; place-items:center; padding:24px;
+  opacity:0; pointer-events:none;
+  transition:opacity var(--cr-dur-modal) var(--cr-ease-out);
+}
+.scrim[data-open="true"]{opacity:1; pointer-events:auto;}
+.scrim[data-instant="true"]{transition-duration:0ms;}
+/* Modals are the one exception to origin-aware scaling: they are not
+   anchored to a trigger, so they stay centred. */
+.dialog{
+  width:100%; max-width:420px;
+  background:var(--cr-ink-raised);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong);
+  border-radius:var(--cr-radius-lg);
+  padding:var(--cr-space-5);
+  transform:scale(calc(1 - .03 * var(--m-scale)));
+  transition:transform var(--cr-dur-modal) var(--cr-ease-out);
+}
+.scrim[data-open="true"] .dialog{transform:none;}
+.scrim[data-instant="true"] .dialog{transition-duration:0ms;}
+.dialog h3{
+  font-family:var(--cr-font-display); font-weight:800; font-size:var(--cr-type-h3);
+  text-transform:uppercase; letter-spacing:.01em; margin:0 0 var(--cr-space-2);
+}
+.dialog p{margin:0 0 var(--cr-space-5); font-size:var(--cr-type-sm); color:var(--cr-text-tertiary); line-height:var(--cr-leading-body);}
+.dialog input{
+  width:100%; height:36px; padding:0 12px; margin-bottom:var(--cr-space-5);
+  background:var(--cr-ink); color:var(--cr-text); font-size:var(--cr-type-sm);
+  border:var(--cr-stroke-hair) solid var(--cr-rule-strong); border-radius:var(--cr-radius-md);
+}
+.dialog input:focus{outline:var(--cr-focus-ring) solid var(--cr-red); outline-offset:2px;}
+.dialog-foot{display:flex; justify-content:flex-end; gap:var(--cr-space-2);}
+
+/* row entrance ------------------------------------------------------------ */
+.row[data-enter="pending"]{opacity:0;}
+</style>
+</head>
+<body>
+
+<nav class="pv-nav" id="pvnav">
+  <span class="pv-brand">Round 5 · Dashboard · Court Reporter</span>
+  <a href="#s1" class="on">01 Working</a>
+  <a href="#s2">02 Search + bulk</a>
+  <a href="#s3">03 First run</a>
+  <a href="#s4">04 Loading</a>
+  <a href="#s5">05 No results</a>
+</nav>
+
+<div class="pv-wrap">
+
+  <h1 class="pv-title">Dashboard</h1>
+  <p class="pv-sub">
+    The authenticated home screen, at production fidelity. Same tokens as the landing page, applied quietly:
+    no stamps, no redaction, nothing above 30px, nothing slower than 400ms. Every state below is live. Tick a
+    checkbox, type in a search box, press Delete, open the avatar menu.
+  </p>
+
+  <div class="changelog">
+    <h2>What changed since the Round 2 rough</h2>
+    <ul>
+      <li><b>The bulk bar stopped being yellow.</b> Highlighter yellow is the search mark and the Transcribing status, nothing else. The bar is now a neutral raised surface and the selected count carries the weight in mono.</li>
+      <li><b>The money is right.</b> Round 2 showed a 26 minute meeting at $0.0187, which is roughly two and a half minutes of Nova-3. Every cost on this screen is duration times $0.0071 per minute, formatted the way <code>formatCost</code> actually formats it, and the estimated ones say so.</li>
+      <li><b>Failed rows say what failed.</b> A status pill alone tells you nothing you can act on, so the row now carries the real <code>errorMessage</code> next to it, and the upload queue above shows the same job that produced it.</li>
+      <li><b>Three uploads at once, because that is what the code does.</b> <code>handleTranscribeAll</code> fires every pending file concurrently, so the queue shows one climbing, one handed off, one broken, each with its own Cancel or Retry.</li>
+      <li><b>Every state is drawn, not described.</b> First run, loading, and no results were placeholders before. The skeleton is now the row layout itself rather than two grey slabs, and the first run screen speaks this product's language instead of "no data".</li>
+      <li><b>Two lines of chrome removed.</b> No spinner anywhere, no card shadows, no second border weight. The list is hairlines and space, and the only line heavier than 1px on the whole screen is the focus ring.</li>
+    </ul>
+  </div>
+
+  <!-- STATE 01 ------------------------------------------------------------ -->
+  <section class="state" id="s1">
+    <div class="state-head">
+      <span class="state-num">State 01</span>
+      <span class="state-name">Working session</span>
+      <span class="state-note">Three files in flight, ten meetings on record, one transcribing, one failed. Search is empty.</span>
+    </div>
+    <div class="app" data-app="1"></div>
+  </section>
+
+  <!-- STATE 02 ------------------------------------------------------------ -->
+  <section class="state" id="s2">
+    <div class="state-head">
+      <span class="state-num">State 02</span>
+      <span class="state-name">Search active, three selected</span>
+      <span class="state-note">Query "pricing". Matches inside the transcript get the highlighter; a title or tag match falls back to the plain preview, same as <code>buildSnippet</code>.</span>
+    </div>
+    <div class="app" data-app="2"></div>
+  </section>
+
+  <!-- STATE 03 ------------------------------------------------------------ -->
+  <section class="state" id="s3">
+    <div class="state-head">
+      <span class="state-num">State 03</span>
+      <span class="state-name">First run</span>
+      <span class="state-note">Signed up ninety seconds ago. No meetings, no usage line, nothing to search.</span>
+    </div>
+    <div class="app" data-app="3"></div>
+  </section>
+
+  <!-- STATE 04 ------------------------------------------------------------ -->
+  <section class="state" id="s4">
+    <div class="state-head">
+      <span class="state-num">State 04</span>
+      <span class="state-name">Loading</span>
+      <span class="state-note">Between keystroke and result, while <code>searchMeetings</code> is out. Skeletons match the row grid exactly.</span>
+    </div>
+    <div class="app" data-app="4"></div>
+  </section>
+
+  <!-- STATE 05 ------------------------------------------------------------ -->
+  <section class="state" id="s5">
+    <div class="state-head">
+      <span class="state-num">State 05</span>
+      <span class="state-name">No results</span>
+      <span class="state-note">Query "gst filing". Title, tag, and transcript all missed.</span>
+    </div>
+    <div class="app" data-app="5"></div>
+  </section>
+
+</div>
+
+<!-- dialogs, shared across every state on the page ------------------------- -->
+<div class="scrim" id="delete-scrim" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+  <div class="dialog">
+    <h3 id="delete-title">Delete this meeting?</h3>
+    <p>This cannot be undone. The recording, the transcript, and every speaker name you fixed go with it.</p>
+    <div class="dialog-foot">
+      <button class="btn btn-outline" data-close>Cancel</button>
+      <button class="btn btn-danger" id="delete-confirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="tag-scrim" role="dialog" aria-modal="true" aria-labelledby="tag-title">
+  <div class="dialog">
+    <h3 id="tag-title">Add tag to 3 meetings</h3>
+    <p>Up to ten tags per meeting, thirty characters each. The dashboard search box doubles as the tag filter.</p>
+    <input id="tag-input" placeholder="finance" aria-label="Tag name" autocomplete="off">
+    <div class="dialog-foot">
+      <button class="btn btn-outline" data-close>Cancel</button>
+      <button class="btn btn-primary" id="tag-confirm">Add</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script>
+/* ==========================================================================
+   Real data. Costs are durationSeconds / 60 * 0.0071, the Nova-3 batch
+   multilingual rate plus diarization that DEEPGRAM_RATE_PER_MINUTE_USD
+   defaults to. Dates render the way formatDate does: en-US, medium date,
+   short time.
+   ========================================================================== */
+const RATE = 0.0071;
+const fmtDur  = s => `${Math.floor(s/60)}:${String(Math.round(s)%60).padStart(2,'0')}`;
+const fmtCost = c => `$${c.toFixed(c < 0.01 ? 4 : 2)}`;
+const costOf  = s => (s/60) * RATE;
+
+const MEETINGS = [
+  {
+    id:'m1', title:'1 on 1 with Priya', status:'processing', isVideo:false,
+    tags:['internal'], date:'Aug 28, 2026, 3:41 PM'
+  },
+  {
+    id:'m2', title:'Board Sync, Q3 Numbers', status:'complete', isVideo:true,
+    seconds:3098, exact:true, tags:['board','finance'], date:'Aug 28, 2026, 11:02 AM',
+    preview:'Toh Q3 ka number kya laga? Revenue eleven percent up hai quarter on quarter, but Tier 2 mein pricing pressure abhi bhi hai.'
+  },
+  {
+    id:'m3', title:'Vendor Call, Zomato Ops', status:'failed', isVideo:true,
+    tags:['vendor'], date:'Aug 28, 2026, 10:14 AM',
+    error:'Upload failed. Check your connection and try again.'
+  },
+  {
+    id:'m4', title:'Client Call, Ranveer and Aditi', status:'complete', isVideo:false,
+    seconds:1574, exact:true, tags:['sales'], date:'Aug 27, 2026, 4:12 PM',
+    preview:'Haan toh pricing ke baare mein unhone poocha, humne bola annual plan pe pandrah percent discount hai.'
+  },
+  {
+    id:'m5', title:'Pricing Workshop, Enterprise Tier', status:'complete', isVideo:true,
+    seconds:3807, exact:true, tags:['sales','pricing'], date:'Aug 27, 2026, 11:30 AM',
+    preview:'Enterprise tier ka pricing slab teen se do kar rahe hain, seat based nahi, usage based rakhenge.'
+  },
+  {
+    id:'m6', title:'Standup, Product Team', status:'complete', isVideo:false,
+    seconds:587, exact:true, tags:['internal'], date:'Aug 27, 2026, 10:02 AM',
+    preview:'Upload token flow pe blocked tha, ab unblock ho gaya, Thursday tak ship kar denge.'
+  },
+  {
+    id:'m7', title:'Hiring Panel, Backend SDE-2', status:'complete', isVideo:true,
+    seconds:2649, exact:false, tags:['internal','hiring'], date:'Aug 26, 2026, 6:20 PM',
+    preview:'System design round strong tha, but Mongo indexing pe thoda hesitate kiya, compound index wala part.'
+  },
+  {
+    id:'m8', title:'Investor Update, Sequoia', status:'complete', isVideo:false,
+    seconds:2032, exact:true, tags:['board'], date:'Aug 25, 2026, 5:05 PM',
+    preview:'Runway abhi chaudah months ka hai, burn flat rakha hai pichhle do quarter se.'
+  },
+  {
+    id:'m9', title:'Design Review, Share Links', status:'complete', isVideo:false,
+    seconds:1056, exact:true, tags:['internal'], date:'Aug 25, 2026, 2:14 PM',
+    preview:'Revoke instantly reflect hona chahiye, share link pe caching bilkul nahi rakhenge.'
+  },
+  {
+    id:'m10', title:'Vendor Call, Rapido Fleet', status:'complete', isVideo:true,
+    seconds:1265, exact:true, tags:['vendor'], date:'Aug 24, 2026, 12:40 PM',
+    preview:'Fleet ka SLA ninety two percent chal raha hai, target ninety five rakha tha is quarter.'
+  }
+];
+
+/* getUsageSummary sums this calendar month's complete meetings. */
+const USAGE = (() => {
+  const done = MEETINGS.filter(m => m.status === 'complete');
+  const secs = done.reduce((a,m) => a + m.seconds, 0);
+  const cost = done.reduce((a,m) => a + costOf(m.seconds), 0);
+  return { count: done.length, minutes: Math.round(secs/60), costUsd: cost };
+})();
+
+const UPLOADS = [
+  { key:'u1', name:'board-sync-q3-numbers.mp4', size:'1.2 GB', video:true,  status:'uploading', progress:63 },
+  { key:'u2', name:'1-on-1-priya-aug-28.m4a',  size:'86.4 MB', video:false, status:'done' },
+  { key:'u3', name:'vendor-call-zomato-ops.mp4', size:'412.7 MB', video:true, status:'error',
+    error:'Upload failed. Check your connection and try again.' }
+];
+
+/* ==========================================================================
+   Icons. 24 grid, 1.75 stroke, butt caps, miter joins, per the icon family.
+   ========================================================================== */
+const ico = (d, size=16) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.75" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">${d}</svg>`;
+
+const I = {
+  upload: ico('<path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 15v4h16v-4"/>', 28),
+  search: ico('<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>', 14),
+  video:  ico('<rect x="3" y="6" width="12" height="12"/><path d="M15 11l6-3v8l-6-3z"/>'),
+  audio:  ico('<path d="M4 10v4"/><path d="M8 6v12"/><path d="M12 9v6"/><path d="M16 4v16"/><path d="M20 10v4"/>'),
+  trash:  ico('<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>'),
+  tag:    ico('<path d="M3 3h8l10 10-8 8L3 11z"/><path d="M7.5 7.5h.01"/>', 14),
+  x:      ico('<path d="M6 6l12 12"/><path d="M18 6L6 18"/>', 14),
+  retry:  ico('<path d="M20 6v6h-6"/><path d="M20 12a8 8 0 1 0-2.3 5.6"/>', 14),
+  hook:   ico('<path d="M9 4v8a3 3 0 0 0 6 0"/><path d="M5 20h14"/><path d="M12 15v5"/>', 15),
+  out:    ico('<path d="M10 5H5v14h5"/><path d="M14 8l4 4-4 4"/><path d="M18 12H9"/>', 15),
+  alert:  ico('<path d="M12 5l9 15H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>', 14),
+  file:   ico('<path d="M13 3H6v18h12V8z"/><path d="M13 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>', 30)
+};
+
+/* ==========================================================================
+   Rendering. One factory, five instances, so no state can drift from another.
+   ========================================================================== */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* highlightText, same job as lib/utils.js: mark the query inside the preview
+   only. The title is never marked, matching Dashboard.js. */
+function mark(text, q){
+  const query = q.trim();
+  if (!query) return esc(text);
+  let out = '', cursor = 0;
+  const lower = text.toLowerCase(), lq = query.toLowerCase();
+  if (lower.indexOf(lq) === -1) return esc(text);
+  while (true){
+    const at = lower.indexOf(lq, cursor);
+    if (at === -1){ out += esc(text.slice(cursor)); break; }
+    out += esc(text.slice(cursor, at)) + '<mark>' + esc(text.slice(at, at + query.length)) + '</mark>';
+    cursor = at + query.length;
+  }
+  return out;
+}
+
+/* buildSnippet: when the hit is inside the transcript, show the text around
+   the hit instead of the first N characters. A title-only or tag-only match
+   returns null and the row keeps its plain prefix preview. */
+const CONTEXT = 46;
+function snippetFor(m, q){
+  const query = q.trim();
+  if (!query || !m.preview) return m.preview || '';
+  const i = m.preview.toLowerCase().indexOf(query.toLowerCase());
+  if (i === -1) return m.preview;
+  const start = Math.max(0, i - CONTEXT);
+  const end = Math.min(m.preview.length, i + query.length + CONTEXT);
+  return (start > 0 ? '…' : '') + m.preview.slice(start, end) + (end < m.preview.length ? '…' : '');
+}
+
+function matches(m, q){
+  const query = q.trim().toLowerCase();
+  if (!query) return true;
+  return m.title.toLowerCase().includes(query)
+      || m.tags.some(t => t.toLowerCase().includes(query))
+      || (m.preview || '').toLowerCase().includes(query);
+}
+
+function rowHTML(m, q, selected){
+  const tags = m.tags.length
+    ? `<div class="tags">${m.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : '';
+
+  let body, side;
+  if (m.status === 'processing'){
+    body = `<div class="row-live"><span class="dot"></span><span>Transcribing, Nova-3 is listening.</span></div>`;
+    side = `<span class="pill processing"><span class="dot"></span>Transcribing</span>
+            <span class="meta">Audio · queued 3m ago</span>
+            <span class="meta">${esc(m.date)}</span>`;
+  } else if (m.status === 'failed'){
+    body = `<div class="row-live err">${I.alert}<span>${esc(m.error)}</span></div>`;
+    side = `<span class="pill failed">Failed</span>
+            <span class="meta">Video · not billed</span>
+            <span class="meta">${esc(m.date)}</span>`;
+  } else {
+    body = `<div class="row-snip">${mark(snippetFor(m, q), q)}</div>`;
+    side = `<span class="pill complete">Complete</span>
+            <span class="meta">${m.isVideo ? 'Video' : 'Audio'} · ${fmtDur(m.seconds)} · Nova-3</span>
+            <span class="meta"><em>${fmtCost(costOf(m.seconds))}</em>${m.exact ? '' : ' estimated'} · ${esc(m.date)}</span>`;
+  }
+
+  return `
+  <div class="row" data-id="${m.id}" data-selected="${selected}" role="link" tabindex="0"
+       aria-label="${esc(m.title)}">
+    <input class="cb" type="checkbox" ${selected ? 'checked' : ''} aria-label="Select ${esc(m.title)}">
+    <div>
+      <div class="row-title">${esc(m.title)}</div>
+      ${body}
+      ${tags}
+    </div>
+    <div class="row-side">${side}</div>
+    <button class="icon-btn danger" data-delete aria-label="Delete ${esc(m.title)}">${I.trash}</button>
+  </div>`;
+}
+
+function uploadHTML(f){
+  const icon = f.video ? I.video : I.audio;
+  let note = '', actions = '';
+  if (f.status === 'uploading'){
+    note = `<div class="track"><i data-fill style="transform:scaleX(${f.progress/100})"></i></div>`;
+    actions = `<button class="btn btn-sm btn-outline" data-upload-cancel>Cancel</button>`;
+  } else if (f.status === 'done'){
+    note = `<div class="file-note">Uploaded · transcribing in the background.</div>`;
+    actions = `<button class="icon-btn" data-upload-remove aria-label="Remove ${esc(f.name)}">${I.x}</button>`;
+  } else if (f.status === 'cancelled'){
+    note = `<div class="file-note">Cancelled.</div>`;
+    actions = `<button class="btn btn-sm btn-outline" data-upload-retry>${I.retry} Retry</button>
+               <button class="icon-btn" data-upload-remove aria-label="Remove ${esc(f.name)}">${I.x}</button>`;
+  } else {
+    note = `<div class="file-note err">${esc(f.error)}</div>`;
+    actions = `<button class="btn btn-sm btn-outline" data-upload-retry>${I.retry} Retry</button>
+               <button class="icon-btn" data-upload-remove aria-label="Remove ${esc(f.name)}">${I.x}</button>`;
+  }
+  return `
+  <div class="file-row" data-key="${f.key}">
+    ${icon}
+    <div class="file-main">
+      <div class="file-name"><b>${esc(f.name)}</b><span>${esc(f.size)}</span></div>
+      ${note}
+    </div>
+    <div class="file-actions">${actions}</div>
+  </div>`;
+}
+
+function createApp(root, opts){
+  const state = {
+    query: opts.query || '',
+    selected: new Set(opts.selected || []),
+    meetings: MEETINGS.map(m => ({...m, tags:[...m.tags]})),
+    uploads: (opts.uploads || []).map(u => ({...u})),
+    mode: opts.mode || 'ready'       // ready | loading | first-run
+  };
+
+  root.innerHTML = `
+    <header class="app-header">
+      <span class="wordmark">Meeting<span>.</span>txt</span>
+      <div class="avatar-wrap">
+        <button class="avatar" data-avatar aria-haspopup="menu" aria-expanded="false">OM</button>
+        <div class="menu" data-menu role="menu">
+          <div class="menu-label">omrajpal.exe@gmail.com</div>
+          <div class="menu-sep"></div>
+          <button class="menu-item" role="menuitem">${I.hook} Webhook</button>
+          <div class="menu-sep"></div>
+          <button class="menu-item danger" role="menuitem">${I.out} Log out</button>
+        </div>
+      </div>
+    </header>
+    <main class="app-main">
+      <p class="eyebrow">New transcription</p>
+      <button class="dropzone" data-dropzone>
+        ${I.upload}
+        <span class="dz-title">Drop your recordings here</span>
+        <span class="dz-sub">MP4 or MP3 · multiple files at once · or click to browse</span>
+      </button>
+      <div class="queue" data-queue></div>
+
+      <div class="list-head">
+        <div>
+          <h1>Past meetings</h1>
+          <p class="usage" data-usage></p>
+        </div>
+        <div class="search">
+          ${I.search}
+          <input type="search" placeholder="Search meetings…" aria-label="Search meetings" data-search>
+        </div>
+      </div>
+
+      <div class="bulkbar" data-bulk hidden>
+        <span><b data-count>0</b> selected</span>
+        <div class="bulk-actions">
+          <button class="btn btn-sm btn-outline" data-bulk-tag>${I.tag} Add tag</button>
+          <button class="btn btn-sm btn-danger" data-bulk-delete>${I.trash} Delete</button>
+          <button class="btn btn-sm btn-ghost" data-bulk-clear>Clear</button>
+        </div>
+      </div>
+
+      <div data-list></div>
+    </main>`;
+
+  const $ = sel => root.querySelector(sel);
+  const listEl = $('[data-list]');
+  const queueEl = $('[data-queue]');
+  const bulkEl = $('[data-bulk]');
+  const searchEl = $('[data-search]');
+  const usageEl = $('[data-usage]');
+  searchEl.value = state.query;
+
+  function renderUsage(){
+    if (state.mode === 'first-run' || USAGE.count === 0){ usageEl.textContent = ''; return; }
+    usageEl.innerHTML = `This month: <b>${USAGE.minutes} min</b> transcribed · <b>~${fmtCost(USAGE.costUsd)}</b> estimated`;
+  }
+
+  function renderQueue(){
+    queueEl.innerHTML = state.uploads.length
+      ? state.uploads.map(uploadHTML).join('') +
+        `<div class="queue-foot">
+           <button class="btn btn-sm btn-outline">Clear finished</button>
+           <button class="btn btn-sm btn-primary" ${state.uploads.some(u => u.status === 'pending') ? '' : 'disabled'}>Transcribe</button>
+         </div>`
+      : '';
+  }
+
+  function renderBulk(){
+    const n = state.selected.size;
+    if (n === 0){
+      bulkEl.dataset.in = 'false';
+      bulkEl.hidden = true;
+      return;
+    }
+    bulkEl.hidden = false;
+    $('[data-count]').textContent = n;
+    requestAnimationFrame(() => { bulkEl.dataset.in = 'true'; });
+  }
+
+  function renderList(){
+    if (state.mode === 'loading'){
+      listEl.innerHTML = `<div class="sk-rows">${Array.from({length:4}, () => `
+        <div class="sk-row">
+          <div class="sk-box"></div>
+          <div>
+            <div class="sk" style="width:38%; height:12px;"></div>
+            <div class="sk" style="width:64%; margin-top:9px;"></div>
+            <div class="sk" style="width:96px; height:16px; margin-top:11px; border-radius:6px;"></div>
+          </div>
+          <div class="sk-side">
+            <div class="sk" style="width:78px; height:16px; border-radius:999px;"></div>
+            <div class="sk" style="width:132px;"></div>
+            <div class="sk" style="width:104px;"></div>
+          </div>
+        </div>`).join('')}</div>`;
+      return;
+    }
+
+    if (state.mode === 'first-run'){
+      listEl.innerHTML = `
+        <div class="blank">
+          ${I.file}
+          <h3>Nothing on record yet</h3>
+          <p>Drop an MP4 or an MP3 above. Nova-3 listens in Hinglish, labels who said what, and hands back a transcript you can search.</p>
+          <p class="blank-mono">Then this box becomes a list, and one search reaches every word of it.</p>
+        </div>`;
+      return;
+    }
+
+    const visible = state.meetings.filter(m => matches(m, state.query));
+    if (visible.length === 0){
+      listEl.innerHTML = `
+        <div class="blank">
+          ${I.search.replace('width="14" height="14"','width="30" height="30"')}
+          <h3>No meetings match</h3>
+          <p>Nothing with “${esc(state.query.trim())}” in a title, a tag, or a transcript. Search reads all three, so a shorter word usually finds it.</p>
+          <p class="blank-mono">Try <b>pricing</b>, <b>vendor</b>, or a speaker's name.</p>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = `<div class="rows">${
+      visible.map(m => rowHTML(m, state.query, state.selected.has(m.id))).join('')
+    }</div>`;
+  }
+
+  function renderAll(){
+    renderUsage();
+    renderQueue();
+    renderBulk();
+    renderList();
+  }
+  renderAll();
+
+  /* --- interactions ------------------------------------------------------ */
+  const avatarBtn = $('[data-avatar]');
+  const menuEl = $('[data-menu]');
+  avatarBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = menuEl.dataset.open === 'true';
+    menuEl.dataset.open = open ? 'false' : 'true';
+    avatarBtn.setAttribute('aria-expanded', String(!open));
+  });
+  document.addEventListener('click', () => {
+    if (menuEl.dataset.open === 'true'){
+      menuEl.dataset.open = 'false';
+      avatarBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  /* Search retargets the list on every keystroke. Selection is cleared when
+     the query changes, since a count that does not match what is on screen
+     is a lie. */
+  let searchTimer = null;
+  searchEl.addEventListener('input', () => {
+    state.query = searchEl.value;
+    state.selected.clear();
+    renderBulk();
+    if (state.mode !== 'ready') return;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderList, 90);
+  });
+
+  listEl.addEventListener('change', e => {
+    const cb = e.target.closest('.cb');
+    if (!cb) return;
+    const row = cb.closest('.row');
+    const id = row.dataset.id;
+    if (cb.checked) state.selected.add(id); else state.selected.delete(id);
+    row.dataset.selected = String(cb.checked);
+    renderBulk();
+  });
+
+  listEl.addEventListener('click', e => {
+    if (e.target.closest('.cb')) return;
+    const del = e.target.closest('[data-delete]');
+    if (del){
+      e.stopPropagation();
+      openDeleteDialog(app, [del.closest('.row').dataset.id]);
+      return;
+    }
+    /* A row click navigates to the meeting, carrying the query so the
+       transcript can jump to the first hit. */
+    const row = e.target.closest('.row');
+    if (row) flash(row);
+  });
+
+  $('[data-bulk-clear]').addEventListener('click', () => {
+    state.selected.clear();
+    renderBulk();
+    renderList();
+  });
+  $('[data-bulk-delete]').addEventListener('click', () => openDeleteDialog(app, [...state.selected]));
+  $('[data-bulk-tag]').addEventListener('click', () => openTagDialog(app));
+
+  queueEl.addEventListener('click', e => {
+    const fileRow = e.target.closest('.file-row');
+    if (!fileRow) return;
+    const key = fileRow.dataset.key;
+    const f = state.uploads.find(u => u.key === key);
+    if (!f) return;
+    if (e.target.closest('[data-upload-cancel]')) f.status = 'cancelled';
+    else if (e.target.closest('[data-upload-retry]')){ f.status = 'uploading'; f.progress = 4; }
+    else if (e.target.closest('[data-upload-remove]')) state.uploads = state.uploads.filter(u => u.key !== key);
+    else return;
+    renderQueue();
+    growFill();
+  });
+
+  const dz = $('[data-dropzone]');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.dataset.drag = 'true'; });
+  dz.addEventListener('dragleave', () => { dz.dataset.drag = 'false'; });
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.dataset.drag = 'false'; });
+
+  /* The upload bar is real progress, not a UI transition: it creeps while
+     bytes move and stops when they stop. */
+  function growFill(){
+    const f = state.uploads.find(u => u.status === 'uploading');
+    if (!f) return;
+    const fill = queueEl.querySelector(`[data-key="${f.key}"] [data-fill]`);
+    if (!fill) return;
+    requestAnimationFrame(() => { fill.style.transform = `scaleX(${f.progress/100})`; });
+  }
+  setInterval(() => {
+    const f = state.uploads.find(u => u.status === 'uploading');
+    if (!f || f.progress >= 97) return;
+    f.progress = Math.min(97, f.progress + Math.random() * 1.6);
+    growFill();
+  }, 1400);
+
+  function flash(row){
+    row.animate(
+      [{ transform:'scale(1)' }, { transform:`scale(${getComputedStyle(document.documentElement).getPropertyValue('--cr-press-scale').trim() || 0.97})` }, { transform:'scale(1)' }],
+      { duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }
+    );
+  }
+
+  const app = {
+    root, state,
+    removeMeetings(ids){
+      state.meetings = state.meetings.filter(m => !ids.includes(m.id));
+      ids.forEach(id => state.selected.delete(id));
+      renderBulk();
+      renderList();
+    },
+    addTag(tag){
+      state.meetings.forEach(m => {
+        if (state.selected.has(m.id) && !m.tags.includes(tag) && m.tags.length < 10) m.tags.push(tag);
+      });
+      renderList();
+    },
+    selectedCount(){ return state.selected.size; }
+  };
+  return app;
+}
+
+/* ==========================================================================
+   Dialogs. Centred, scale 0.97 to 1 at 400ms, the product ceiling. Escape
+   closes with zero duration, because keyboard actions are never animated.
+   ========================================================================== */
+const deleteScrim = document.getElementById('delete-scrim');
+const tagScrim = document.getElementById('tag-scrim');
+let dialogCtx = { app:null, ids:[] };
+
+function openScrim(el){ el.dataset.instant = 'false'; el.dataset.open = 'true'; }
+function closeScrim(el, instant){
+  el.dataset.instant = instant ? 'true' : 'false';
+  el.dataset.open = 'false';
+}
+
+function openDeleteDialog(app, ids){
+  if (!ids.length) return;
+  dialogCtx = { app, ids };
+  document.getElementById('delete-title').textContent =
+    ids.length > 1 ? `Delete ${ids.length} meetings?` : 'Delete this meeting?';
+  openScrim(deleteScrim);
+}
+function openTagDialog(app){
+  if (!app.selectedCount()) return;
+  dialogCtx = { app, ids:[] };
+  const n = app.selectedCount();
+  document.getElementById('tag-title').textContent = `Add tag to ${n} meeting${n === 1 ? '' : 's'}`;
+  const input = document.getElementById('tag-input');
+  input.value = '';
+  openScrim(tagScrim);
+  setTimeout(() => input.focus(), 60);
+}
+
+document.getElementById('delete-confirm').addEventListener('click', () => {
+  dialogCtx.app?.removeMeetings(dialogCtx.ids);
+  closeScrim(deleteScrim);
+});
+document.getElementById('tag-confirm').addEventListener('click', addTagFromDialog);
+document.getElementById('tag-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); addTagFromDialog(); }
+});
+function addTagFromDialog(){
+  const value = document.getElementById('tag-input').value.trim().slice(0, 30);
+  if (!value) return;
+  dialogCtx.app?.addTag(value);
+  closeScrim(tagScrim, true);
+}
+
+document.querySelectorAll('.scrim').forEach(scrim => {
+  scrim.addEventListener('click', e => { if (e.target === scrim) closeScrim(scrim); });
+  scrim.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeScrim(scrim)));
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.scrim[data-open="true"]').forEach(s => closeScrim(s, true));
+  document.querySelectorAll('[data-menu][data-open="true"]').forEach(m => { m.dataset.open = 'false'; });
+});
+
+/* ==========================================================================
+   Mount. Five states, one factory.
+   ========================================================================== */
+const APPS = {
+  1: { query:'', selected:[], uploads:UPLOADS, mode:'ready' },
+  2: { query:'pricing', selected:['m2','m4','m5'], uploads:[], mode:'ready' },
+  3: { query:'', selected:[], uploads:[], mode:'first-run' },
+  4: { query:'board', selected:[], uploads:[], mode:'loading' },
+  5: { query:'gst filing', selected:[], uploads:[], mode:'ready' }
+};
+document.querySelectorAll('[data-app]').forEach(el => {
+  createApp(el, APPS[el.dataset.app]);
+});
+
+/* Row entrance. Fast and short: this is a tool, not a marketing moment.
+   240ms with a 50ms row stagger, well inside the product ceiling. */
+if (window.gsap && window.ScrollTrigger){
+  gsap.registerPlugin(ScrollTrigger);
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /* gsap.from, not fromTo: the rows are visible by default, so if the ticker
+     is ever starved or the tween never runs, the list is still readable.
+     Nothing on this screen is allowed to depend on an animation finishing. */
+  ScrollTrigger.batch('.app .rows .row, .app .file-row, .app .blank', {
+    start: 'top 96%',
+    once: true,
+    onEnter: batch => gsap.from(batch, {
+      opacity: 0, y: reduce ? 0 : 8,
+      duration: 0.24, ease: 'power3.out', stagger: 0.05, overwrite: true
+    })
+  });
+  /* Both webfonts change row height when they swap in, which moves every
+     trigger below them. */
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => ScrollTrigger.refresh());
+}
+
+/* Preview rail highlighting. Chrome, not product. */
+const navLinks = [...document.querySelectorAll('.pv-nav a')];
+const sections = navLinks.map(a => document.querySelector(a.getAttribute('href')));
+const spy = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const i = sections.indexOf(entry.target);
+    navLinks.forEach((a, j) => a.classList.toggle('on', i === j));
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+sections.forEach(s => s && spy.observe(s));
+</script>
+</body>
+</html>

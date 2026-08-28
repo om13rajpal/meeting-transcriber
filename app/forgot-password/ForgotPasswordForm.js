@@ -21,10 +21,10 @@ export default function ForgotPasswordForm() {
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email" className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Email</Label>
         <Input id="email" name="email" type="email" required autoComplete="email" />
       </div>
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" size="lg" className="w-full" disabled={pending} style={{ boxShadow: 'var(--cr-shadow-cta)' }}>
         {pending ? 'Sending…' : 'Send reset link'}
       </Button>
     </form>

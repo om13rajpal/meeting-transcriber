@@ -1,6 +1,9 @@
+import { connectToDatabase } from '@/app/lib/db';
+import User from '@/app/lib/models/User';
 import { verifySession } from '@/app/lib/dal';
 import { findOwnedMeetingLean, listKnownSpeakerNames, toDetail } from '@/app/lib/meetings';
-import { Button } from '@/components/ui/button';
+import AppHeader from '@/components/brand/AppHeader';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import MeetingDetail from './MeetingDetail';
 
 export const metadata = { title: 'Meeting - Meeting Transcriber' };
@@ -10,24 +13,27 @@ export default async function MeetingPage({ params, searchParams }) {
   const { q } = await searchParams;
   const { userId } = await verifySession();
 
-  const meeting = await findOwnedMeetingLean(id, userId);
+  await connectToDatabase();
+  const [meeting, user] = await Promise.all([
+    findOwnedMeetingLean(id, userId),
+    User.findById(userId)
+  ]);
+  const userEmail = user?.email || '';
+  const avatarUrl = user?.avatarUrl || null;
 
   if (!meeting) {
     return (
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-4 -ml-2 text-muted-foreground"
-          render={<a href="/" />}
-          nativeButton={false}
-        >
-          &larr; Back to meetings
-        </Button>
-        <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
-          Meeting not found.
-        </div>
-      </main>
+      <div className="min-h-screen" style={{ background: 'var(--cr-ink-app)' }}>
+        <AppHeader userEmail={userEmail} avatarUrl={avatarUrl} />
+        <main className="mx-auto px-6 py-8" style={{ maxWidth: 'var(--cr-measure-app)' }}>
+          <Empty className="py-14" style={{ border: '1px dashed var(--cr-rule-soft)', borderRadius: 'var(--cr-radius-xl)' }}>
+            <EmptyHeader>
+              <EmptyTitle>Meeting not found</EmptyTitle>
+              <EmptyDescription>It may have been deleted, or the link is wrong.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </main>
+      </div>
     );
   }
 
@@ -36,6 +42,8 @@ export default async function MeetingPage({ params, searchParams }) {
   return (
     <MeetingDetail
       id={id}
+      userEmail={userEmail}
+      avatarUrl={avatarUrl}
       initialMeeting={toDetail(meeting)}
       knownSpeakerNames={knownSpeakerNames}
       initialQuery={typeof q === 'string' ? q : ''}

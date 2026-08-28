@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema({
   // CLAUDE.md - which doesn't even apply here since this isn't declared
   // unique. It's just indexed for the callback's lookup.
   googleId: { type: String, index: true, sparse: true },
+  // Google's profile photo URL, captured at sign-in time (see the OAuth
+  // callback route and fetchGoogleProfile in app/lib/oauth.js). Absent for
+  // a password-only account; the header falls back to initials.
+  avatarUrl: String,
   // POSTed with the transcript when a meeting completes or fails, one
   // request per entry. Denormalized onto Meeting.userWebhooks at creation
   // time (see app/actions/transcribe.js) the same way userEmail is, so the

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: 72c1dc492d716925073e669d9897966bd2ff5d83ff05655a418897cd599bfc08
+artifact_role: asset
+palette: [#E63946, #F4F1EA, #FFD23F, #0E0E0F]
+tokens_used: [--cr-red, --cr-paper, --cr-yellow, --cr-ink, --cr-stroke-ribbon]
+summary: The locked hand-off ribbon. Two illustrated hands pass a waveform across one long impossible arm and it arrives as a transcript. Reusable component, drop-in SVG, animatable via .cr-ribbon-path stroke-dash.
+-->
+<!--
+  HAND-OFF RIBBON  ·  the brand's one illustration
+  ==========================================================================
+  What it says: spoken voice becomes written record. The waveform leaves the
+  left hand, travels the arm, arrives as transcript lines in the right hand.
+  It is not decoration, it is the product mechanism drawn once.
+
+  Colors are wired to CSS custom properties with hard-coded fallbacks, so
+  this file renders correctly standalone AND picks up the theme when inlined.
+
+  ANIMATION CONTRACT (see brand book section 06):
+    .cr-ribbon-path  gets stroke-dasharray / stroke-dashoffset drawn on
+    .cr-hand-a       enters first, from x -20, --cr-ease-out
+    .cr-cargo-in     the waveform, scales 0.9 to 1 after hand A lands
+    .cr-hand-b       enters second, from x +20
+    .cr-cargo-out    the transcript, the payoff, lands last
+  Under prefers-reduced-motion: opacity only, no draw, no translate.
+
+  REUSE: also legal as the empty-state graphic on the dashboard and as the
+  "Transcribing..." illustration. In product surfaces render it at 40% scale
+  or smaller and drop the ribbon draw animation (see the surface split).
+
+  VIEWBOX: measured via getBBox() in a real browser, the painted content
+  (cargo-out card top edge, hand-b's outer fingers) actually reaches y=-14
+  and x=1163, outside the original "0 0 1200 340" viewBox, so the card and
+  hand were silently clipped at the frame edge. -20/-25 origin with a
+  1240x340 box gives every element real margin on all four sides.
+
+  HAND GEOMETRY: the palm is a pill (rx=ry=23 on a 46-tall rect), which
+  means its top is only genuinely flat across a narrow x=29..53 band, the
+  center of the palm; everywhere else the surface is already curving
+  downward toward the sides. A finger positioned off-center with a short
+  shaft stops short of that curve and reads as a floating shape with a
+  gap under it (the thumb and the index finger both did this in v1).
+  Fix: every finger's shaft now reaches down to at least the palm's own
+  vertical midpoint (y>=52, the one y value the pill's top boundary never
+  exceeds at ANY x), so it overlaps solid palm fill regardless of where
+  across the palm it sits. The extra length is invisible, it is buried
+  under the palm's own fill. Lengths are staggered only at the TOP (the
+  visible tip), giving natural relative finger lengths (middle longest,
+  index and ring a step shorter, pinky shortest and narrower) without
+  ever risking the connection at the bottom again.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -25 1240 340" width="1200" height="340"
+     role="img" aria-labelledby="cr-ribbon-title cr-ribbon-desc" class="cr-handoff-ribbon">
+  <title id="cr-ribbon-title">A voice handed across and returned as a written record</title>
+  <desc id="cr-ribbon-desc">One long ribbon arm carries a waveform from a hand on the left to a hand on the right, where it has become a page of transcript lines.</desc>
+
+  <!-- the arm. stroke width 34 is --cr-stroke-ribbon and is locked. -->
+  <path class="cr-ribbon-path"
+        d="M120,260 C260,260 300,60 480,60 C640,60 640,260 800,260 C920,260 960,90 1090,90"
+        fill="none"
+        stroke="var(--cr-red, #E63946)"
+        stroke-width="34"
+        stroke-linecap="round"/>
+
+  <!-- hand A, offering -->
+  <g class="cr-hand-a"><g fill="var(--cr-paper, #F4F1EA)" transform="translate(58,196)">
+    <rect x="-8" y="66" width="36" height="16" rx="8" transform="rotate(-22 5 74)"/>
+    <rect x="6" y="30" width="70" height="46" rx="23"/>
+    <rect x="6" y="2" width="14" height="56" rx="7" transform="rotate(-10 13 30)"/>
+    <rect x="22" y="-8" width="14" height="66" rx="7"/>
+    <rect x="38" y="-2" width="14" height="60" rx="7" transform="rotate(7 45 28)"/>
+    <rect x="54" y="6" width="12" height="52" rx="6" transform="rotate(16 60 32)"/>
+  </g></g>
+
+  <!-- the cargo going in: a waveform, ink card with highlighter bars -->
+  <g class="cr-cargo-in"><g transform="translate(78,150)">
+    <rect x="0" y="0" width="56" height="42" rx="6" fill="var(--cr-ink, #0E0E0F)"/>
+    <rect x="8"  y="16" width="4" height="14" fill="var(--cr-yellow, #FFD23F)"/>
+    <rect x="16" y="9"  width="4" height="26" fill="var(--cr-yellow, #FFD23F)"/>
+    <rect x="24" y="17" width="4" height="10" fill="var(--cr-yellow, #FFD23F)"/>
+    <rect x="32" y="5"  width="4" height="34" fill="var(--cr-yellow, #FFD23F)"/>
+    <rect x="40" y="13" width="4" height="18" fill="var(--cr-yellow, #FFD23F)"/>
+  </g></g>
+
+  <!-- hand B, receiving. same hand, mirrored. -->
+  <g class="cr-hand-b"><g fill="var(--cr-paper, #F4F1EA)" transform="translate(1148,26) scale(-1,1)">
+    <rect x="-8" y="66" width="36" height="16" rx="8" transform="rotate(-22 5 74)"/>
+    <rect x="6" y="30" width="70" height="46" rx="23"/>
+    <rect x="6" y="2" width="14" height="56" rx="7" transform="rotate(-10 13 30)"/>
+    <rect x="22" y="-8" width="14" height="66" rx="7"/>
+    <rect x="38" y="-2" width="14" height="60" rx="7" transform="rotate(7 45 28)"/>
+    <rect x="54" y="6" width="12" height="52" rx="6" transform="rotate(16 60 32)"/>
+  </g></g>
+
+  <!-- the cargo coming out: a page of transcript, paper with ink lines -->
+  <g class="cr-cargo-out"><g transform="translate(978,-14)">
+    <rect x="0" y="0" width="72" height="50" rx="6" fill="var(--cr-paper, #F4F1EA)"/>
+    <rect x="9" y="11" width="42" height="4" rx="2" fill="var(--cr-ink, #0E0E0F)"/>
+    <rect x="9" y="21" width="54" height="4" rx="2" fill="var(--cr-ink, #0E0E0F)" opacity=".55"/>
+    <rect x="9" y="31" width="32" height="4" rx="2" fill="var(--cr-ink, #0E0E0F)" opacity=".55"/>
+  </g></g>
+</svg>

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: 3862f569c42ec5d9b715c82f3cc501bb120ed6541fa2a9f5e8d04c9ddcfd5631
+artifact_role: asset
+palette: [#E63946, #FFD23F, #0E0E0F, #F4F1EA]
+tokens_used: [--cr-red, --cr-yellow, --cr-ink, --cr-paper, --cr-stroke-hair]
+summary: The four Court Reporter motifs as reusable symbols. Stamp, redaction bar, speaker tag, waveform strip. All four are marketing-surface only, none may appear in the authenticated app.
+-->
+<!--
+  MOTIFS  ·  the decorative vocabulary
+  ==========================================================================
+  MARKETING SURFACES ONLY. Every symbol in this file is on the forbidden
+  list for the Dashboard and MeetingDetail screens. See the surface split.
+
+  The one exception: cr-m-tag (the speaker tag) is legal everywhere, because
+  it is not decoration, it is how a diarised speaker is labelled.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">
+
+  <!-- STAMP · rotate -6deg in use. Stroke is 1, matching --cr-stroke-hair,
+       which is the whole border scale. It was 2.5 in v1 and read as a thick
+       box; a hairline outline is closer to a real rubber stamp anyway.
+       Note the stroke scales with the symbol, so at a 240px render this is
+       still an optical hairline, not a hard 1 device pixel.
+       The word inside is always a fact about the file, never a slogan:
+       DIARISED, ON RECORD, HINGLISH, NOVA-3. -->
+  <symbol id="cr-m-stamp" viewBox="0 0 120 34">
+    <rect x="0.5" y="0.5" width="119" height="33" fill="none"
+          stroke="var(--cr-red, #E63946)" stroke-width="1"/>
+    <text x="60" y="23.5" text-anchor="middle"
+          font-family="'Big Shoulders Display', 'Arial Narrow', sans-serif"
+          font-weight="900" font-size="16" letter-spacing="1.6"
+          fill="var(--cr-red, #E63946)">DIARISED</text>
+  </symbol>
+
+  <!-- REDACTION BAR · the joke, and the privacy promise, in one shape.
+       Ink on ink, so the text is genuinely unreadable rather than merely
+       covered. Never redact real content, only demo content. -->
+  <symbol id="cr-m-redaction" viewBox="0 0 120 20">
+    <rect width="120" height="20" rx="2" fill="var(--cr-ink, #0E0E0F)"/>
+  </symbol>
+
+  <!-- SPEAKER TAG · S1, S2. The only motif legal in the product surfaces. -->
+  <symbol id="cr-m-tag" viewBox="0 0 30 18">
+    <rect width="30" height="18" rx="4" fill="var(--cr-ink, #0E0E0F)"/>
+    <text x="15" y="13" text-anchor="middle"
+          font-family="'IBM Plex Mono', monospace" font-weight="600" font-size="10"
+          fill="var(--cr-paper, #F4F1EA)">S1</text>
+  </symbol>
+
+  <!-- WAVEFORM STRIP · the "before" state. Highlighter yellow because this
+       is sound not yet committed to the record. Once it is text it is ink. -->
+  <symbol id="cr-m-waveform" viewBox="0 0 96 40">
+    <g fill="var(--cr-yellow, #FFD23F)">
+      <rect x="2"  y="14" width="4" height="12" rx="2"/>
+      <rect x="10" y="8"  width="4" height="24" rx="2"/>
+      <rect x="18" y="16" width="4" height="8"  rx="2"/>
+      <rect x="26" y="3"  width="4" height="34" rx="2"/>
+      <rect x="34" y="12" width="4" height="16" rx="2"/>
+      <rect x="42" y="6"  width="4" height="28" rx="2"/>
+      <rect x="50" y="15" width="4" height="10" rx="2"/>
+      <rect x="58" y="9"  width="4" height="22" rx="2"/>
+      <rect x="66" y="17" width="4" height="6"  rx="2"/>
+      <rect x="74" y="11" width="4" height="18" rx="2"/>
+      <rect x="82" y="14" width="4" height="12" rx="2"/>
+      <rect x="90" y="18" width="4" height="4"  rx="2"/>
+    </g>
+  </symbol>
+</svg>

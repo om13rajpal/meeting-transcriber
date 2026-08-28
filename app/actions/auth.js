@@ -6,7 +6,8 @@ import { connectToDatabase } from '@/app/lib/db';
 import User from '@/app/lib/models/User';
 import Session from '@/app/lib/models/Session';
 import PasswordResetToken from '@/app/lib/models/PasswordResetToken';
-import { createSession, deleteSession } from '@/app/lib/session';
+import { createSession, deleteSession, getCurrentSessionToken } from '@/app/lib/session';
+import { verifySession } from '@/app/lib/dal';
 import { sendPasswordResetEmail } from '@/app/lib/email';
 
 const BCRYPT_ROUNDS = 12;
@@ -123,4 +124,45 @@ export async function resetPassword(prevState, formData) {
 
   await createSession(tokenDoc.userId);
   redirect('/');
+}
+
+// Authenticated password change, from the settings page rather than the
+// email-recovery flow above. An account with an existing password must
+// prove it first; a Google-only account (no passwordHash yet) has nothing
+// to prove and is just setting its first one. Same "sign out every other
+// device" reasoning as resetPassword(), except the device making this
+// change gets to stay signed in, since it just proved it's the owner.
+export async function updatePassword(prevState, formData) {
+  const { userId } = await verifySession();
+  const currentPassword = String(formData.get('currentPassword') || '');
+  const password = String(formData.get('password') || '');
+  const confirmPassword = String(formData.get('confirmPassword') || '');
+
+  if (password.length < 8) {
+    return { error: 'New password must be at least 8 characters.' };
+  }
+  if (password !== confirmPassword) {
+    return { error: 'Passwords do not match.' };
+  }
+
+  await connectToDatabase();
+  const user = await User.findById(userId);
+  if (!user) {
+    return { error: 'Could not find your account.' };
+  }
+
+  if (user.passwordHash) {
+    const matches = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!matches) {
+      return { error: 'Current password is incorrect.' };
+    }
+  }
+
+  user.passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+  await user.save();
+
+  const currentToken = await getCurrentSessionToken();
+  await Session.deleteMany({ userId, _id: { $ne: currentToken } });
+
+  return { message: 'Password updated. Other devices have been signed out.' };
 }

@@ -51,13 +51,13 @@ export async function GET(request) {
     if (user) {
       // First time Google is used for an existing account (created by
       // password signup) - link it rather than creating a duplicate
-      // account for the same email.
-      if (!user.googleId) {
-        user.googleId = profile.providerId;
-        await user.save();
-      }
+      // account for the same email. The avatar is refreshed on every
+      // Google sign-in (cosmetic only, cheap to keep current).
+      if (!user.googleId) user.googleId = profile.providerId;
+      user.avatarUrl = profile.avatarUrl;
+      await user.save();
     } else {
-      user = await User.create({ email, googleId: profile.providerId });
+      user = await User.create({ email, googleId: profile.providerId, avatarUrl: profile.avatarUrl });
     }
 
     await createSession(user._id);

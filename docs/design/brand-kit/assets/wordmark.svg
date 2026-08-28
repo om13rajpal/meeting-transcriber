@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @moodforge
+schema: 1.0
+round: 3
+phase: brand-kit
+worker: moodforge-brand-architect
+theme: court-reporter
+version: v1
+created_at: 2026-08-28T00:00:00Z
+sha256: 0f2a6043262bb4c6eebc6d3562bf06d0484e076e2efeff2ff7d24d62b2d454d6
+artifact_role: asset
+palette: [#F4F1EA, #E63946]
+tokens_used: [--cr-paper, --cr-red, --cr-font-display]
+summary: Primary wordmark, PLACEHOLDER name MEETING.TXT. Live text not outlines, so the product name is a one-word swap once it is chosen.
+-->
+<!--
+  PRIMARY WORDMARK  ·  PLACEHOLDER
+  ==========================================================================
+  The product has no final name yet. This file deliberately uses live <text>
+  rather than outlined paths so swapping the name is editing one string in
+  one place, in every variant file, with no vector work.
+
+  TO SWAP: replace the two tspan contents below. Keep the red period. If the
+  new name is longer than about 12 characters, widen the viewBox rather than
+  shrinking font-size, so the mark keeps its weight.
+
+  The full stop is red on purpose. It is the smallest possible stamp, and it
+  is the one place the brand red appears in the mark. Do not color the
+  letterforms red: #E63946 on #F4F1EA is 3.70:1 and fails AA.
+
+  Requires the Big Shoulders Display webfont. Outline before sending to a
+  printer or any renderer that will not have the font.
+
+  CLEAR SPACE: the cap height of one letter on all four sides.
+  MINIMUM SIZE: 90px wide on screen, 22mm wide in print. Below that use
+  mark-icon.svg instead.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 90" width="420" height="90"
+     role="img" aria-label="MEETING.TXT">
+  <text x="0" y="70"
+        font-family="'Big Shoulders Display', 'Arial Narrow', system-ui, sans-serif"
+        font-weight="900" font-size="80" letter-spacing="0.5"
+        fill="var(--cr-paper, #F4F1EA)">MEETING<tspan fill="var(--cr-red, #E63946)">.</tspan>TXT</text>
+</svg>
