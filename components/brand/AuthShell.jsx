@@ -3,11 +3,14 @@ import Wordmark from './Wordmark';
 import Eyebrow from './Eyebrow';
 import HandoffRibbon from './HandoffRibbon';
 
+// Three lines, not four: the card has to fit next to a full headline and
+// stat row without overflowing a normal laptop viewport (1280x720,
+// 1366x768), and a fourth line was exactly the difference between fitting
+// and clipping the footer stats off the bottom of the screen.
 const TRANSCRIPT_LINES = [
   { tag: 'AANYA I.', time: '00:12:04', text: <>Toh Q3 ka number kya laga? Last week ke <mark className="rounded-[var(--cr-radius-sm)] px-[3px] bg-[var(--cr-yellow)] text-[var(--cr-yellow-ink)]">draft</mark> mein 4.2 crore tha.</> },
   { tag: 'ROHIT K.', time: '00:12:11', text: '4.28 actually. Marathahalli wale account ne late close kiya.' },
-  { tag: 'AANYA I.', time: '00:12:19', text: <>Theek hai, phir <mark className="rounded-[var(--cr-radius-sm)] px-[3px] bg-[var(--cr-yellow)] text-[var(--cr-yellow-ink)]">revised deck</mark> mein wahi number daal dena.</> },
-  { tag: 'PRIYA B.', time: '00:12:26', text: <>Mera number save kar lo, <span style={{ background: 'var(--cr-text-on-paper)', color: 'var(--cr-text-on-paper)', borderRadius: 2 }}>&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span></> }
+  { tag: 'AANYA I.', time: '00:12:19', text: <>Theek hai, phir <mark className="rounded-[var(--cr-radius-sm)] px-[3px] bg-[var(--cr-yellow)] text-[var(--cr-yellow-ink)]">revised deck</mark> mein wahi number daal dena.</> }
 ];
 
 // Marketing-weight illustration side, shared by every auth screen so the
@@ -19,10 +22,10 @@ const TRANSCRIPT_LINES = [
 function TranscriptSample() {
   return (
     <div
-      className="w-full max-w-md rounded-[var(--cr-radius-card)] px-7 py-6"
+      className="w-full max-w-md rounded-[var(--cr-radius-card)] px-6 py-5"
       style={{ background: 'var(--cr-paper)', color: 'var(--cr-text-on-paper)', boxShadow: 'var(--cr-shadow-sheet)' }}
     >
-      <div className="flex items-start justify-between" style={{ marginBottom: 'var(--cr-space-4)' }}>
+      <div className="flex items-start justify-between" style={{ marginBottom: 'var(--cr-space-3)' }}>
         <div className="font-display uppercase" style={{ fontSize: 'var(--cr-type-mono)', fontWeight: 'var(--cr-weight-heavy)', letterSpacing: '0.03em', color: 'var(--cr-text-paper-mut)' }}>
           Q3 Pipeline Review &middot; 12 Aug
         </div>
@@ -40,7 +43,7 @@ function TranscriptSample() {
           style={{
             fontSize: 'var(--cr-type-sm)',
             lineHeight: 'var(--cr-leading-mono)',
-            padding: '6px 0',
+            padding: '5px 0',
             borderBottom: i < arr.length - 1 ? '1px dashed var(--cr-paper-rule)' : 'none'
           }}
         >
@@ -53,7 +56,7 @@ function TranscriptSample() {
       ))}
       <div
         className="flex flex-wrap gap-x-[var(--cr-space-4)] gap-y-1 font-mono"
-        style={{ marginTop: 'var(--cr-space-4)', paddingTop: 'var(--cr-space-4)', borderTop: '1px solid var(--cr-paper-rule)', fontSize: 11, color: 'var(--cr-text-paper-mut)' }}
+        style={{ marginTop: 'var(--cr-space-3)', paddingTop: 'var(--cr-space-3)', borderTop: '1px solid var(--cr-paper-rule)', fontSize: 11, color: 'var(--cr-text-paper-mut)' }}
       >
         <span>3 speakers</span>
         <span>00:41:12 runtime</span>
@@ -76,7 +79,7 @@ export default function AuthShell({ eyebrow, headline, lede, stats, side = 'tran
         </Link>
       </nav>
 
-      <div className="mx-auto grid gap-14 px-6 py-12 md:grid-cols-2" style={{ maxWidth: 1200 }}>
+      <div className="mx-auto grid gap-14 px-6 py-10 md:grid-cols-2" style={{ maxWidth: 1200 }}>
         <div className="hidden md:block" style={{ borderRight: '1px solid var(--cr-rule-soft)', paddingRight: 'var(--cr-space-9)' }}>
           <Eyebrow className="mb-4">
             <span style={{ color: 'var(--cr-red-text)' }}>&#9679;</span> {eyebrow}
@@ -95,7 +98,7 @@ export default function AuthShell({ eyebrow, headline, lede, stats, side = 'tran
             <br />
             <span style={{ color: 'var(--cr-red-text)' }}>{headline[1]}</span>
           </h1>
-          <p style={{ fontSize: 'var(--cr-type-sm)', lineHeight: 'var(--cr-leading-body)', color: 'var(--cr-text-secondary)', maxWidth: 420, marginBottom: 'var(--cr-space-7)' }}>
+          <p style={{ fontSize: 'var(--cr-type-sm)', lineHeight: 'var(--cr-leading-body)', color: 'var(--cr-text-secondary)', maxWidth: 420, marginBottom: 'var(--cr-space-5)' }}>
             {lede}
           </p>
 
@@ -113,7 +116,7 @@ export default function AuthShell({ eyebrow, headline, lede, stats, side = 'tran
           {stats && (
             <div
               className="flex flex-wrap gap-x-[var(--cr-space-6)] gap-y-2 font-mono"
-              style={{ marginTop: 'var(--cr-space-8)', paddingTop: 'var(--cr-space-5)', borderTop: '1px solid var(--cr-rule-soft)', fontSize: 'var(--cr-type-meta)', color: 'var(--cr-text-muted)' }}
+              style={{ marginTop: 'var(--cr-space-5)', paddingTop: 'var(--cr-space-4)', borderTop: '1px solid var(--cr-rule-soft)', fontSize: 'var(--cr-type-meta)', color: 'var(--cr-text-muted)' }}
             >
               {stats.map((s, i) => <span key={i}>{s}</span>)}
             </div>
