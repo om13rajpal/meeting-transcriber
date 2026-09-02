@@ -74,6 +74,17 @@ async function startCapture(streamId: string) {
     combinedStream = null;
     tabStream = null;
     micStream = null;
+    // Fire-and-forget, same as startCapture()/stopCapture() themselves -
+    // the onMessage listener below must not block waiting on the upload
+    // (which can take as long as the recording itself for a large file).
+    // A superseded session's onstop already bailed out above via the
+    // `mySession !== generation` guard, so a stale session's audio never
+    // reaches here either - nothing extra to guard against for upload.
+    if (blob.size > 0) {
+      uploadRecording(blob);
+    } else {
+      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No audio was captured — nothing to upload.' });
+    }
   };
   recorder.start(1000); // 1s timeslices so a crash mid-recording still leaves recent chunks in `myChunks`
 }
@@ -96,6 +107,68 @@ function stopCapture() {
   tabStream?.getTracks().forEach((t) => t.stop());
   micStream?.getTracks().forEach((t) => t.stop());
   combinedStream?.getTracks().forEach((t) => t.stop());
+}
+
+async function uploadRecording(blob: Blob) {
+  const { appUrl, apiKey } = await chrome.storage.local.get(['appUrl', 'apiKey']);
+  if (!appUrl || !apiKey) {
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No App URL or API key set — open Settings.' });
+    return;
+  }
+
+  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Requesting upload token…' });
+
+  let tokenResponse: Response;
+  try {
+    tokenResponse = await fetch(`${appUrl}/api/tokens/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: `Meeting ${new Date().toLocaleString('en-US')}.webm` })
+    });
+  } catch {
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Could not reach the app — check your App URL and network connection.' });
+    return;
+  }
+
+  if (!tokenResponse.ok) {
+    const body = await tokenResponse.json().catch(() => ({}));
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: body.error || 'Could not start the upload.' });
+    return;
+  }
+
+  const { token, backendUrl, meeting } = await tokenResponse.json();
+
+  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploading recording…' });
+
+  const form = new FormData();
+  form.append('token', token);
+  form.append('file', blob, 'recording.webm');
+
+  async function reportFailure(message: string) {
+    // Companion to the mint call above: without this, a failed upload
+    // would leave the Meeting row stuck at 'processing' until the
+    // backend's 30-minute stale-job sweep notices, instead of failing
+    // promptly the way the web dashboard's own upload failures already
+    // do. See docs/superpowers/plans/2026-09-02-api-key-auth.md Task 6.
+    await fetch(`${appUrl}/api/tokens/mark-failed`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ meetingId: meeting.id, message })
+    }).catch(() => {});
+  }
+
+  try {
+    const uploadResponse = await fetch(`${backendUrl}/api/transcribe`, { method: 'POST', body: form });
+    if (!uploadResponse.ok) {
+      await reportFailure(`Upload failed with status ${uploadResponse.status}.`);
+      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Upload failed — the meeting was saved as failed in your dashboard.' });
+      return;
+    }
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploaded — check the dashboard for transcription progress.' });
+  } catch {
+    await reportFailure('Network error during upload from the Chrome extension.');
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Network error during upload — the meeting was saved as failed in your dashboard.' });
+  }
 }
 
 chrome.runtime.onMessage.addListener((message) => {
