@@ -17,14 +17,46 @@ let combinedStream: MediaStream | null = null;
 // `recorder`/stream nulling still needs this guard.)
 let generation = 0;
 
+// The last recording that failed to upload, kept only so the bytes aren't
+// thrown away the instant the network is down. This is a minimal, in-memory-
+// only safety net: it lives in the offscreen document's heap, so reloading the
+// extension, restarting Chrome, or the offscreen document being torn down all
+// discard it, and nothing in the UI can retry from it automatically. A real
+// "kept on disk and offered for retry-upload" flow (persisting to IndexedDB
+// plus a retry button in the side panel) is a separate, larger piece of work
+// this deliberately doesn't attempt. Set on failure paths only - a successfully
+// uploaded recording is left to be garbage-collected.
+function retainFailedRecording(blob: Blob) {
+  (globalThis as any).__lastFailedRecordingBlob = blob;
+}
+
+// Appended to every upload-failure status so the message is honest about what
+// is and isn't still recoverable.
+const IN_MEMORY_NOTE = ' The recording is still in memory in this browser session only - reloading the extension or restarting Chrome discards it.';
+
 async function startCapture(streamId: string) {
   generation += 1;
   const mySession = generation;
 
-  tabStream = await navigator.mediaDevices.getUserMedia({
-    audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } } as any
-  });
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // Held as locals until both succeed: if the mic prompt is denied after the
+  // tab capture already opened, the tab capture has to be released here or it
+  // stays live (with Chrome's capture indicator showing) for a recording that
+  // never started.
+  let myTabStream: MediaStream | null = null;
+  let myMicStream: MediaStream | null = null;
+  try {
+    myTabStream = await navigator.mediaDevices.getUserMedia({
+      audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } } as any
+    });
+    myMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    myTabStream?.getTracks().forEach((t) => t.stop());
+    myMicStream?.getTracks().forEach((t) => t.stop());
+    throw error;
+  }
+
+  tabStream = myTabStream;
+  micStream = myMicStream;
 
   // Mix both into one track via the Web Audio API, per the design spec -
   // a single combined recording is enough for this app's diarization
@@ -50,6 +82,16 @@ async function startCapture(streamId: string) {
   // instead - audio from one recording bleeding into the next, with no
   // exception to reveal it.
   const myChunks: Blob[] = [];
+  // ---------------------------------------------------------------------
+  // LOAD-BEARING: everything from here down to `recorder.start()` must stay
+  // synchronous. It's the only stretch where this session's module-scope
+  // `recorder`/`combinedStream` are set up, and it runs to completion in one
+  // task precisely because nothing awaits inside it. Insert an `await`
+  // anywhere in this block and a concurrent `startCapture()` call gets a
+  // chance to interleave, reassigning that shared state mid-setup - which is
+  // the exact class of bug the `generation` guard and per-session `myChunks`
+  // above already had to be added for, twice. Don't.
+  // ---------------------------------------------------------------------
   recorder = new MediaRecorder(combinedStream, { mimeType: 'audio/webm;codecs=opus' });
   recorder.ondataavailable = (e) => {
     if (e.data.size > 0) myChunks.push(e.data);
@@ -68,12 +110,18 @@ async function startCapture(streamId: string) {
     // that last buffered chunk (up to the 1s timeslice) in the recording
     // instead of silently dropping it.
     const blob = new Blob(myChunks, { type: 'audio/webm' });
-    (globalThis as any).__lastRecordingBlob = blob;
     chrome.runtime.sendMessage({ type: 'RECORDING_FINISHED', size: blob.size });
     recorder = null;
     combinedStream = null;
     tabStream = null;
     micStream = null;
+    // This session's own AudioContext, closure-captured like `myChunks` for
+    // the same reason (a module-scope one would be the *next* session's by
+    // now). Each recording created a fresh context; without this close() they
+    // accumulate, one live audio graph per recording, for the whole browser
+    // session. Safe here: the recorder has already stopped, so nothing is
+    // reading from the graph any more.
+    audioContext.close().catch(() => {});
     // Fire-and-forget, same as startCapture()/stopCapture() themselves -
     // the onMessage listener below must not block waiting on the upload
     // (which can take as long as the recording itself for a large file).
@@ -83,7 +131,7 @@ async function startCapture(streamId: string) {
     if (blob.size > 0) {
       uploadRecording(blob);
     } else {
-      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No audio was captured — nothing to upload.' });
+      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No audio was captured - nothing to upload.' });
     }
   };
   recorder.start(1000); // 1s timeslices so a crash mid-recording still leaves recent chunks in `myChunks`
@@ -109,14 +157,23 @@ function stopCapture() {
   combinedStream?.getTracks().forEach((t) => t.stop());
 }
 
+function captureErrorMessage(error: unknown) {
+  if (error instanceof DOMException && error.name === 'NotAllowedError') {
+    return 'Microphone access was blocked. Open Settings and click Save to grant it, then try again.';
+  }
+  const detail = error instanceof Error && error.message ? error.message : 'unknown error';
+  return `Could not start capturing audio (${detail}).`;
+}
+
 async function uploadRecording(blob: Blob) {
   const { appUrl, apiKey } = await chrome.storage.local.get(['appUrl', 'apiKey']);
   if (!appUrl || !apiKey) {
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No App URL or API key set — open Settings.' });
+    retainFailedRecording(blob);
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No App URL or API key set - open Settings.' + IN_MEMORY_NOTE });
     return;
   }
 
-  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Requesting upload token…' });
+  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Requesting upload token...' });
 
   let tokenResponse: Response;
   try {
@@ -126,19 +183,34 @@ async function uploadRecording(blob: Blob) {
       body: JSON.stringify({ fileName: `Meeting ${new Date().toLocaleString('en-US')}.webm` })
     });
   } catch {
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Could not reach the app — check your App URL and network connection.' });
+    retainFailedRecording(blob);
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Could not reach the app - check your App URL and network connection.' + IN_MEMORY_NOTE });
     return;
   }
 
   if (!tokenResponse.ok) {
     const body = await tokenResponse.json().catch(() => ({}));
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: body.error || 'Could not start the upload.' });
+    retainFailedRecording(blob);
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: (body.error || 'Could not start the upload.') + IN_MEMORY_NOTE });
     return;
   }
 
-  const { token, backendUrl, meeting } = await tokenResponse.json();
+  // Same treatment the error branch above already got: a 2xx that isn't valid
+  // JSON (a proxy's HTML error page, a truncated response) would otherwise
+  // reject here with nothing catching it, leaving the panel stuck on
+  // "Requesting upload token..." forever.
+  let token: string;
+  let backendUrl: string;
+  let meeting: { id?: string } | undefined;
+  try {
+    ({ token, backendUrl, meeting } = await tokenResponse.json());
+  } catch {
+    retainFailedRecording(blob);
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'The app returned an unreadable response to the upload-token request.' + IN_MEMORY_NOTE });
+    return;
+  }
 
-  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploading recording…' });
+  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploading recording...' });
 
   const form = new FormData();
   form.append('token', token);
@@ -153,7 +225,10 @@ async function uploadRecording(blob: Blob) {
     await fetch(`${appUrl}/api/tokens/mark-failed`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meetingId: meeting.id, message })
+      // Optional-chained so a malformed (but parseable) mint response can't
+      // turn this best-effort call into a TypeError that escapes as an
+      // unhandled rejection.
+      body: JSON.stringify({ meetingId: meeting?.id, message })
     }).catch(() => {});
   }
 
@@ -161,19 +236,36 @@ async function uploadRecording(blob: Blob) {
     const uploadResponse = await fetch(`${backendUrl}/api/transcribe`, { method: 'POST', body: form });
     if (!uploadResponse.ok) {
       await reportFailure(`Upload failed with status ${uploadResponse.status}.`);
-      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Upload failed — the meeting was saved as failed in your dashboard.' });
+      retainFailedRecording(blob);
+      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Upload failed - the meeting was saved as failed in your dashboard.' + IN_MEMORY_NOTE });
       return;
     }
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploaded — check the dashboard for transcription progress.' });
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploaded - check the dashboard for transcription progress.' });
   } catch {
     await reportFailure('Network error during upload from the Chrome extension.');
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Network error during upload — the meeting was saved as failed in your dashboard.' });
+    retainFailedRecording(blob);
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Network error during upload - the meeting was saved as failed in your dashboard.' + IN_MEMORY_NOTE });
   }
 }
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'OFFSCREEN_START') {
-    startCapture(message.streamId);
+    // Acknowledged back to the background script rather than started
+    // fire-and-forget: it holds off marking the session `recording: true`
+    // until this resolves, so a denied mic prompt or a dead tab surfaces in
+    // the side panel instead of the UI claiming a recording that isn't
+    // happening. Both getUserMedia calls (inside startCapture) reject into
+    // this catch.
+    (async () => {
+      try {
+        await startCapture(message.streamId);
+        sendResponse({ ok: true });
+      } catch (error) {
+        console.error('[offscreen] could not start capture', error);
+        sendResponse({ error: captureErrorMessage(error) });
+      }
+    })();
+    return true; // keep the message channel open for the async response
   }
   if (message.type === 'OFFSCREEN_STOP') {
     stopCapture();

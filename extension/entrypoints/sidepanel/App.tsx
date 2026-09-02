@@ -10,6 +10,7 @@ export default function App() {
   const [state, setState] = useState<State>({ activeMeetingTabId: null, platform: null, recording: false });
   const [showSettings, setShowSettings] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const [interrupted, setInterrupted] = useState(false);
 
   useEffect(() => {
@@ -26,7 +27,18 @@ export default function App() {
   function handleStart() {
     setInterrupted(false);
     setUploadStatus(null);
-    chrome.runtime.sendMessage({ type: 'START_RECORDING' });
+    setStartError(null);
+    // The background script answers every start attempt, success or failure
+    // (a missing activeTab grant, a denied microphone, a tab that went away).
+    // Ignoring that response is what made every one of those failures look
+    // identical from here: a click that appears to do nothing at all.
+    chrome.runtime.sendMessage({ type: 'START_RECORDING' }, (response) => {
+      if (chrome.runtime.lastError) {
+        setStartError(chrome.runtime.lastError.message || 'Could not reach the extension background script.');
+        return;
+      }
+      if (response?.error) setStartError(response.error);
+    });
   }
 
   function handleStop() {
@@ -55,6 +67,7 @@ export default function App() {
           ) : (
             <Button onClick={handleStart} disabled={!state.activeMeetingTabId}>Start recording</Button>
           )}
+          {startError && <p className="text-xs text-destructive">{startError}</p>}
           {uploadStatus && <p className="text-xs text-muted-foreground">{uploadStatus}</p>}
         </CardContent>
       </Card>
