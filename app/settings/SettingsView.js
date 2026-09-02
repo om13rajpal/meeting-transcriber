@@ -234,6 +234,14 @@ function formatRelativeDate(value) {
   return `Last used ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 }
 
+// A freshly-created key's row (see handleCreate below) carries a local-only
+// placeholder id, not the real database _id - revokeApiKey() would throw a
+// Mongoose CastError against it. Revoke stays disabled for that row until a
+// reload swaps it for the real id from listApiKeys().
+function isPendingKey(id) {
+  return id.startsWith('pending-');
+}
+
 function ApiKeysSection({ initialKeys }) {
   const [keys, setKeys] = useState(initialKeys);
   const [label, setLabel] = useState('');
@@ -250,7 +258,13 @@ function ApiKeysSection({ initialKeys }) {
         return;
       }
       setNewRawKey(result.rawKey);
-      setKeys((prev) => [{ id: 'pending', label: result.label, createdAt: new Date().toISOString(), lastUsedAt: null }, ...prev]);
+      // createApiKey() doesn't return a real database id (see app/actions/settings.js),
+      // so this row is a local-only placeholder until the next page load/refresh
+      // picks up the real one from listApiKeys(). A unique per-create id (rather
+      // than a shared literal 'pending') avoids a React key collision if the user
+      // creates a second key before reloading; isPendingKey() below is what
+      // actually keeps Revoke from ever being called against this fake id.
+      setKeys((prev) => [{ id: `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`, label: result.label, createdAt: new Date().toISOString(), lastUsedAt: null }, ...prev]);
       setLabel('');
     } finally {
       setCreating(false);
@@ -309,30 +323,34 @@ function ApiKeysSection({ initialKeys }) {
 
         <div className="flex flex-col gap-2">
           {keys.length === 0 && <p className="text-sm text-muted-foreground">No API keys yet.</p>}
-          {keys.map((key) => (
-            <div key={key.id} className="flex items-center gap-3 rounded-[var(--cr-radius-md)] border border-[var(--cr-rule-strong)] px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{key.label}</div>
-                <div className="text-xs text-muted-foreground">{formatRelativeDate(key.lastUsedAt)}</div>
+          {keys.map((key) => {
+            const pending = isPendingKey(key.id);
+            return (
+              <div key={key.id} className="flex items-center gap-3 rounded-[var(--cr-radius-md)] border border-[var(--cr-rule-strong)] px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{key.label}</div>
+                  <div className="text-xs text-muted-foreground">{formatRelativeDate(key.lastUsedAt)}</div>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        disabled={pending}
+                        onClick={() => handleRevoke(key.id)}
+                      >
+                        <X />
+                        <span className="sr-only">Revoke</span>
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>{pending ? 'Refresh the page to manage this key' : 'Revoke this key'}</TooltipContent>
+                </Tooltip>
               </div>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRevoke(key.id)}
-                    >
-                      <X />
-                      <span className="sr-only">Revoke</span>
-                    </Button>
-                  }
-                />
-                <TooltipContent>Revoke this key</TooltipContent>
-              </Tooltip>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
