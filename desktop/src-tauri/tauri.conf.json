@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "desktop",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Meeting Transcriber Settings",
+        "width": 420,
+        "height": 480,
+        "visible": false
       }
     ],
     "security": {
