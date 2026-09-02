@@ -589,18 +589,124 @@ sign-in page instead of a `redirect_uri_mismatch` error). The callback's
 token exchange, profile fetch, and account creation/linking still need a
 completed real sign-in to confirm end to end.
 
+## API key auth for machine clients
+
+Every mutation in this app so far has been a Server Action behind
+`verifySession()`, which only works from a browser that's holding this
+app's own session cookie. That's a real wall for the two follow-on
+clients this feature exists for - a desktop app (a native process, no
+browser) and a Chrome extension (a background script, not a page this
+app rendered) - neither can call a Server Action at all: Server Actions
+are POSTs to an encrypted, browser-session-bound action id, not a stable
+HTTP API a native Rust process or an extension can target. See
+`docs/superpowers/specs/2026-09-02-desktop-extension-capture-design.md`'s
+"Authentication for machine clients" for the design this implements.
+
+The fix is a second, additive-only auth mechanism - a long-lived personal
+API key, the same shape as a GitHub PAT - that machine clients use
+instead of a session cookie, without duplicating a single line of the
+business logic the browser path already exercises:
+
+- **`ApiKey` model** (`app/lib/models/ApiKey.js`): `{ userId, keyHash,
+  label, createdAt, lastUsedAt }`. Only the SHA-256 hash of the raw key is
+  ever stored - the raw key is shown to the user exactly once, at
+  creation, in `app/actions/settings.js`'s `createApiKey()`, and is not
+  recoverable after that, matching how a password is never stored in
+  plaintext either. Deliberately long-lived, unlike `UploadToken` - but
+  still a bounded, low-blast-radius grant: a key can only ever do what a
+  logged-in browser tab can already do (start one transcription job at a
+  time, or report one upload as failed), never act as a general-purpose
+  account credential (it can't read a transcript, change a password, or
+  touch anything `UploadToken`/`markMeetingFailedCore` don't already
+  reach).
+- **`app/lib/apiKeys.js`** (`server-only`) holds `hashApiKey()` (the
+  shared SHA-256 hex-digest function - previously defined three times,
+  once per call site, which had already let the surrounding auth-check
+  logic drift: one route trimmed the Bearer token and 401'd on an
+  empty-after-trim value, the other trimmed but never checked) and
+  `authenticateApiKey(request)`, which parses the `Authorization: Bearer
+  <key>` header, hashes it, looks it up, updates `lastUsedAt`, and
+  returns the `ApiKey` document (or `null` for any invalid/missing
+  case) - the one mechanism both routes below now share, so this
+  particular drift can't recur.
+- **Two new Route Handlers**, `app/api/tokens/upload/route.js` and
+  `app/api/tokens/mark-failed/route.js` - justified under the Route
+  Handler rule below as "a request initiated by something outside this
+  app": not a browser POSTing this app's own form/fetch, but a native
+  client or extension authenticating with a bearer credential instead of
+  a session cookie, which a Server Action structurally cannot accept.
+  Each one's entire job is resolving `userId` from the API key, then
+  delegating to the exact same core logic the browser session path
+  already uses - `mintUploadToken()` (`app/lib/uploadTokens.js`) and
+  `markMeetingFailedCore()` (`app/lib/meetings.js`) respectively - so
+  there is exactly one implementation of "mint a token and create the
+  Meeting row" and exactly one of "flip a meeting to failed and notify,"
+  no matter which auth mechanism got you there. Both core functions live
+  in `server-only` lib files, never in a `'use server'` actions file -
+  see "Server Actions vs. auth-agnostic core logic" below for why that
+  placement is load-bearing, not incidental.
+- **Settings UI**: an "API Keys" section in `/settings`
+  (`ApiKeysSection` in `app/settings/SettingsView.js`), following the
+  same section-nav pattern as the existing Webhooks settings. Lets the
+  user generate a key (shown once, with a copy button) and revoke one
+  (`revokeApiKey(id)` in `app/actions/settings.js`, ownership-scoped the
+  same way every other mutation in this app is - `deleteOne({ _id: id,
+  userId })` - and guarded against a malformed `id` the same way
+  `deleteMeetings()` guards its `deleteMany()`, so a bad id comes back as
+  `{ ok: false }` instead of throwing a Mongoose `CastError`).
+  `createApiKey()` returns the real database id (`String(apiKey._id)`)
+  alongside the raw key, so a freshly-created row is revokable the
+  instant it appears - no placeholder id, no disabled Revoke button, no
+  "refresh the page first" workaround.
+
+## Server Actions vs. auth-agnostic core logic
+
+`app/actions/meetings.js` and `app/actions/settings.js` both start with
+`'use server'`, which means **every exported async function in either
+file becomes a callable Server Action with its own action id** -
+reachable by anyone who obtains that id, not just the code that imports
+it. `app/lib/uploadTokens.js` and `app/lib/meetings.js`, by contrast, are
+`server-only` (not `'use server'`): importable from server code, but
+never compiled into the client-reachable server-reference graph.
+
+This distinction is a real security boundary, not a style preference. A
+core function like `markMeetingFailedCore({ meetingId, userId, message })`
+trusts a caller-supplied `userId` directly - by design, since its whole
+purpose is to be called by two different auth mechanisms (a session
+cookie in `app/actions/meetings.js`'s `markMeetingFailed()`, an API key
+in `app/api/tokens/mark-failed/route.js`) that each resolve `userId`
+their own way before delegating. That's exactly what a client should
+never be able to trigger directly with an arbitrary `userId` of its own
+choosing - this app's own Security rule ("never trust a client-supplied
+user id"). So the rule for any function shaped like this - does real
+work, takes `userId` as a parameter instead of calling
+`verifySession()` itself - is: it belongs in a `server-only` lib file
+(`app/lib/uploadTokens.js`'s `mintUploadToken()`,
+`app/lib/meetings.js`'s `markMeetingFailedCore()`/`sendNotifications()`),
+never in a `'use server'` actions file, even if nothing in the UI
+currently imports it from anywhere else. The thin `verifySession()` +
+delegate wrapper (`createUploadToken()` in `app/actions/transcribe.js`,
+`markMeetingFailed()` in `app/actions/meetings.js`) is what actually
+belongs in the `'use server'` file - it has no logic worth protecting on
+its own, only an auth check and a one-line delegation.
+
 ## Stack (frontend)
 
 - Next.js 16 (App Router), React 19, JavaScript (no TypeScript).
 - Server Components for reads, Server Actions for every mutation except the
-  file upload itself (see above). The **only** Route Handlers in this app
-  are `app/api/auth/google/route.js` and its `callback/route.js` - Google
-  redirects the browser here with a plain GET it initiates,
-  which can't be a Server Action (those only respond to POSTs this app
-  itself sends, via a form or `fetch`, not a third party's redirect). Don't
-  add a Route Handler for anything else without the same justification;
-  everything that isn't "a GET request initiated by something outside this
-  app" belongs in a Server Action or a Server Component instead.
+  file upload itself (see above). Route Handlers are the exception, not
+  the default, and each one currently in this app is justified the same
+  way: "a request initiated by something outside this app," not a
+  browser POSTing this app's own form/fetch. That's `app/api/auth/google/route.js`
+  and its `callback/route.js` (Google redirects the browser here with a
+  plain GET it initiates - see "Sign in with Google"), and
+  `app/api/tokens/upload/route.js` and `app/api/tokens/mark-failed/route.js`
+  (an authenticated Bearer-token POST from a desktop app or Chrome
+  extension, not a browser - see "API key auth for machine clients"
+  above). Don't add a Route Handler for anything else without the same
+  justification; everything that isn't "a request initiated by something
+  outside this app" belongs in a Server Action or a Server Component
+  instead.
 - MongoDB via Mongoose, connection string from `MONGODB_URI` only, cached on
   `global` in `app/lib/db.js` so Next's dev-mode hot reload doesn't open a
   new connection per edit.
@@ -726,7 +832,8 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 
 - `app/lib/db.js`: mongoose connection.
 - `app/lib/models/User.js`, `Meeting.js`, `Session.js`, `UploadToken.js`,
-  `PasswordResetToken.js`
+  `PasswordResetToken.js`, `ApiKey.js` (see "API key auth for machine
+  clients").
 - `app/lib/email.js`: `sendMeetingEmail()` and `sendPasswordResetEmail()`,
   the frontend half of email - see "Email notifications" and "Password
   reset".
@@ -734,6 +841,14 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   webhook notifications - see "Webhook notifications".
 - `app/lib/oauth.js`: Google config + Authorization Code flow helpers - see
   "Sign in with Google".
+- `app/lib/apiKeys.js`: `hashApiKey()` and `authenticateApiKey(request)`,
+  shared by `createApiKey()` and both `/api/tokens/*` Route Handlers - see
+  "API key auth for machine clients".
+- `app/lib/uploadTokens.js`: `mintUploadToken({ userId, fileName })`, the
+  auth-agnostic core of "mint an upload token and create the Meeting row"
+  - called by both `createUploadToken()` (session) and
+  `/api/tokens/upload` (API key). See "Server Actions vs. auth-agnostic
+  core logic".
 - `app/lib/session.js`: cookie/session primitives (`createSession`,
   `getSessionUserId`, `deleteSession`).
 - `app/lib/dal.js`: `verifySession()`, the auth boundary.
@@ -743,15 +858,19 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   (ownership-scoped, read-only), `findMeetingByShareToken` (public,
   unauthenticated lookup), `listKnownSpeakerNames` (rename autocomplete
   source), `getUsageSummary` (this-month cost/minutes total - see "Cost
-  tracking").
+  tracking"), `sendNotifications` and `markMeetingFailedCore` (the
+  auth-agnostic core behind `markMeetingFailed`/`resendNotifications` in
+  `app/actions/meetings.js` and `/api/tokens/mark-failed` - see "Server
+  Actions vs. auth-agnostic core logic").
 - `app/actions/`: every Server Action (`auth.js` [signup/login/logout,
   `requestPasswordReset`, `resetPassword`], `meetings.js` [`getMeeting`,
   title/speaker rename, `mergeSpeakers`, `markMeetingFailed`,
   `resendNotifications`, `updateMeetingTags`, `deleteMeetings`,
   `addTagToMeetings` (see "Bulk actions"), delete, share links],
-  `settings.js` [`getWebhooks`, `saveWebhooks`], `transcribe.js` [token
-  minting, also creates the `Meeting` row - see "Upload token flow"],
-  `search.js`).
+  `settings.js` [`getWebhooks`, `saveWebhooks`, `createApiKey`,
+  `revokeApiKey` (see "API key auth for machine clients")],
+  `transcribe.js` [token minting, also creates the `Meeting` row - see
+  "Upload token flow"], `search.js`).
 - `lib/utils.js` (project root, not `app/lib/`): `cn()` (shadcn's Tailwind
   class merge) and `highlightText()` (search-match highlighting - see
   "Search result highlighting and jump-to-match"). Plain client-safe code
@@ -764,7 +883,10 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   interactive UI.
 - `app/api/auth/google/route.js`, `app/api/auth/google/callback/route.js`:
   the OAuth Route Handlers - see "Sign in with Google" for why these are
-  Route Handlers and everything else in `app/` isn't.
+  Route Handlers.
+- `app/api/tokens/upload/route.js`, `app/api/tokens/mark-failed/route.js`:
+  the API-key Route Handlers for machine clients - see "API key auth for
+  machine clients".
 - `app/OAuthButtons.js`: the "Continue with Google" button, a shared
   Server Component rendered on both `/login` and `/signup`.
 - `app/Dashboard.js`: the dashboard's Client Component, rendered by
@@ -815,6 +937,15 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - OAuth sign-in only accepts an email Google itself marked verified, and
   matches/links accounts by that email - never by a client-supplied
   identifier. See "Sign in with Google".
+- `mintUploadToken()` and `markMeetingFailedCore()` are exceptions to
+  "never trust a client-supplied user id" in the sense that they *take*
+  `userId` as a parameter rather than deriving it from a session - that's
+  fine specifically because neither is ever reachable directly by a
+  client. Both live in `server-only` lib files, never in a `'use server'`
+  actions file, and every caller (a Server Action wrapper, or a Route
+  Handler that resolved `userId` from a verified API key) resolves
+  `userId` through a real auth mechanism before calling in. See "Server
+  Actions vs. auth-agnostic core logic".
 
 ## External API calls
 

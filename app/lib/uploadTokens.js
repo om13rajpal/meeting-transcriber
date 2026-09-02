@@ -1,4 +1,5 @@
 import 'server-only';
+import { connectToDatabase } from '@/app/lib/db';
 import UploadToken from '@/app/lib/models/UploadToken';
 import Meeting from '@/app/lib/models/Meeting';
 import User from '@/app/lib/models/User';
@@ -15,6 +16,13 @@ const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes: long enough to start an uplo
 // they use, then calling this - so there is exactly one place that
 // creates a Meeting + UploadToken pair, no matter which client asked.
 export async function mintUploadToken({ userId, fileName }) {
+  // Called internally so this helper is safe to call from anywhere,
+  // matching every other app/lib/ data helper (findOwnedMeeting,
+  // findOwnedMeetingLean, findMeetingByShareToken) - connectToDatabase()
+  // is cached/idempotent, so this costs nothing even when a caller (both
+  // current ones do) also calls it before delegating here.
+  await connectToDatabase();
+
   const user = await User.findById(userId).select('email webhooks').lean();
   if (!user) {
     return { error: 'Your session is no longer valid. Please log in again.' };

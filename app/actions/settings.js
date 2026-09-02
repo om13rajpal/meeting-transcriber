@@ -5,6 +5,7 @@ import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import User from '@/app/lib/models/User';
 import ApiKey from '@/app/lib/models/ApiKey';
+import { hashApiKey } from '@/app/lib/apiKeys';
 
 const VALID_FORMATS = ['generic', 'discord', 'slack', 'teams'];
 
@@ -83,10 +84,6 @@ export async function getWebhooks() {
 
 const MAX_LABEL_LENGTH = 60;
 
-function hashApiKey(rawKey) {
-  return crypto.createHash('sha256').update(rawKey).digest('hex');
-}
-
 // Shown to the caller exactly once, in the response of this action -
 // never stored in plaintext, never retrievable again after this call
 // returns. If it's lost, the only recovery is revoking it and creating
@@ -102,32 +99,21 @@ export async function createApiKey(label) {
   const rawKey = `mtk_${crypto.randomBytes(32).toString('hex')}`;
   const keyHash = hashApiKey(rawKey);
 
-  await ApiKey.create({ userId, keyHash, label: trimmedLabel });
+  const apiKey = await ApiKey.create({ userId, keyHash, label: trimmedLabel });
 
-  return { rawKey, label: trimmedLabel };
-}
-
-export async function listApiKeys() {
-  const { userId } = await verifySession();
-  await connectToDatabase();
-
-  const keys = await ApiKey.find({ userId }).select('label createdAt lastUsedAt').sort({ createdAt: -1 }).lean();
-  return {
-    keys: keys.map((k) => ({
-      id: String(k._id),
-      label: k.label,
-      createdAt: k.createdAt,
-      lastUsedAt: k.lastUsedAt || null
-    }))
-  };
+  return { rawKey, label: trimmedLabel, id: String(apiKey._id) };
 }
 
 // Ownership-scoped the same way every other mutation in this app is -
 // deleteOne with both _id and userId in the filter means a key that
 // exists but isn't yours simply matches zero documents, not a 403.
+// Guarded against a malformed `id` (a Mongoose CastError, e.g. an id that
+// isn't a valid ObjectId string) the same way deleteMeetings() in
+// app/actions/meetings.js guards its own deleteMany() - a bad id should
+// come back as "didn't work," not throw and surface an internal error.
 export async function revokeApiKey(id) {
   const { userId } = await verifySession();
   await connectToDatabase();
-  await ApiKey.deleteOne({ _id: id, userId });
-  return { ok: true };
+  const result = await ApiKey.deleteOne({ _id: id, userId }).catch(() => null);
+  return { ok: Boolean(result?.deletedCount) };
 }

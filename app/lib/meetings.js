@@ -1,6 +1,8 @@
 import 'server-only';
 import { connectToDatabase } from '@/app/lib/db';
 import Meeting from '@/app/lib/models/Meeting';
+import { sendMeetingEmail } from '@/app/lib/email';
+import { sendMeetingWebhook } from '@/app/lib/webhook';
 
 const PREVIEW_LENGTH = 140;
 const SNIPPET_CONTEXT_CHARS = 60;
@@ -194,4 +196,74 @@ export async function getUsageSummary(userId) {
   const totalSeconds = meetings.reduce((sum, m) => sum + (m.durationSeconds || 0), 0);
   const totalCostUsd = meetings.reduce((sum, m) => sum + (m.deepgramCostUsd || 0), 0);
   return { minutes: Math.round(totalSeconds / 60), costUsd: totalCostUsd, count: meetings.length };
+}
+
+// Sends the completion/failure email + webhooks, then records whether each
+// one actually succeeded back onto the meeting - this is what makes
+// delivery status visible on the meeting page (and resendable there, see
+// resendNotifications() in app/actions/meetings.js) instead of the
+// notification being a total black box, which is exactly what made an
+// earlier silent webhook failure impossible to self-diagnose. Mirrors
+// sendNotifications() in backend/server.js.
+//
+// Lives here (not in app/actions/meetings.js, a 'use server' module) so it
+// can be called from markMeetingFailedCore() below without either function
+// becoming a client-reachable Server Action - see "Authentication for
+// machine clients" in CLAUDE.md for why that distinction matters.
+export async function sendNotifications(meeting) {
+  const detail = toDetail(meeting);
+  const [emailOk, webhookResults] = await Promise.all([
+    sendMeetingEmail(meeting.userEmail, detail),
+    sendMeetingWebhook(meeting.userWebhooks, detail)
+  ]);
+
+  const now = new Date();
+  meeting.emailLastAttemptAt = now;
+  meeting.emailLastAttemptOk = emailOk;
+
+  const byUrl = new Map(webhookResults.map((r) => [r.url, r]));
+  meeting.userWebhooks.forEach((w) => {
+    const result = byUrl.get(w.url);
+    if (result) {
+      w.lastAttemptAt = now;
+      w.lastAttemptOk = result.ok;
+      w.lastAttemptStatus = result.status;
+    }
+  });
+  if (meeting.userWebhooks.length) meeting.markModified('userWebhooks');
+
+  await meeting.save();
+}
+
+// Called by the dashboard right when the direct-to-backend upload request
+// itself fails (a rejected token, a network drop, a 4xx/5xx from the
+// backend) - the browser already knows this happened synchronously, so
+// there's no reason to make the user wait for the 30-minute stale-job
+// sweep in backend/server.js to notice. That sweep still exists as a
+// backstop for failures the browser never finds out about (the backend
+// process dying mid-job after already accepting the file).
+//
+// The auth-agnostic core, mirroring how mintUploadToken() in
+// app/lib/uploadTokens.js splits from createUploadToken() - callers
+// resolve `userId` through whichever auth mechanism they use (session
+// cookie in app/actions/meetings.js's markMeetingFailed, API key in
+// app/api/tokens/mark-failed/route.js) and this does the actual
+// status/notification work exactly once. Deliberately kept in this
+// server-only lib file rather than the 'use server' actions file - every
+// exported async function in a 'use server' module becomes a callable
+// Server Action with its own action id, and this function trusts a
+// caller-supplied userId directly (no verifySession() of its own), so it
+// must never live somewhere the client-reachable server-reference graph
+// can find it.
+export async function markMeetingFailedCore({ meetingId, userId, message }) {
+  const meeting = await findOwnedMeeting(meetingId, userId);
+  if (!meeting || meeting.status !== 'processing') {
+    return { ok: false };
+  }
+
+  meeting.status = 'failed';
+  meeting.errorMessage = typeof message === 'string' && message ? message : 'Upload failed. Please try again.';
+  await meeting.save();
+  await sendNotifications(meeting);
+  return { ok: true };
 }
