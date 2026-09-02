@@ -69,50 +69,25 @@ fn get_settings() -> Result<SettingsResponse, String> {
     Ok(SettingsResponse { app_url, has_api_key })
 }
 
-// Real verification, not a mock: these tests hit the actual macOS Keychain
-// (via `keyring`'s real platform backend) and the actual filesystem under
-// `dirs::config_dir()` - no fakes/stubs substituted in. Run with
-// `cargo test -- --test-threads=1` since both tests touch the same
-// (SERVICE, KEY_USER) real keychain entry and would otherwise race.
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn keychain_round_trip() {
-        let entry = Entry::new(SERVICE, KEY_USER).expect("failed to create keyring entry");
-        let test_value = "test-api-key-round-trip-12345";
-        entry
-            .set_password(test_value)
-            .expect("failed to set password in real Keychain");
-        let retrieved = entry
-            .get_password()
-            .expect("failed to read password back from real Keychain");
-        assert_eq!(retrieved, test_value, "round-tripped value did not match");
-    }
-
-    #[test]
-    fn settings_commands_round_trip() {
-        // Exercises the exact save_settings/get_settings Tauri commands the
-        // frontend calls, not a reimplementation of their logic.
-        let url = "https://example-desktop-test.vercel.app";
-        let key = "mtk_test_do_not_use_1234567890";
-
-        save_settings(url.to_string(), key.to_string()).expect("save_settings failed");
-
-        let settings = get_settings().expect("get_settings failed");
-        assert_eq!(settings.app_url, url);
-        assert!(settings.has_api_key, "has_api_key should be true after saving a key");
-
-        // The config file must hold the App URL but never the raw API key.
-        let raw = fs::read_to_string(config_path()).expect("config file was not written");
-        assert!(raw.contains(url), "config file missing the App URL");
-        assert!(
-            !raw.contains(key),
-            "raw API key leaked into the plaintext config file"
-        );
-    }
-}
+// NOTE: no automated tests here on purpose. An earlier version of this file
+// had a #[cfg(test)] module that exercised save_settings/get_settings and
+// Entry::new(SERVICE, KEY_USER) directly - but that means it wrote to the
+// exact same production Keychain service/username and the exact same real
+// dirs::config_dir() config file the real running app uses, with no
+// cleanup. This project has no CI (see CLAUDE.md - manual verification is
+// the standard here), so that module would only ever run if a developer
+// typed `cargo test` by hand - and if they ever did that on a machine where
+// a real API key/App URL had already been saved through the actual app, it
+// would silently clobber that real saved credential and config with test
+// fixture values. Giving the tests distinct test-only identifiers would
+// require adding test-only path-override plumbing into config_path() in
+// production code purely to make that possible, which is exactly the kind
+// of speculative complexity this codebase avoids elsewhere. The real
+// verification for this file (a genuine macOS Keychain round-trip via
+// `cargo test` against a scratch value, independently confirmed with the
+// `security` CLI, plus a real dirs::config_dir() config file read back with
+// `cat`) was done manually once and is documented in
+// .superpowers/sdd/2026-09-02-desktop-app-capture/task-3-report.md instead.
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
