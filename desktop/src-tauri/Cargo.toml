@@ -22,4 +22,15 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# keyring 3.x ships with zero default features - without an explicit
+# platform backend feature, `Entry` silently falls back to a non-persistent
+# in-memory mock store that round-trips within a process but never touches
+# the real OS credential store (confirmed via `security find-generic-password`
+# returning nothing after a "successful" set/get). apple-native pulls in
+# security-framework (macOS Keychain); windows-native pulls in the Windows
+# Credential Manager bindings. Both gate an optional dependency that's
+# itself target_os-gated in the keyring crate's own Cargo.toml, so enabling
+# both here is safe cross-platform.
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+dirs = "5"
 
