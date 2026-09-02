@@ -35,4 +35,21 @@ keyring = { version = "3", features = ["apple-native", "windows-native"] }
 dirs = "5"
 cpal = "0.15"
 crossbeam-channel = "0.5"
+hound = "3.5"
+
+# System-audio ("loopback") capture has no cross-platform crate, so each OS
+# gets its own binding, gated so the other platform's dependency never even
+# resolves. See src/capture/loopback_macos.rs / loopback_windows.rs for the
+# API notes taken from each crate's real source.
+[target.'cfg(target_os = "macos")'.dependencies]
+# 9.x builds a small Swift bridge with `swift build` during `cargo build`, so
+# a Swift toolchain (Xcode or the Command Line Tools) is a hard build
+# requirement on macOS. Audio capture itself needs no `macos_*` feature - the
+# bridge's deployment target is already 13.0 and `captures_audio` /
+# `sample_rate` / `channel_count` / `excludes_current_process_audio` are all
+# ungated - so we deliberately enable none of them.
+screencapturekit = "9.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wasapi = "0.24"
 
