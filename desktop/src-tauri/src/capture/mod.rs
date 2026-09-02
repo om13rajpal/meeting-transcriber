@@ -136,6 +136,124 @@ pub fn stop_recording(handle: RecordingHandle) -> Result<PathBuf, String> {
         .map_err(|_| "The recording stopped unexpectedly.".to_string())?
 }
 
+/// Finishes the header of a WAV file that `hound` never got to finalize.
+///
+/// `WavWriter::create` writes the RIFF size and the `data` chunk size as zero
+/// placeholders and only fills them in from `finalize()` (or from its `Drop`,
+/// which is what covers an ordinary early return). **Neither runs when the
+/// process is SIGKILLed, OOM-killed, or crashes**, so a recording interrupted
+/// that way is left on disk as a *structurally valid* WAV whose header claims
+/// it contains zero samples. Every decoder, ffmpeg included, then reads it as
+/// an empty file - the audio bytes are all still there, only the two length
+/// fields are wrong.
+///
+/// This is what makes `lib.rs`'s crash-recovery sweep actually recover audio
+/// instead of faithfully uploading a header that says "nothing here". It walks
+/// the real chunk list rather than assuming a fixed 44-byte header, so it stays
+/// correct if `hound` ever emits a `WAVE_FORMAT_EXTENSIBLE` `fmt ` chunk (it
+/// does for some specs) or grows a chunk ahead of `data`.
+///
+/// Returns `Ok(true)` if the file holds real audio (already correct, or now
+/// repaired), `Ok(false)` if it holds none at all, and `Err` if it does not
+/// parse as a WAV - in which case the caller leaves the file alone rather than
+/// writing guesses into something this app may not have created.
+pub fn repair_unfinalized_wav(path: &Path) -> Result<bool, String> {
+    use std::io::{Read, Seek, SeekFrom, Write};
+
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .map_err(|e| format!("could not open it: {e}"))?;
+    let file_len = file
+        .metadata()
+        .map_err(|e| format!("could not measure it: {e}"))?
+        .len();
+
+    let mut riff = [0u8; 12];
+    file.read_exact(&mut riff)
+        .map_err(|_| "it is shorter than a WAV header".to_string())?;
+    if &riff[0..4] != b"RIFF" || &riff[8..12] != b"WAVE" {
+        return Err("it is not a RIFF/WAVE file".to_string());
+    }
+
+    // Walk the chunk list for `fmt ` (which gives the frame size) and `data`.
+    let mut offset: u64 = 12;
+    let mut block_align: u64 = 0;
+    let mut data_start: Option<u64> = None;
+    let mut declared_data_len: u64 = 0;
+    while offset + 8 <= file_len {
+        file.seek(SeekFrom::Start(offset))
+            .map_err(|e| format!("could not read its chunk list: {e}"))?;
+        let mut header = [0u8; 8];
+        file.read_exact(&mut header)
+            .map_err(|e| format!("could not read its chunk list: {e}"))?;
+        let id = &header[0..4];
+        let size = u64::from(u32::from_le_bytes([
+            header[4], header[5], header[6], header[7],
+        ]));
+        let body = offset + 8;
+
+        if id == b"data" {
+            data_start = Some(body);
+            declared_data_len = size;
+            break;
+        }
+        if id == b"fmt " {
+            let mut fmt = [0u8; 16];
+            file.read_exact(&mut fmt)
+                .map_err(|e| format!("could not read its format chunk: {e}"))?;
+            // nBlockAlign, at a fixed offset in both WAVEFORMATEX and
+            // WAVEFORMATEXTENSIBLE, so reading only the first 16 bytes of
+            // either is enough.
+            block_align = u64::from(u16::from_le_bytes([fmt[12], fmt[13]]));
+        }
+        // RIFF chunks are word-aligned: an odd-sized one is followed by a pad
+        // byte that is not counted in its size.
+        offset = body + size + (size & 1);
+    }
+
+    let Some(data_start) = data_start else {
+        return Err("it has no data chunk".to_string());
+    };
+    if block_align == 0 {
+        return Err("it has no usable format chunk".to_string());
+    }
+
+    // Whatever is actually on disk after the header, rounded down to a whole
+    // frame: a crash can cut the file mid-frame, and half a frame decodes as a
+    // click and shifts the channel alignment of everything after it.
+    let mut real_data_len = file_len.saturating_sub(data_start);
+    real_data_len -= real_data_len % block_align;
+
+    if real_data_len == 0 {
+        return Ok(false);
+    }
+    if declared_data_len == real_data_len {
+        // Already finalized: the app died somewhere between `stop_recording`
+        // and the upload finishing, which is the only case the plan's brief
+        // assumed existed.
+        return Ok(true);
+    }
+
+    // RIFF's own size field counts everything after the first 8 bytes.
+    file.seek(SeekFrom::Start(4))
+        .map_err(|e| format!("could not rewrite its header: {e}"))?;
+    file.write_all(&((data_start + real_data_len - 8) as u32).to_le_bytes())
+        .map_err(|e| format!("could not rewrite its header: {e}"))?;
+    file.seek(SeekFrom::Start(data_start - 4))
+        .map_err(|e| format!("could not rewrite its header: {e}"))?;
+    file.write_all(&(real_data_len as u32).to_le_bytes())
+        .map_err(|e| format!("could not rewrite its header: {e}"))?;
+    // Drop the partial trailing frame, if there was one, so the file's own
+    // length and the two length fields all agree.
+    file.set_len(data_start + real_data_len)
+        .map_err(|e| format!("could not rewrite its header: {e}"))?;
+    file.flush()
+        .map_err(|e| format!("could not rewrite its header: {e}"))?;
+    Ok(true)
+}
+
 /// Owns both capture sources for the whole life of a recording. Dropping it is
 /// what stops capture (cpal stops on stream drop; the loopback handles do the
 /// same), and it happens on the session thread that created them.
@@ -542,6 +660,152 @@ mod tests {
                 "unexpected error: {e}"
             ),
         }
+    }
+
+    /// A scratch directory that cleans itself up, so these tests leave nothing
+    /// behind in the system temp directory (CLAUDE.md's "clean up test
+    /// artifacts" rule).
+    struct ScratchDir(PathBuf);
+
+    impl ScratchDir {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "meeting-transcriber-test-{}-{name}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).expect("scratch dir");
+            Self(dir)
+        }
+
+        fn path(&self, file: &str) -> PathBuf {
+            self.0.join(file)
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Puts a finalized WAV's header back into the state
+    /// `WavWriter::create` leaves it in - both length fields still the zero
+    /// placeholders it writes up front - which is exactly the state a SIGKILL
+    /// freezes a recording in, because neither `finalize()` nor `Drop` ever
+    /// runs to fill them in.
+    ///
+    /// Written by hand rather than by `std::mem::forget`ing a live
+    /// `WavWriter`, so the fixture depends on the WAV format itself rather
+    /// than on which of hound's internal methods happen to touch the header.
+    fn blank_out_wav_length_fields(path: &Path) {
+        let mut bytes = std::fs::read(path).expect("read fixture");
+        let data_at = bytes
+            .windows(4)
+            .position(|w| w == b"data")
+            .expect("fixture should have a data chunk");
+        bytes[4..8].copy_from_slice(&0u32.to_le_bytes());
+        bytes[data_at + 4..data_at + 8].copy_from_slice(&0u32.to_le_bytes());
+        std::fs::write(path, bytes).expect("write fixture");
+    }
+
+    fn write_test_recording(path: &Path, samples: usize) {
+        let mut writer = create_writer(path).expect("writer");
+        for i in 0..samples {
+            writer.write_sample((i % 100) as i16).expect("write sample");
+        }
+        writer.finalize().expect("finalize");
+    }
+
+    /// The whole point of the crash-recovery sweep: a recording the process
+    /// was killed in the middle of still has every one of its audio bytes on
+    /// disk, but its header says it has none - so uploading it untouched would
+    /// transcribe silence and then delete the real audio, which is the exact
+    /// data loss the sweep exists to prevent.
+    #[test]
+    fn repairs_a_recording_whose_writer_never_finalized() {
+        let scratch = ScratchDir::new("repair");
+        let path = scratch.path("recording-crashed.wav");
+        write_test_recording(&path, 1000);
+        let finalized_len = std::fs::metadata(&path).expect("metadata").len();
+
+        blank_out_wav_length_fields(&path);
+        assert_eq!(
+            hound::WavReader::open(&path).expect("reader").len(),
+            0,
+            "the fixture must reproduce the real failure: a valid WAV that reads as empty"
+        );
+
+        assert_eq!(repair_unfinalized_wav(&path), Ok(true));
+
+        assert_eq!(std::fs::metadata(&path).expect("metadata").len(), finalized_len);
+        let mut reader = hound::WavReader::open(&path).expect("reader");
+        assert_eq!(reader.len(), 1000);
+        let samples: Vec<i16> = reader.samples::<i16>().map(|s| s.expect("sample")).collect();
+        assert_eq!(samples.first(), Some(&0));
+        assert_eq!(samples.last(), Some(&((999 % 100) as i16)));
+    }
+
+    /// A file cut mid-frame must lose only that frame, not be rejected and not
+    /// be left claiming a length the file does not have.
+    #[test]
+    fn drops_a_trailing_partial_frame() {
+        let scratch = ScratchDir::new("partial");
+        let path = scratch.path("recording-truncated.wav");
+        write_test_recording(&path, 1000);
+        let full_len = std::fs::metadata(&path).expect("metadata").len();
+        blank_out_wav_length_fields(&path);
+
+        // One byte of a two-byte frame, exactly what a kill mid-write leaves.
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .expect("open");
+        file.set_len(full_len - 1).expect("truncate");
+        drop(file);
+
+        assert_eq!(repair_unfinalized_wav(&path), Ok(true));
+        assert_eq!(hound::WavReader::open(&path).expect("reader").len(), 999);
+    }
+
+    /// `create_writer` runs before either capture source starts, so a crash in
+    /// the window between them leaves a header with no audio behind it.
+    /// Uploading that would create an empty meeting; the sweep deletes it
+    /// instead, which is why this case is `Ok(false)` and not `Ok(true)`.
+    #[test]
+    fn reports_a_header_only_leftover_as_holding_no_audio() {
+        let scratch = ScratchDir::new("empty");
+        let path = scratch.path("recording-empty.wav");
+        write_test_recording(&path, 0);
+        assert_eq!(repair_unfinalized_wav(&path), Ok(false));
+        blank_out_wav_length_fields(&path);
+        assert_eq!(repair_unfinalized_wav(&path), Ok(false));
+    }
+
+    /// An already-finalized recording (the app died between `stop_recording`
+    /// and the upload) must come back untouched, byte for byte.
+    #[test]
+    fn leaves_an_already_finalized_recording_alone() {
+        let scratch = ScratchDir::new("finalized");
+        let path = scratch.path("recording-fine.wav");
+        write_test_recording(&path, 500);
+        let before = std::fs::read(&path).expect("read");
+        assert_eq!(repair_unfinalized_wav(&path), Ok(true));
+        assert_eq!(std::fs::read(&path).expect("read"), before);
+    }
+
+    /// Anything that is not one of our WAVs is an error, not a `false` - the
+    /// sweep must leave a stranger's file alone rather than rewriting four
+    /// bytes of it on a guess.
+    #[test]
+    fn refuses_to_touch_a_file_that_is_not_a_wav() {
+        let scratch = ScratchDir::new("not-a-wav");
+        let path = scratch.path("recording-bogus.wav");
+        std::fs::write(&path, b"this is not a wave file at all").expect("write");
+        assert!(repair_unfinalized_wav(&path).is_err());
+
+        let tiny = scratch.path("recording-tiny.wav");
+        std::fs::write(&tiny, b"RIF").expect("write");
+        assert!(repair_unfinalized_wav(&tiny).is_err());
     }
 
     #[test]

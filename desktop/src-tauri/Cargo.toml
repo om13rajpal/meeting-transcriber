@@ -20,6 +20,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
+# Native error alerts (Task 8). A tray-only app has no console the user is
+# watching, so a failure to start recording has to reach them some other
+# way. Chosen over `rfd` because its `show()` marshals onto the platform's
+# UI thread itself - `rfd`'s macOS backend is an `NSAlert` that has to be
+# presented from the main thread by the caller, which every one of this
+# file's error paths would have to wrap in `run_on_main_thread` by hand.
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # keyring 3.x ships with zero default features - without an explicit

@@ -11,6 +11,7 @@ use std::time::Duration;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -170,6 +171,28 @@ fn recording_output_path(app: &AppHandle) -> Result<PathBuf, String> {
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Could not create the app data directory: {e}"))?;
     Ok(dir.join(format!("recording-{}.wav", chrono::Utc::now().timestamp())))
+}
+
+/// Shows a native alert.
+///
+/// A tray-only app (no window visible by default - see `tauri.conf.json`)
+/// has no console the user is watching, so the `eprintln!` this replaces
+/// at each call site would make a real, actionable failure (a denied
+/// permission, an unconfigured Settings field) invisible to them.
+///
+/// Non-blocking (`.show(|_| {})`, not `.blocking_show()`): several call
+/// sites here run on the recording-session thread or the async upload
+/// task, where blocking on the user dismissing a dialog would stall
+/// capture/upload bookkeeping that has nothing to do with the dialog
+/// itself - the caller has already finished its own state transition by
+/// the time this is called (see e.g. the `Err` arm below, which resets
+/// `RecordingSlot` to `Idle` before calling this).
+fn show_error_dialog<R: tauri::Runtime>(app: &AppHandle<R>, message: &str) {
+    app.dialog()
+        .message(message)
+        .kind(MessageDialogKind::Error)
+        .title("Meeting Transcriber")
+        .show(|_| {});
 }
 
 /// Sets the tray toggle's label. `MenuItem::set_text` is safe to call from
@@ -403,6 +426,7 @@ async fn upload_recording(wav_path: PathBuf) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(RecordingState::new())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -537,14 +561,21 @@ pub fn run() {
                                                 &state.generation,
                                                 my_generation,
                                             );
-                                            // Task 8 is where this becomes a
-                                            // native notification; for now
-                                            // the exact permission-denial or
+                                            // The exact permission-denial or
                                             // missing-device message from
-                                            // capture::start_recording at
-                                            // least reaches the log rather
-                                            // than being swallowed.
+                                            // capture::start_recording -
+                                            // already fully worded for a
+                                            // user (see mic.rs's/
+                                            // loopback_macos.rs's
+                                            // describe_error) - shown as a
+                                            // native alert, since this is
+                                            // the one failure class that
+                                            // never reaches a Meeting row
+                                            // (nothing was minted yet) and
+                                            // so has no other notification
+                                            // path at all.
                                             eprintln!("failed to start recording: {e}");
+                                            show_error_dialog(&app_handle, &e);
                                         }
                                     }
                                 });
@@ -612,6 +643,7 @@ pub fn run() {
                                         }
                                         Err(e) => {
                                             eprintln!("failed to stop recording: {e}");
+                                            show_error_dialog(&app_handle, &e);
                                         }
                                     }
                                 });
@@ -636,12 +668,13 @@ pub fn run() {
                                 Ok(settings) if settings.app_url.is_empty() => {
                                     // A real case, not a misconfiguration: a
                                     // user who hasn't been through Settings
-                                    // yet. Logged, not panicking - a native
-                                    // alert is deferred to Task 8's broader
-                                    // "clear, non-silent errors" pass rather
-                                    // than duplicating similar UI here first.
+                                    // yet.
                                     eprintln!(
                                         "cannot open dashboard: App URL not configured yet"
+                                    );
+                                    show_error_dialog(
+                                        app,
+                                        "Set an App URL in Settings before opening the dashboard.",
                                     );
                                 }
                                 Ok(settings) => match settings.app_url.parse() {
@@ -671,12 +704,17 @@ pub fn run() {
                                             "cannot open dashboard: invalid App URL {:?}: {e}",
                                             settings.app_url
                                         );
+                                        show_error_dialog(
+                                            app,
+                                            "The saved App URL isn't valid. Fix it in Settings.",
+                                        );
                                     }
                                 },
                                 Err(e) => {
                                     eprintln!(
                                         "cannot open dashboard: could not read settings: {e}"
                                     );
+                                    show_error_dialog(app, "Could not read the saved settings.");
                                 }
                             }
                         }
@@ -693,6 +731,55 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            // Crash-recovery sweep: a WAV file surviving in the app data
+            // directory this early means the app was killed (crash, OOM,
+            // force-quit) before its own upload_recording() finished -
+            // that function only deletes the file on confirmed upload
+            // success, so anything still here on a fresh launch was never
+            // confirmed uploaded. repair_unfinalized_wav() (capture/mod.rs)
+            // fixes the RIFF/data length header hound never got to finalize
+            // for a killed process, so the real audio bytes already on disk
+            // come back as a normal, playable WAV instead of one every
+            // decoder reads as silence.
+            if let Ok(dir) = app.path().app_data_dir() {
+                if let Ok(entries) = std::fs::read_dir(&dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().map(|e| e == "wav").unwrap_or(false) {
+                            match capture::repair_unfinalized_wav(&path) {
+                                Ok(true) => {
+                                    eprintln!(
+                                        "recovering leftover recording from a previous crash: {}",
+                                        path.display()
+                                    );
+                                    tauri::async_runtime::spawn(async move {
+                                        upload_recording(path).await;
+                                    });
+                                }
+                                Ok(false) => {
+                                    eprintln!(
+                                        "removing empty leftover recording: {}",
+                                        path.display()
+                                    );
+                                    let _ = std::fs::remove_file(&path);
+                                }
+                                Err(e) => {
+                                    // Not one of ours (or too corrupted to
+                                    // trust) - per repair_unfinalized_wav's
+                                    // own contract, leave it alone rather
+                                    // than writing guesses into a file this
+                                    // app may not have created.
+                                    eprintln!(
+                                        "leaving unrecognized file in the app data directory alone: {} ({e})",
+                                        path.display()
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             Ok(())
         })
