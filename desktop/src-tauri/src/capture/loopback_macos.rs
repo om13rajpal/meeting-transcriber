@@ -85,6 +85,9 @@ impl Drop for LoopbackHandle {
 /// `displays()` come back empty, which is a hard failure to start recording at
 /// all. Waiting for the one-second assertion to expire (rather than spawning
 /// and racing on) is what guarantees the display is up before we enumerate.
+///
+/// That one second is also why the caller only reaches this after seeing an
+/// empty display list, rather than calling it unconditionally up front.
 fn wake_display() {
     match std::process::Command::new("/usr/bin/caffeinate")
         .args(["-u", "-t", "1"])
@@ -241,16 +244,23 @@ pub fn start_system_audio_capture(tx: Sender<Vec<f32>>) -> Result<LoopbackHandle
     // First real call into ScreenCaptureKit, and therefore the point where a
     // missing Screen Recording grant shows up (and where the OS prompt fires
     // on a first run).
-    // Order matters, and each step does a different job. `wake_display()`
-    // turns an already-off display back on (the `-d -i` assertion cannot -
-    // see its doc comment), because `displays()` comes back empty otherwise
-    // and there is nothing to build a filter from. The assertion then keeps
-    // it on for the rest of the recording.
-    wake_display();
+    // Keeps the display from sleeping for the rest of the recording. Cheap
+    // (a spawn), and it does not wake anything - see its doc comment.
     let awake = DisplaySleepAssertion::hold();
 
-    let content = SCShareableContent::get().map_err(describe_error)?;
-    let display = content.displays().into_iter().next().ok_or(
+    // An asleep display reports no displays at all, and there is nothing to
+    // build a content filter from. That is the *only* case that needs waking,
+    // so it is detected rather than assumed: `wake_display()` costs a full
+    // second, and paying that on every recording start would tax the normal
+    // case (a user clicking Record while looking at the screen) to fix a rare
+    // one.
+    let mut displays = SCShareableContent::get().map_err(describe_error)?.displays();
+    if displays.is_empty() {
+        wake_display();
+        displays = SCShareableContent::get().map_err(describe_error)?.displays();
+    }
+
+    let display = displays.into_iter().next().ok_or(
         "No display was found to capture system audio from. \
          Wake the screen and start recording again.",
     )?;

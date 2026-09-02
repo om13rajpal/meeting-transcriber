@@ -151,35 +151,35 @@ impl Sources {
     }
 }
 
-/// Everything that has to succeed before `start_recording` may report success.
+/// The capture half of a start: both sources running, and the mixer's view of
+/// each of them.
 struct Started {
-    writer: WavWriter<BufWriter<File>>,
     sources: Sources,
     mic: Source,
     system: Source,
 }
 
-/// Opens the output file and starts both capture sources.
+/// Opens the output file.
 ///
-/// Split out from `run_session` so that *every* way this can fail happens
-/// before the ready signal is sent, and so the caller has one place to undo a
-/// partial start.
-fn start_sources(output_path: &Path) -> Result<Started, String> {
-    // The WAV file is created first, and deliberately before the capture
-    // sources: it is the only check here that is instant, and getting it wrong
-    // (an unwritable directory, a bad path) used to be invisible until
-    // `stop_recording` - i.e. after a whole meeting had been recorded into
-    // nothing. Doing it first also means an unwritable path fails without
-    // making the user answer a permission prompt first.
+/// Deliberately the first thing a session does, before either capture source:
+/// it is the only instant check here, and getting it wrong (an unwritable
+/// directory, a bad path) used to be invisible until `stop_recording` - i.e.
+/// after a whole meeting had been recorded into nothing. Doing it first also
+/// means a bad path fails without making the user answer a permission prompt
+/// on the way.
+fn create_writer(output_path: &Path) -> Result<WavWriter<BufWriter<File>>, String> {
     let spec = WavSpec {
         channels: 1,
         sample_rate: OUTPUT_SAMPLE_RATE,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
-    let writer = WavWriter::create(output_path, spec)
-        .map_err(|e| format!("Could not create the recording file: {e}"))?;
+    WavWriter::create(output_path, spec)
+        .map_err(|e| format!("Could not create the recording file: {e}"))
+}
 
+/// Starts both capture sources.
+fn start_sources() -> Result<Started, String> {
     let (mic_tx, mic_rx) = unbounded();
     let (system_tx, system_rx) = unbounded();
 
@@ -197,7 +197,6 @@ fn start_sources(output_path: &Path) -> Result<Started, String> {
     eprintln!("recording: mic at {mic_rate} Hz, system audio at {system_rate} Hz, writing {OUTPUT_SAMPLE_RATE} Hz");
 
     Ok(Started {
-        writer,
         sources: Sources {
             mic: Some(mic),
             loopback: Some(loopback),
@@ -212,11 +211,32 @@ fn run_session(
     stop_rx: Receiver<()>,
     ready_tx: Sender<Result<(), String>>,
 ) -> Result<PathBuf, String> {
-    let started = match start_sources(&output_path) {
+    // Note the two failure paths below are deliberately different. Nothing is
+    // unlinked when *opening* the file is what failed, because in that case
+    // this call never created anything: a file may well already exist at that
+    // path, and on Unix unlinking it would succeed anyway (removing a
+    // directory entry needs write permission on the directory, not the file),
+    // so a shared cleanup path could delete a recording this session had
+    // nothing to do with.
+    let writer = match create_writer(&output_path) {
+        Ok(writer) => writer,
+        Err(e) => {
+            let _ = ready_tx.send(Err(e.clone()));
+            return Err(e);
+        }
+    };
+
+    let started = match start_sources() {
         Ok(started) => started,
         Err(e) => {
-            // `WavWriter::create` truncates on open, so a failure after that
-            // point leaves a 0-byte file behind claiming to be a recording.
+            // Here the file *is* ours: `WavWriter::create` truncated whatever
+            // was there and wrote a header. Note the leftover is not empty in
+            // the 0-byte sense - hound writes the RIFF/fmt/data headers at
+            // construction and its `Drop` runs `update_header`, so abandoning
+            // it leaves a structurally valid 44-byte WAV containing zero
+            // samples. Removing it is what stops that from being listed later
+            // as a real (silent) recording.
+            drop(writer);
             let _ = std::fs::remove_file(&output_path);
             let _ = ready_tx.send(Err(e.clone()));
             return Err(e);
@@ -226,7 +246,7 @@ fn run_session(
     let _ = ready_tx.send(Ok(()));
 
     mix_and_write(
-        started.writer,
+        writer,
         started.sources,
         started.mic,
         started.system,
