@@ -1,12 +1,14 @@
 let recorder: MediaRecorder | null = null;
 let chunks: Blob[] = [];
+let tabStream: MediaStream | null = null;
+let micStream: MediaStream | null = null;
 let combinedStream: MediaStream | null = null;
 
 async function startCapture(streamId: string) {
-  const tabStream = await navigator.mediaDevices.getUserMedia({
+  tabStream = await navigator.mediaDevices.getUserMedia({
     audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } } as any
   });
-  const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   // Mix both into one track via the Web Audio API, per the design spec -
   // a single combined recording is enough for this app's diarization
@@ -28,17 +30,36 @@ async function startCapture(streamId: string) {
   recorder.ondataavailable = (e) => {
     if (e.data.size > 0) chunks.push(e.data);
   };
+  recorder.onstop = () => {
+    // Only fires after the final `dataavailable` (queued by `.stop()`)
+    // has already landed in `chunks` - building the Blob here, rather
+    // than synchronously right after calling `.stop()`, is what keeps
+    // that last buffered chunk (up to the 1s timeslice) in the recording
+    // instead of silently dropping it.
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    (globalThis as any).__lastRecordingBlob = blob;
+    chrome.runtime.sendMessage({ type: 'RECORDING_FINISHED', size: blob.size });
+    recorder = null;
+    combinedStream = null;
+    tabStream = null;
+    micStream = null;
+  };
   recorder.start(1000); // 1s timeslices so a crash mid-recording still leaves recent chunks in `chunks`
 }
 
-function stopCapture(): Blob | null {
-  if (!recorder) return null;
-  recorder.stop();
+function stopCapture() {
+  if (!recorder) return;
+  recorder.stop(); // queues the final `dataavailable` + `stop` events asynchronously
+  // Stop every real capture track, not just the synthetic combined
+  // stream's output track - `combinedStream` comes from
+  // `audioContext.createMediaStreamDestination()` and has no lifecycle
+  // link back to the original tabCapture/mic tracks feeding it via
+  // `createMediaStreamSource`, so it alone stopping never releases the
+  // actual tab-capture/mic capture (leaving a dangling capture
+  // indicator) unless those source streams are stopped too.
+  tabStream?.getTracks().forEach((t) => t.stop());
+  micStream?.getTracks().forEach((t) => t.stop());
   combinedStream?.getTracks().forEach((t) => t.stop());
-  const blob = new Blob(chunks, { type: 'audio/webm' });
-  recorder = null;
-  combinedStream = null;
-  return blob;
 }
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -46,10 +67,6 @@ chrome.runtime.onMessage.addListener((message) => {
     startCapture(message.streamId);
   }
   if (message.type === 'OFFSCREEN_STOP') {
-    const blob = stopCapture();
-    if (blob) {
-      (globalThis as any).__lastRecordingBlob = blob;
-      chrome.runtime.sendMessage({ type: 'RECORDING_FINISHED', size: blob.size });
-    }
+    stopCapture();
   }
 });
