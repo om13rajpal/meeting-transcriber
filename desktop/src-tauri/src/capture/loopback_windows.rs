@@ -25,27 +25,36 @@
 //! - `autoconvert: true` turns on `AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM`, which
 //!   is what lets us name our own `WaveFormat` (48 kHz stereo f32) instead of
 //!   having to accept and then convert the endpoint's mix format.
-//! - Samples are pulled with `AudioCaptureClient::read_from_device_to_deque(
-//!   &mut VecDeque<u8>)`, which appends raw interleaved bytes in the negotiated
-//!   format and returns a `BufferInfo` whose `flags.silent` marks a
-//!   silence-filled packet. `Handle::wait_for_event(timeout_ms)` blocks until
-//!   the next period, returning `Err(WasapiError::EventTimeout)` on timeout.
+//! - Samples are pulled with `AudioCaptureClient::read_from_device(&mut [u8])
+//!   -> (frames, BufferInfo)`. The sibling `read_from_device_to_deque` is the
+//!   more obvious call but is the wrong one here: it appends the raw buffer
+//!   bytes unconditionally, and two fields of the `BufferInfo` it returns have
+//!   to change what we do with those bytes. `flags.silent`
+//!   (`AUDCLNT_BUFFERFLAGS_SILENT`) means the packet must be *treated* as
+//!   silence - Microsoft explicitly does not guarantee the buffer is zeroed -
+//!   and `index` is the device's own frame position, which is what makes a
+//!   dropout measurable. The frame-count-returning variant is what lets us act
+//!   on both. `Handle::wait_for_event(timeout_ms)` blocks until the next
+//!   period, returning `Err(WasapiError::EventTimeout)` on timeout.
 //! - There is no callback API, so unlike ScreenCaptureKit this needs its own
 //!   thread; `LoopbackHandle` owns it and joins it on drop, so the handle still
 //!   behaves like the macOS one and like `cpal::Stream`.
 //!
 //! The one real behavioural difference from macOS worth knowing about: WASAPI
 //! loopback emits **nothing at all** while the endpoint is idle - it does not
-//! manufacture silence the way ScreenCaptureKit does. `pad_to_wall_clock`
-//! below is what keeps this source on the same timeline as the microphone
-//! despite that, and is the part most in need of real testing.
+//! manufacture silence the way ScreenCaptureKit does. That is deliberately
+//! *not* papered over here. A short dropout mid-stream is filled exactly, from
+//! the device frame index (`gap_fill_frames`); a long silence is left alone,
+//! because the mixer's stall guard in `mod.rs` already writes the microphone
+//! through on its own during it, and injecting the same stretch of silence a
+//! second time - late, in one burst - would push this source off the timeline
+//! rather than onto it.
 
 use crossbeam_channel::Sender;
-use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use wasapi::{
     initialize_mta, AudioCaptureClient, AudioClient, DeviceEnumerator, Direction, Handle,
     SampleType, StreamMode, WaveFormat,
@@ -55,12 +64,24 @@ const SYSTEM_AUDIO_SAMPLE_RATE: u32 = 48_000;
 const SYSTEM_AUDIO_CHANNELS: usize = 2;
 
 /// How long to block on the "buffer ready" event before looking at the stop
-/// flag again. Also the granularity at which an idle endpoint gets padded.
+/// flag again.
 const EVENT_WAIT_MS: u32 = 100;
 
-/// Only synthesise silence once the source has fallen at least this far behind
-/// wall-clock time, so ordinary scheduling jitter never injects a gap.
-const PAD_THRESHOLD: Duration = Duration::from_millis(150);
+/// Largest device-position jump that is filled in with silence.
+///
+/// A jump this small is a glitch - the audio engine dropped frames mid-stream -
+/// and filling it exactly keeps this source aligned with the microphone.
+/// Anything larger means the render endpoint was simply idle (WASAPI loopback
+/// produces nothing at all when nothing is playing), and back-filling minutes
+/// of silence in one late burst would be actively wrong: the mixer's own stall
+/// guard has already written the microphone through for that stretch, so the
+/// burst would land against the wrong point on the timeline and then be
+/// trimmed by the drift cap anyway.
+const MAX_GAP_FILL_FRAMES: u64 = SYSTEM_AUDIO_SAMPLE_RATE as u64 / 2;
+
+/// Floor on the read buffer, in frames (100 ms), independent of whatever the
+/// endpoint reports for its own buffer size.
+const MIN_READ_FRAMES: usize = SYSTEM_AUDIO_SAMPLE_RATE as usize / 10;
 
 /// How long `start_system_audio_capture` waits for the capture thread to
 /// report whether its WASAPI setup succeeded.
@@ -140,6 +161,7 @@ struct Session {
     capture: AudioCaptureClient,
     event: Handle,
     bytes_per_frame: usize,
+    buffer_frames: usize,
 }
 
 fn set_up_capture() -> Result<Session, String> {
@@ -190,6 +212,10 @@ fn set_up_capture() -> Result<Session, String> {
     let capture = client
         .get_audiocaptureclient()
         .map_err(|e| format!("Could not open the system audio capture stream: {e}"))?;
+    let buffer_frames = client
+        .get_buffer_size()
+        .map_err(|e| format!("Could not read the system audio buffer size: {e}"))?
+        as usize;
     client
         .start_stream()
         .map_err(|e| format!("Could not start system audio capture: {e}"))?;
@@ -199,6 +225,7 @@ fn set_up_capture() -> Result<Session, String> {
         capture,
         event,
         bytes_per_frame,
+        buffer_frames,
     })
 }
 
@@ -207,28 +234,61 @@ fn capture_loop(
     tx: &Sender<Vec<f32>>,
     stop: &AtomicBool,
 ) -> Result<(), String> {
-    let mut raw: VecDeque<u8> = VecDeque::new();
-    let started = Instant::now();
-    let mut samples_sent: u64 = 0;
+    // One packet can never exceed the endpoint buffer; doubling it means
+    // `read_from_device` can never come back with DataLengthTooShort. The
+    // floor matters because `read_from_device` returns `(0, _)` when the slice
+    // it is handed cannot fit a single frame - so an implausibly small
+    // `get_buffer_size` would otherwise turn into a loop that polls forever and
+    // captures nothing, with no error anywhere.
+    let read_frames = session.buffer_frames.max(MIN_READ_FRAMES) * 2;
+    let mut raw = vec![0u8; read_frames * session.bytes_per_frame];
+    let mut expected_next_index: Option<u64> = None;
 
     while !stop.load(Ordering::Relaxed) {
         // A timeout here is normal, not an error: with nothing playing, WASAPI
         // loopback never signals the event at all.
         let _ = session.event.wait_for_event(EVENT_WAIT_MS);
 
-        session
-            .capture
-            .read_from_device_to_deque(&mut raw)
-            .map_err(|e| format!("System audio capture read failed: {e}"))?;
+        // Drain every packet the engine has queued, not just one, or a burst
+        // after a stall would be consumed one event at a time. The stop flag is
+        // rechecked inside the drain so shutdown latency stays bounded by one
+        // packet rather than by however deep the backlog is.
+        while !stop.load(Ordering::Relaxed) {
+            let (frames, info) = session
+                .capture
+                .read_from_device(&mut raw)
+                .map_err(|e| format!("System audio capture read failed: {e}"))?;
+            if frames == 0 {
+                break;
+            }
+            let frames = frames as usize;
 
-        if let Some(mono) = drain_whole_frames(&mut raw, session.bytes_per_frame) {
-            samples_sent += mono.len() as u64;
-            let _ = tx.send(mono);
-        }
+            // `info.index` is the device's own frame position for the first
+            // frame of this packet, so comparing it against where the previous
+            // packet ended gives the real size of any dropout - no wall-clock
+            // guessing, and nothing that can drift.
+            let gap = gap_fill_frames(expected_next_index, info.index, MAX_GAP_FILL_FRAMES);
+            expected_next_index = Some(info.index + frames as u64);
 
-        if let Some(silence) = pad_to_wall_clock(started.elapsed(), samples_sent) {
-            samples_sent += silence.len() as u64;
-            let _ = tx.send(silence);
+            let mut out = Vec::with_capacity(gap as usize + frames);
+            out.resize(gap as usize, 0.0);
+
+            if info.flags.silent {
+                // AUDCLNT_BUFFERFLAGS_SILENT. Microsoft's contract is that the
+                // caller must *treat* the packet as silence; the buffer's
+                // actual contents are explicitly not guaranteed to be zeroed.
+                // Copying them would splice whatever the engine last left in
+                // that memory into the meeting recording, and on a loopback
+                // stream (a render endpoint that is open but outputting
+                // silence) this is a routine occurrence, not an edge case.
+                out.resize(gap as usize + frames, 0.0);
+            } else {
+                out.extend(interleaved_to_mono(
+                    &raw[..frames * session.bytes_per_frame],
+                ));
+            }
+
+            let _ = tx.send(out);
         }
     }
 
@@ -238,45 +298,44 @@ fn capture_loop(
     Ok(())
 }
 
-/// Pulls every complete interleaved frame out of `raw` and averages it to mono,
-/// leaving any partial trailing frame in the deque for the next read. Returns
-/// `None` when there is not yet a whole frame, so an empty read costs nothing.
-fn drain_whole_frames(raw: &mut VecDeque<u8>, bytes_per_frame: usize) -> Option<Vec<f32>> {
-    let frames = raw.len() / bytes_per_frame;
-    if frames == 0 {
-        return None;
+/// How many frames of silence to splice in ahead of the packet starting at
+/// `index`, given where the previous packet ended.
+///
+/// Returns 0 for the first packet (nothing to compare against), for a packet
+/// that is contiguous with the last one (the overwhelmingly common case), and
+/// for a jump larger than `max` - see `MAX_GAP_FILL_FRAMES` for why a large
+/// jump must NOT be filled. `index` running behind `expected` should be
+/// impossible, and is treated as "no gap" rather than allowed to underflow.
+fn gap_fill_frames(expected_next_index: Option<u64>, index: u64, max: u64) -> u64 {
+    let Some(expected) = expected_next_index else {
+        return 0;
+    };
+    let gap = index.saturating_sub(expected);
+    if gap == 0 || gap > max {
+        return 0;
     }
-    let mut mono = Vec::with_capacity(frames);
-    for _ in 0..frames {
-        let mut sum = 0.0f32;
-        for _ in 0..SYSTEM_AUDIO_CHANNELS {
-            let bytes = [
-                raw.pop_front()?,
-                raw.pop_front()?,
-                raw.pop_front()?,
-                raw.pop_front()?,
-            ];
-            sum += f32::from_le_bytes(bytes);
-        }
-        mono.push(sum / SYSTEM_AUDIO_CHANNELS as f32);
-    }
-    Some(mono)
+    gap
 }
 
-/// WASAPI loopback produces no data at all while nothing is playing, so this
-/// source's own sample count is not a clock. Compare it against wall time and
-/// emit the shortfall as silence, which keeps system audio aligned with the
-/// microphone across a quiet stretch. When audio *is* playing the real samples
-/// track wall time on their own and this returns `None` every time.
-fn pad_to_wall_clock(elapsed: Duration, samples_sent: u64) -> Option<Vec<f32>> {
-    let expected = (elapsed.as_secs_f64() * f64::from(SYSTEM_AUDIO_SAMPLE_RATE)) as u64;
-    let behind = expected.saturating_sub(samples_sent);
-    let threshold =
-        (PAD_THRESHOLD.as_secs_f64() * f64::from(SYSTEM_AUDIO_SAMPLE_RATE)) as u64;
-    if behind < threshold {
-        return None;
-    }
-    Some(vec![0.0; behind as usize])
+/// Averages interleaved 32-bit float frames down to mono. Any trailing partial
+/// frame is dropped rather than averaged against zeros, since a half-frame
+/// would shift every following frame's channel alignment.
+///
+/// The 4-bytes-per-sample and `SYSTEM_AUDIO_CHANNELS` shape is not an
+/// assumption about the hardware: it is the `WaveFormat` this module asks for,
+/// which the audio engine is required to deliver because the stream is opened
+/// with `autoconvert: true`.
+fn interleaved_to_mono(bytes: &[u8]) -> Vec<f32> {
+    bytes
+        .chunks_exact(4 * SYSTEM_AUDIO_CHANNELS)
+        .map(|frame| {
+            frame
+                .chunks_exact(4)
+                .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+                .sum::<f32>()
+                / SYSTEM_AUDIO_CHANNELS as f32
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -284,25 +343,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn drains_only_whole_frames() {
-        let mut raw: VecDeque<u8> = VecDeque::new();
-        // One complete stereo frame (1.0, 3.0) plus a stray byte.
-        raw.extend(1.0f32.to_le_bytes());
-        raw.extend(3.0f32.to_le_bytes());
-        raw.push_back(0x7f);
-        assert_eq!(drain_whole_frames(&mut raw, 8), Some(vec![2.0]));
-        assert_eq!(raw.len(), 1, "partial frame must be left for the next read");
-        assert_eq!(drain_whole_frames(&mut raw, 8), None);
+    fn averages_interleaved_frames_and_drops_partial_ones() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&1.0f32.to_le_bytes());
+        bytes.extend_from_slice(&3.0f32.to_le_bytes());
+        assert_eq!(interleaved_to_mono(&bytes), vec![2.0]);
+
+        // A trailing half-frame is discarded: keeping it would swap the
+        // left/right assignment of every frame after it.
+        bytes.extend_from_slice(&9.0f32.to_le_bytes());
+        assert_eq!(interleaved_to_mono(&bytes), vec![2.0]);
     }
 
     #[test]
-    fn pads_only_once_meaningfully_behind() {
-        // Barely behind: no padding, so jitter never punches a hole.
-        assert!(pad_to_wall_clock(Duration::from_millis(100), 4_800).is_none());
-        // A full second with nothing captured: pad the whole second.
-        let padded = pad_to_wall_clock(Duration::from_secs(1), 0).expect("should pad");
-        assert_eq!(padded.len(), SYSTEM_AUDIO_SAMPLE_RATE as usize);
-        // Ahead of wall clock: never pad, and never underflow.
-        assert!(pad_to_wall_clock(Duration::from_millis(10), 96_000).is_none());
+    fn fills_only_real_dropouts() {
+        // First packet: nothing to compare against.
+        assert_eq!(gap_fill_frames(None, 5_000, 24_000), 0);
+        // Contiguous packets: the common case, no silence spliced in.
+        assert_eq!(gap_fill_frames(Some(5_000), 5_000, 24_000), 0);
+        // A genuine mid-stream dropout is filled exactly.
+        assert_eq!(gap_fill_frames(Some(5_000), 5_480, 24_000), 480);
+        // A jump larger than the cap means the endpoint was idle, not
+        // glitching: the mixer's stall guard owns that case, so filling it
+        // here would double-count the silence.
+        assert_eq!(gap_fill_frames(Some(5_000), 5_000_000, 24_000), 0);
+        // An index running backwards should be impossible; it must not
+        // underflow into a colossal allocation.
+        assert_eq!(gap_fill_frames(Some(5_000), 4_000, 24_000), 0);
     }
 }
