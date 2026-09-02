@@ -619,8 +619,67 @@ pub fn run() {
                         }
                     }
                     "open_dashboard" => {
-                        // Wired to the real external-URL window in Task 7.
-                        println!("open_dashboard clicked");
+                        // Reuse an already-open dashboard window rather than
+                        // creating a second one - `WebviewWindowBuilder::build`
+                        // errors on a duplicate label, and a user clicking the
+                        // tray item twice almost certainly means "bring it to
+                        // front", not "open it again". No `RecordingSlot`-style
+                        // state machine is needed here (unlike
+                        // "toggle_recording" above): opening a window is a
+                        // single synchronous, idempotent call with no
+                        // in-between state to race against.
+                        if let Some(window) = app.get_webview_window("dashboard") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        } else {
+                            match get_settings() {
+                                Ok(settings) if settings.app_url.is_empty() => {
+                                    // A real case, not a misconfiguration: a
+                                    // user who hasn't been through Settings
+                                    // yet. Logged, not panicking - a native
+                                    // alert is deferred to Task 8's broader
+                                    // "clear, non-silent errors" pass rather
+                                    // than duplicating similar UI here first.
+                                    eprintln!(
+                                        "cannot open dashboard: App URL not configured yet"
+                                    );
+                                }
+                                Ok(settings) => match settings.app_url.parse() {
+                                    Ok(url) => {
+                                        if let Err(e) = tauri::WebviewWindowBuilder::new(
+                                            app,
+                                            "dashboard",
+                                            tauri::WebviewUrl::External(url),
+                                        )
+                                        .title("Meeting Transcriber")
+                                        .inner_size(1200.0, 800.0)
+                                        .build()
+                                        {
+                                            eprintln!("failed to open dashboard window: {e}");
+                                        }
+                                    }
+                                    Err(e) => {
+                                        // Also a real, reachable case (a
+                                        // malformed value saved outside the
+                                        // Settings dialog's own validation, or
+                                        // a future regression in it) - fail
+                                        // the same clear, non-panicking way as
+                                        // every other failure path here rather
+                                        // than the brief's original
+                                        // `.expect(...)`.
+                                        eprintln!(
+                                            "cannot open dashboard: invalid App URL {:?}: {e}",
+                                            settings.app_url
+                                        );
+                                    }
+                                },
+                                Err(e) => {
+                                    eprintln!(
+                                        "cannot open dashboard: could not read settings: {e}"
+                                    );
+                                }
+                            }
+                        }
                     }
                     "open_settings" => {
                         if let Some(window) = app.get_webview_window("main") {
