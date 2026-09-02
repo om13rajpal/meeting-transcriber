@@ -32,6 +32,8 @@ compile_error!(
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use hound::{SampleFormat, WavSpec, WavWriter};
 use std::collections::VecDeque;
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -68,9 +70,25 @@ pub struct RecordingHandle {
 
 /// Starts recording microphone + system audio into `output_path`.
 ///
-/// Returns once both capture sources are confirmed running, so a permission
-/// denial or a missing device surfaces here rather than as a silent empty file
-/// later.
+/// Returns once the output file is open and both capture sources are confirmed
+/// running, so a bad path, a permission denial, or a missing device all surface
+/// here rather than as a silent empty file an hour later.
+///
+/// # This call can block for minutes, and cannot be cancelled
+///
+/// **Do not call this on a thread whose blocking would freeze the UI.** Tauri
+/// v2 runs non-`async` commands on the main thread, so a command that calls
+/// this directly will hang the whole window. On macOS the first ever recording
+/// blocks inside ScreenCaptureKit for as long as the user takes to answer the
+/// Screen Recording permission prompt - measured at over ten minutes in
+/// testing, and unbounded in principle, since the prompt waits forever. Call it
+/// from an `async` command (Tauri runs those off the main thread) or an
+/// explicitly spawned thread.
+///
+/// There is also no way to cancel a call that is stuck on that prompt: the stop
+/// channel lives in the `RecordingHandle` this function has not returned yet.
+/// A caller that needs a responsive "cancel" during first-run permission has to
+/// abandon the call and let it finish on its own thread.
 pub fn start_recording(output_path: &Path) -> Result<RecordingHandle, String> {
     let output_path = output_path.to_path_buf();
     let (stop_tx, stop_rx) = bounded::<()>(1);
@@ -133,43 +151,85 @@ impl Sources {
     }
 }
 
-fn run_session(
-    output_path: PathBuf,
-    stop_rx: Receiver<()>,
-    ready_tx: Sender<Result<(), String>>,
-) -> Result<PathBuf, String> {
+/// Everything that has to succeed before `start_recording` may report success.
+struct Started {
+    writer: WavWriter<BufWriter<File>>,
+    sources: Sources,
+    mic: Source,
+    system: Source,
+}
+
+/// Opens the output file and starts both capture sources.
+///
+/// Split out from `run_session` so that *every* way this can fail happens
+/// before the ready signal is sent, and so the caller has one place to undo a
+/// partial start.
+fn start_sources(output_path: &Path) -> Result<Started, String> {
+    // The WAV file is created first, and deliberately before the capture
+    // sources: it is the only check here that is instant, and getting it wrong
+    // (an unwritable directory, a bad path) used to be invisible until
+    // `stop_recording` - i.e. after a whole meeting had been recorded into
+    // nothing. Doing it first also means an unwritable path fails without
+    // making the user answer a permission prompt first.
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: OUTPUT_SAMPLE_RATE,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+    let writer = WavWriter::create(output_path, spec)
+        .map_err(|e| format!("Could not create the recording file: {e}"))?;
+
     let (mic_tx, mic_rx) = unbounded();
     let (system_tx, system_rx) = unbounded();
 
-    let mic = match mic::start_mic_capture(mic_tx) {
-        Ok(mic) => mic,
-        Err(e) => {
-            let _ = ready_tx.send(Err(e.clone()));
-            return Err(e);
-        }
-    };
-    let loopback = match loopback::start_system_audio_capture(system_tx) {
-        Ok(loopback) => loopback,
-        Err(e) => {
-            let _ = ready_tx.send(Err(e.clone()));
-            return Err(e);
-        }
-    };
+    // System audio goes first, because it is the source that can block: on
+    // macOS this is the call that waits on the Screen Recording prompt, for as
+    // long as the user takes to answer. Starting the microphone first (as this
+    // did originally) meant its unbounded channel filled at ~192 KB/s for that
+    // entire wait with nothing draining it, since the mixer does not start
+    // until both sources are up.
+    let loopback = loopback::start_system_audio_capture(system_tx)?;
+    let mic = mic::start_mic_capture(mic_tx)?;
 
     let mic_rate = mic.sample_rate;
     let system_rate = loopback.sample_rate;
     eprintln!("recording: mic at {mic_rate} Hz, system audio at {system_rate} Hz, writing {OUTPUT_SAMPLE_RATE} Hz");
 
+    Ok(Started {
+        writer,
+        sources: Sources {
+            mic: Some(mic),
+            loopback: Some(loopback),
+        },
+        mic: Source::new(mic_rx, mic_rate),
+        system: Source::new(system_rx, system_rate),
+    })
+}
+
+fn run_session(
+    output_path: PathBuf,
+    stop_rx: Receiver<()>,
+    ready_tx: Sender<Result<(), String>>,
+) -> Result<PathBuf, String> {
+    let started = match start_sources(&output_path) {
+        Ok(started) => started,
+        Err(e) => {
+            // `WavWriter::create` truncates on open, so a failure after that
+            // point leaves a 0-byte file behind claiming to be a recording.
+            let _ = std::fs::remove_file(&output_path);
+            let _ = ready_tx.send(Err(e.clone()));
+            return Err(e);
+        }
+    };
+
     let _ = ready_tx.send(Ok(()));
 
-    let sources = Sources {
-        mic: Some(mic),
-        loopback: Some(loopback),
-    };
     mix_and_write(
-        sources,
-        Source::new(mic_rx, mic_rate),
-        Source::new(system_rx, system_rate),
+        started.writer,
+        started.sources,
+        started.mic,
+        started.system,
         &stop_rx,
         output_path,
     )
@@ -232,21 +292,13 @@ impl Source {
 }
 
 fn mix_and_write(
+    mut writer: WavWriter<BufWriter<File>>,
     mut sources: Sources,
     mut mic: Source,
     mut system: Source,
     stop_rx: &Receiver<()>,
     output_path: PathBuf,
 ) -> Result<PathBuf, String> {
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate: OUTPUT_SAMPLE_RATE,
-        bits_per_sample: 16,
-        sample_format: SampleFormat::Int,
-    };
-    let mut writer = WavWriter::create(&output_path, spec)
-        .map_err(|e| format!("Could not create the recording file: {e}"))?;
-
     let mut stopping: Option<Instant> = None;
     let mut written: u64 = 0;
 
@@ -448,6 +500,28 @@ mod tests {
             "expected ~4800 samples, got {}",
             out.len()
         );
+    }
+
+    /// An unwritable output path used to be reported as success, because the
+    /// WAV file was not opened until after `start_recording` had already
+    /// returned - so the failure only surfaced at `stop_recording`, i.e. once
+    /// a whole meeting had been recorded into nothing.
+    ///
+    /// This runs on any machine with no devices and no permissions, precisely
+    /// because opening the file now happens before either capture source is
+    /// touched; if that ordering is ever reversed, this test starts hanging on
+    /// the microphone or the permission prompt instead of failing fast.
+    #[test]
+    fn an_unwritable_output_path_fails_at_start_not_at_stop() {
+        // `RecordingHandle` is deliberately not `Debug` (it owns a join
+        // handle), so this matches rather than using `expect_err`.
+        match start_recording(Path::new("/no-such-directory-4f3a/out.wav")) {
+            Ok(_) => panic!("an unwritable path must not report success"),
+            Err(e) => assert!(
+                e.contains("Could not create the recording file"),
+                "unexpected error: {e}"
+            ),
+        }
     }
 
     #[test]

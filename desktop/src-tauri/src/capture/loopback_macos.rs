@@ -72,6 +72,32 @@ impl Drop for LoopbackHandle {
     }
 }
 
+/// Wakes the display, blocking until it is actually on.
+///
+/// Per `caffeinate(8)`, `-d` and `-i` are purely *preventive* - they stop a
+/// display that is currently on from sleeping, and do nothing whatsoever to a
+/// display that is already off. `-u` is the only flag that "turns the display
+/// on", and its timeout has to be given as `-t`, which applies to the whole
+/// invocation - so this cannot be folded into the long-lived `-d -i` assertion
+/// below and has to be its own short-lived child.
+///
+/// This matters because an already-asleep display makes ScreenCaptureKit's
+/// `displays()` come back empty, which is a hard failure to start recording at
+/// all. Waiting for the one-second assertion to expire (rather than spawning
+/// and racing on) is what guarantees the display is up before we enumerate.
+fn wake_display() {
+    match std::process::Command::new("/usr/bin/caffeinate")
+        .args(["-u", "-t", "1"])
+        .status()
+    {
+        Ok(_) => {}
+        // Not fatal on its own: if the display was already awake (the usual
+        // case) nothing was needed, and if it was not, the empty-display error
+        // below says so in plain language.
+        Err(e) => eprintln!("could not wake the display for recording: {e}"),
+    }
+}
+
 /// Keeps the display awake for as long as it is alive.
 ///
 /// This is not a nicety. ScreenCaptureKit stops delivering audio when the
@@ -86,13 +112,19 @@ impl Drop for LoopbackHandle {
 /// IOKit FFI; the alternative is `IOPMAssertionCreateWithName`, which would
 /// need CoreFoundation string plumbing for the same effect. `-d` blocks
 /// display sleep (the one that actually kills the stream) and `-i` blocks idle
-/// system sleep.
+/// system sleep. Neither wakes a sleeping display - see `wake_display`.
+///
+/// `-w <our pid>` is what makes this safe against an abnormal exit: `Drop`
+/// never runs if the app is SIGKILLed or aborts, and a `caffeinate` orphaned
+/// that way would hold the user's display awake indefinitely with nothing on
+/// screen to explain why. With `-w`, the kernel reaping our process releases
+/// the assertion no matter how we died.
 struct DisplaySleepAssertion(Option<std::process::Child>);
 
 impl DisplaySleepAssertion {
     fn hold() -> Self {
         match std::process::Command::new("/usr/bin/caffeinate")
-            .args(["-d", "-i"])
+            .args(["-d", "-i", "-w", &std::process::id().to_string()])
             .spawn()
         {
             Ok(child) => Self(Some(child)),
@@ -209,9 +241,12 @@ pub fn start_system_audio_capture(tx: Sender<Vec<f32>>) -> Result<LoopbackHandle
     // First real call into ScreenCaptureKit, and therefore the point where a
     // missing Screen Recording grant shows up (and where the OS prompt fires
     // on a first run).
-    // Taken before enumerating content, because a display that is *already*
-    // asleep makes `displays()` come back empty (observed) - waking it first
-    // is what makes starting a recording on an idle machine work at all.
+    // Order matters, and each step does a different job. `wake_display()`
+    // turns an already-off display back on (the `-d -i` assertion cannot -
+    // see its doc comment), because `displays()` comes back empty otherwise
+    // and there is nothing to build a filter from. The assertion then keeps
+    // it on for the rest of the recording.
+    wake_display();
     let awake = DisplaySleepAssertion::hold();
 
     let content = SCShareableContent::get().map_err(describe_error)?;
@@ -292,12 +327,20 @@ mod tests {
         let assertion = DisplaySleepAssertion::hold();
         let pid = assertion.0.as_ref().expect("caffeinate should spawn").id();
         let running = std::process::Command::new("/bin/ps")
-            .args(["-p", &pid.to_string()])
+            .args(["-o", "args=", "-p", &pid.to_string()])
             .output()
             .expect("ps");
+        let argv = String::from_utf8_lossy(&running.stdout).to_string();
         assert!(
-            String::from_utf8_lossy(&running.stdout).contains("caffeinate"),
+            argv.contains("caffeinate"),
             "caffeinate should be running while the assertion is held"
+        );
+        // `-w <our pid>` is the crash-safety net: without it an abnormal exit
+        // (SIGKILL, abort) leaves the display pinned awake forever, because
+        // Drop never runs.
+        assert!(
+            argv.contains(&format!("-w {}", std::process::id())),
+            "assertion must be tied to this process's lifetime, got: {argv}"
         );
 
         drop(assertion);
