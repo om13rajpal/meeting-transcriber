@@ -1,5 +1,4 @@
 let recorder: MediaRecorder | null = null;
-let chunks: Blob[] = [];
 let tabStream: MediaStream | null = null;
 let micStream: MediaStream | null = null;
 let combinedStream: MediaStream | null = null;
@@ -11,9 +10,11 @@ let combinedStream: MediaStream | null = null;
 // `recorder.onstop` fires asynchronously after `stopCapture()` returns -
 // either gap gives a fast stop-then-restart room to start a new session
 // before the old one's cleanup runs. Without this guard, that stale
-// cleanup would null out the new session's live `recorder`/streams (or
-// build its `RECORDING_FINISHED` Blob from the new session's `chunks`)
-// out from under it.
+// cleanup would null out the new session's live `recorder`/streams out
+// from under it and send a spurious `RECORDING_FINISHED` for a session
+// that never actually finished. (The `Blob` data itself can no longer be
+// misattributed either way - see `myChunks` below - but the module-scope
+// `recorder`/stream nulling still needs this guard.)
 let generation = 0;
 
 async function startCapture(streamId: string) {
@@ -40,24 +41,33 @@ async function startCapture(streamId: string) {
   audioContext.createMediaStreamSource(tabStream).connect(audioContext.destination);
 
   combinedStream = destination.stream;
-  chunks = [];
+  // Per-session, closure-captured - not module-scope - so a superseded
+  // session's still-pending trailing `dataavailable` (queued by `.stop()`
+  // but not guaranteed to fire before the next `startCapture()` runs)
+  // pushes into ITS OWN array, never into a newer session's. A shared
+  // module-scope `chunks` reassigned by each `startCapture()` call would
+  // let that stale event silently push into the new session's array
+  // instead - audio from one recording bleeding into the next, with no
+  // exception to reveal it.
+  const myChunks: Blob[] = [];
   recorder = new MediaRecorder(combinedStream, { mimeType: 'audio/webm;codecs=opus' });
   recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) chunks.push(e.data);
+    if (e.data.size > 0) myChunks.push(e.data);
   };
   recorder.onstop = () => {
     // Stale cleanup from a superseded session (a newer `startCapture()`
     // already ran while this recorder's `.stop()` was pending) - the
-    // module-scope variables and `chunks` it would touch already belong
-    // to that newer session, so bail out rather than clobbering them or
-    // sending a Blob built from the wrong session's data.
+    // module-scope variables it would touch already belong to that newer
+    // session, so bail out rather than clobbering them. (`myChunks` can't
+    // be clobbered either way now, but the module-scope nulling below
+    // still needs this guard.)
     if (mySession !== generation) return;
     // Only fires after the final `dataavailable` (queued by `.stop()`)
-    // has already landed in `chunks` - building the Blob here, rather
+    // has already landed in `myChunks` - building the Blob here, rather
     // than synchronously right after calling `.stop()`, is what keeps
     // that last buffered chunk (up to the 1s timeslice) in the recording
     // instead of silently dropping it.
-    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const blob = new Blob(myChunks, { type: 'audio/webm' });
     (globalThis as any).__lastRecordingBlob = blob;
     chrome.runtime.sendMessage({ type: 'RECORDING_FINISHED', size: blob.size });
     recorder = null;
@@ -65,7 +75,7 @@ async function startCapture(streamId: string) {
     tabStream = null;
     micStream = null;
   };
-  recorder.start(1000); // 1s timeslices so a crash mid-recording still leaves recent chunks in `chunks`
+  recorder.start(1000); // 1s timeslices so a crash mid-recording still leaves recent chunks in `myChunks`
 }
 
 function stopCapture() {
