@@ -1,8 +1,10 @@
 'use server';
 
+import crypto from 'crypto';
 import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import User from '@/app/lib/models/User';
+import ApiKey from '@/app/lib/models/ApiKey';
 
 const VALID_FORMATS = ['generic', 'discord', 'slack', 'teams'];
 
@@ -77,4 +79,55 @@ export async function getWebhooks() {
   await connectToDatabase();
   const user = await User.findById(userId).select('webhooks').lean();
   return { webhooks: user?.webhooks || [] };
+}
+
+const MAX_LABEL_LENGTH = 60;
+
+function hashApiKey(rawKey) {
+  return crypto.createHash('sha256').update(rawKey).digest('hex');
+}
+
+// Shown to the caller exactly once, in the response of this action -
+// never stored in plaintext, never retrievable again after this call
+// returns. If it's lost, the only recovery is revoking it and creating
+// a new one.
+export async function createApiKey(label) {
+  const { userId } = await verifySession();
+  await connectToDatabase();
+
+  const trimmedLabel = typeof label === 'string' && label.trim()
+    ? label.trim().slice(0, MAX_LABEL_LENGTH)
+    : 'Unnamed device';
+
+  const rawKey = `mtk_${crypto.randomBytes(32).toString('hex')}`;
+  const keyHash = hashApiKey(rawKey);
+
+  await ApiKey.create({ userId, keyHash, label: trimmedLabel });
+
+  return { rawKey, label: trimmedLabel };
+}
+
+export async function listApiKeys() {
+  const { userId } = await verifySession();
+  await connectToDatabase();
+
+  const keys = await ApiKey.find({ userId }).select('label createdAt lastUsedAt').sort({ createdAt: -1 }).lean();
+  return {
+    keys: keys.map((k) => ({
+      id: String(k._id),
+      label: k.label,
+      createdAt: k.createdAt,
+      lastUsedAt: k.lastUsedAt || null
+    }))
+  };
+}
+
+// Ownership-scoped the same way every other mutation in this app is -
+// deleteOne with both _id and userId in the filter means a key that
+// exists but isn't yours simply matches zero documents, not a 403.
+export async function revokeApiKey(id) {
+  const { userId } = await verifySession();
+  await connectToDatabase();
+  await ApiKey.deleteOne({ _id: id, userId });
+  return { ok: true };
 }
