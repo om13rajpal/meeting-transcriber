@@ -36,6 +36,12 @@ dirs = "5"
 cpal = "0.15"
 crossbeam-channel = "0.5"
 hound = "3.5"
+# For the post-recording upload flow (Task 6): minting an upload token and
+# posting the finished WAV to the backend, both over plain HTTPS.
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+tokio = { version = "1", features = ["full"] }
+# Only used to timestamp the recording's output filename.
+chrono = "0.4"
 
 # System-audio ("loopback") capture has no cross-platform crate, so each OS
 # gets its own binding, gated so the other platform's dependency never even
