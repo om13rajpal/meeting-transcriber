@@ -3,8 +3,23 @@ let chunks: Blob[] = [];
 let tabStream: MediaStream | null = null;
 let micStream: MediaStream | null = null;
 let combinedStream: MediaStream | null = null;
+// Bumped once per `startCapture()` call and captured into each call's own
+// `mySession` const, so the async `recorder.onstop` closure it schedules
+// can tell whether it's still the current recording session by the time
+// it actually fires. Needed because `startCapture()` awaits two
+// `getUserMedia()` calls before touching module state, and
+// `recorder.onstop` fires asynchronously after `stopCapture()` returns -
+// either gap gives a fast stop-then-restart room to start a new session
+// before the old one's cleanup runs. Without this guard, that stale
+// cleanup would null out the new session's live `recorder`/streams (or
+// build its `RECORDING_FINISHED` Blob from the new session's `chunks`)
+// out from under it.
+let generation = 0;
 
 async function startCapture(streamId: string) {
+  generation += 1;
+  const mySession = generation;
+
   tabStream = await navigator.mediaDevices.getUserMedia({
     audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } } as any
   });
@@ -31,6 +46,12 @@ async function startCapture(streamId: string) {
     if (e.data.size > 0) chunks.push(e.data);
   };
   recorder.onstop = () => {
+    // Stale cleanup from a superseded session (a newer `startCapture()`
+    // already ran while this recorder's `.stop()` was pending) - the
+    // module-scope variables and `chunks` it would touch already belong
+    // to that newer session, so bail out rather than clobbering them or
+    // sending a Blob built from the wrong session's data.
+    if (mySession !== generation) return;
     // Only fires after the final `dataavailable` (queued by `.stop()`)
     // has already landed in `chunks` - building the Blob here, rather
     // than synchronously right after calling `.stop()`, is what keeps
@@ -48,7 +69,12 @@ async function startCapture(streamId: string) {
 }
 
 function stopCapture() {
-  if (!recorder) return;
+  // Also guards a repeat `OFFSCREEN_STOP`: `.stop()` synchronously flips
+  // `state` to 'inactive' before this function returns, so a second call
+  // arriving before `onstop` has fired (and nulled `recorder`) sees
+  // `state === 'inactive'` and no-ops instead of calling `.stop()` again,
+  // which the spec throws `InvalidStateError` for on an inactive recorder.
+  if (!recorder || recorder.state === 'inactive') return;
   recorder.stop(); // queues the final `dataavailable` + `stop` events asynchronously
   // Stop every real capture track, not just the synthetic combined
   // stream's output track - `combinedStream` comes from
