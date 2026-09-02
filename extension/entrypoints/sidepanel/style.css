@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================================
+   Court Reporter design tokens, copied from the frontend's app/globals.css so
+   the shadcn/ui components copied into components/ui/ render with the real
+   brand colors instead of unstyled defaults. Keep this in sync by hand if the
+   frontend's token values change - there's no shared package between the two
+   projects (see extension/README.md / task brief for why).
+
+   Trimmed vs. the frontend's copy: no tw-animate-css import (none of the
+   components copied so far use animate-in/out utilities) and no next/font
+   variables (--font-big-shoulders etc. - those are wired via next/font in
+   the frontend's layout.js, which doesn't exist in this extension). Add both
+   back if a later task copies a component that needs them.
+   ========================================================================= */
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(0.958 0.010 87.47);
+  --foreground: oklch(0.164 0.002 286.17);
+  --card: oklch(0.982 0.007 88.64);
+  --card-foreground: oklch(0.164 0.002 286.17);
+  --popover: oklch(0.982 0.007 88.64);
+  --popover-foreground: oklch(0.164 0.002 286.17);
+  --primary: oklch(0.508 0.186 23.32);
+  --primary-foreground: oklch(0.958 0.010 87.47);
+  --secondary: oklch(0.937 0.010 87.47);
+  --secondary-foreground: oklch(0.164 0.002 286.17);
+  --muted: oklch(0.937 0.010 87.47);
+  --muted-foreground: oklch(0.497 0.013 84.59);
+  --accent: oklch(0.937 0.010 87.47);
+  --accent-foreground: oklch(0.164 0.002 286.17);
+  --destructive: oklch(0.508 0.186 23.32);
+  --border: oklch(0.867 0.018 89.37);
+  --input: oklch(0.867 0.018 89.37);
+  --ring: oklch(0.508 0.186 23.32);
+
+  /* micro-interaction tokens read directly by button.jsx / badge.jsx / tabs.jsx */
+  --cr-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --cr-dur-press: 140ms;
+  --cr-dur-hover: 160ms;
+  --cr-press-scale: 0.97;
+}
+
+/* This app is always dark, matching the frontend (className="dark" on <html>
+   in layout.js there; class="dark" on <html> in this extension's
+   sidepanel/index.html). */
+.dark {
+  --background: oklch(0.164 0.002 286.17);
+  --foreground: oklch(0.958 0.010 87.47);
+  --card: oklch(0.193 0.006 285.82);
+  --card-foreground: oklch(0.958 0.010 87.47);
+  --popover: oklch(0.193 0.006 285.82);
+  --popover-foreground: oklch(0.958 0.010 87.47);
+  --primary: oklch(0.508 0.186 23.32);
+  --primary-foreground: oklch(0.958 0.010 87.47);
+  --secondary: oklch(0.226 0.000 89.88);
+  --secondary-foreground: oklch(0.958 0.010 87.47);
+  --muted: oklch(0.219 0.006 285.91);
+  --muted-foreground: oklch(0.632 0.006 106.57);
+  --accent: oklch(0.219 0.006 285.91);
+  --accent-foreground: oklch(0.958 0.010 87.47);
+  --destructive: oklch(0.642 0.197 20.58);
+  --border: oklch(0.258 0.007 285.87);
+  --input: oklch(0.287 0.007 285.93);
+  --ring: oklch(0.612 0.208 22.24);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
