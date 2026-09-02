@@ -19,9 +19,13 @@
 //! - Startup sequence, per `examples/record.rs`: `initialize_mta()` (COM, and
 //!   it has to happen on the thread that will do the capturing) ->
 //!   `DeviceEnumerator::new()` -> `get_default_device(&Direction::Render)` ->
-//!   `get_iaudioclient()` -> `initialize_client(&format, &Direction::Capture,
-//!   &StreamMode::EventsShared { autoconvert: true, buffer_duration_hns })` ->
-//!   `set_get_eventhandle()` -> `get_audiocaptureclient()` -> `start_stream()`.
+//!   `get_iaudioclient()` -> `get_device_period()` (its minimum period is what
+//!   `buffer_duration_hns` below is set from) -> `initialize_client(&format,
+//!   &Direction::Capture, &StreamMode::EventsShared { autoconvert: true,
+//!   buffer_duration_hns })` -> `set_get_eventhandle()` ->
+//!   `get_audiocaptureclient()` -> `get_buffer_size()` (load-bearing: it sizes
+//!   the read buffer, and `read_from_device` silently returns zero frames
+//!   forever if handed a slice too small for one frame) -> `start_stream()`.
 //! - `autoconvert: true` turns on `AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM`, which
 //!   is what lets us name our own `WaveFormat` (48 kHz stereo f32) instead of
 //!   having to accept and then convert the endpoint's mix format.
@@ -42,13 +46,18 @@
 //!
 //! The one real behavioural difference from macOS worth knowing about: WASAPI
 //! loopback emits **nothing at all** while the endpoint is idle - it does not
-//! manufacture silence the way ScreenCaptureKit does. That is deliberately
-//! *not* papered over here. A short dropout mid-stream is filled exactly, from
-//! the device frame index (`gap_fill_frames`); a long silence is left alone,
-//! because the mixer's stall guard in `mod.rs` already writes the microphone
-//! through on its own during it, and injecting the same stretch of silence a
-//! second time - late, in one burst - would push this source off the timeline
-//! rather than onto it.
+//! manufacture silence the way ScreenCaptureKit does. Two mechanisms cover
+//! that between them, and they are deliberately keyed to the *same* threshold
+//! so that every possible gap length falls to exactly one of them:
+//!
+//! - up to `MAX_GAP_FILL_FRAMES`, the gap is filled here, exactly, from the
+//!   device frame index (`gap_fill_frames`);
+//! - beyond it, nothing is filled, because the mixer's stall guard in `mod.rs`
+//!   has by then already written the microphone through on its own.
+//!
+//! `MAX_GAP_FILL_FRAMES` is therefore *derived from* `mod.rs`'s
+//! `STALL_TIMEOUT` rather than chosen independently - see its doc comment for
+//! what went wrong when the two numbers were allowed to differ.
 
 use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -69,15 +78,26 @@ const EVENT_WAIT_MS: u32 = 100;
 
 /// Largest device-position jump that is filled in with silence.
 ///
-/// A jump this small is a glitch - the audio engine dropped frames mid-stream -
-/// and filling it exactly keeps this source aligned with the microphone.
-/// Anything larger means the render endpoint was simply idle (WASAPI loopback
-/// produces nothing at all when nothing is playing), and back-filling minutes
-/// of silence in one late burst would be actively wrong: the mixer's own stall
-/// guard has already written the microphone through for that stretch, so the
-/// burst would land against the wrong point on the timeline and then be
-/// trimmed by the drift cap anyway.
-const MAX_GAP_FILL_FRAMES: u64 = SYSTEM_AUDIO_SAMPLE_RATE as u64 / 2;
+/// A jump up to this size is filled exactly, which keeps this source aligned
+/// with the microphone across a dropout. Anything larger is left alone, because
+/// by then the mixer's own stall guard has already written the microphone
+/// through for that stretch - back-filling the same silence a second time,
+/// late and in one burst, would land against the wrong point on the timeline
+/// and then be trimmed by the drift cap anyway.
+///
+/// **This is derived from `mod.rs`'s `STALL_TIMEOUT` rather than being its own
+/// number, and it has to stay that way.** The two mechanisms only work if they
+/// tile the whole range with nothing in between. When this was an independent
+/// 500ms while the stall guard was 2s, a gap in the 500ms-2s band was handled
+/// by *neither*: too big to fill here, too short to trip the guard there. The
+/// mixer would simply wait, the microphone backlog would grow unfilled, and
+/// when system audio came back the two sources would resume in lockstep with
+/// the microphone permanently that far behind - a skew that never
+/// self-corrects and that starts silently discarding real speech from the head
+/// of the backlog once it crosses `MAX_BUFFERED_SAMPLES`. Deriving the cap
+/// makes that band impossible to reopen by editing one constant.
+const MAX_GAP_FILL_FRAMES: u64 =
+    super::STALL_TIMEOUT.as_millis() as u64 * SYSTEM_AUDIO_SAMPLE_RATE as u64 / 1000;
 
 /// Floor on the read buffer, in frames (100 ms), independent of whatever the
 /// endpoint reports for its own buffer size.
@@ -303,9 +323,11 @@ fn capture_loop(
 ///
 /// Returns 0 for the first packet (nothing to compare against), for a packet
 /// that is contiguous with the last one (the overwhelmingly common case), and
-/// for a jump larger than `max` - see `MAX_GAP_FILL_FRAMES` for why a large
-/// jump must NOT be filled. `index` running behind `expected` should be
-/// impossible, and is treated as "no gap" rather than allowed to underflow.
+/// for a jump larger than `max` - which is not "give up", but "the mixer's
+/// stall guard has already covered this stretch"; see `MAX_GAP_FILL_FRAMES` for
+/// why the two thresholds must be the same number. `index` running behind
+/// `expected` should be impossible, and is treated as "no gap" rather than
+/// allowed to underflow.
 fn gap_fill_frames(expected_next_index: Option<u64>, index: u64, max: u64) -> u64 {
     let Some(expected) = expected_next_index else {
         return 0;
@@ -370,5 +392,24 @@ mod tests {
         // An index running backwards should be impossible; it must not
         // underflow into a colossal allocation.
         assert_eq!(gap_fill_frames(Some(5_000), 4_000, 24_000), 0);
+    }
+
+    /// The two silence mechanisms must tile the whole range of gap lengths.
+    /// A gap that is too long to fill here but too short to trip the mixer's
+    /// stall guard is handled by neither, and leaves the microphone
+    /// permanently skewed ahead of system audio.
+    #[test]
+    fn gap_fill_and_stall_guard_leave_no_uncovered_band() {
+        let stall_frames =
+            super::super::STALL_TIMEOUT.as_millis() as u64 * SYSTEM_AUDIO_SAMPLE_RATE as u64 / 1000;
+        assert_eq!(
+            MAX_GAP_FILL_FRAMES, stall_frames,
+            "gap fill must reach exactly as far as the stall guard begins"
+        );
+        // The frame just under the stall guard's threshold is still filled.
+        assert_eq!(
+            gap_fill_frames(Some(0), stall_frames - 1, MAX_GAP_FILL_FRAMES),
+            stall_frames - 1
+        );
     }
 }
