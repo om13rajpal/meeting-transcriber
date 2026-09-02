@@ -2,9 +2,9 @@
 
 import { useActionState, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight } from 'lucide-react';
+import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Copy, Check } from 'lucide-react';
 import { logout, updatePassword } from '@/app/actions/auth';
-import { saveWebhooks } from '@/app/actions/settings';
+import { saveWebhooks, createApiKey, revokeApiKey } from '@/app/actions/settings';
 import AppHeader from '@/components/brand/AppHeader';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,8 @@ const LABEL_CLASS = 'font-mono text-[11px] uppercase tracking-[0.08em] text-mute
 const SECTIONS = [
   { id: 'account', label: 'Account', icon: User },
   { id: 'password', label: 'Password', icon: KeyRound },
-  { id: 'webhooks', label: 'Webhooks', icon: WebhookIcon }
+  { id: 'webhooks', label: 'Webhooks', icon: WebhookIcon },
+  { id: 'api-keys', label: 'API Keys', icon: Laptop }
 ];
 
 function SectionNav({ active, onSelect }) {
@@ -227,7 +228,118 @@ function WebhooksSection({ initialWebhooks }) {
   );
 }
 
-export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassword, initialWebhooks }) {
+function formatRelativeDate(value) {
+  if (!value) return 'Never used';
+  const date = new Date(value);
+  return `Last used ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+}
+
+function ApiKeysSection({ initialKeys }) {
+  const [keys, setKeys] = useState(initialKeys);
+  const [label, setLabel] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newRawKey, setNewRawKey] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const result = await createApiKey(label);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setNewRawKey(result.rawKey);
+      setKeys((prev) => [{ id: 'pending', label: result.label, createdAt: new Date().toISOString(), lastUsedAt: null }, ...prev]);
+      setLabel('');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleRevoke(id) {
+    await revokeApiKey(id);
+    setKeys((prev) => prev.filter((k) => k.id !== id));
+    toast.success('API key revoked.');
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(newRawKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>API Keys</CardTitle>
+        <CardDescription>
+          Used by the desktop app and Chrome extension to upload recordings without you logging in
+          separately on each device. Each key can start transcription jobs on your behalf, nothing more.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {newRawKey && (
+          <div
+            className="flex flex-col gap-2 rounded-[var(--cr-radius-md)] p-3"
+            style={{ background: 'var(--cr-ink-raised)', border: '1px solid var(--cr-rule-strong)' }}
+          >
+            <p className="text-sm font-medium">Copy this key now — it won&apos;t be shown again.</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded bg-black/20 px-2 py-1.5 font-mono text-xs">{newRawKey}</code>
+              <Button variant="outline" size="icon-sm" onClick={handleCopy}>
+                {copied ? <Check /> : <Copy />}
+                <span className="sr-only">Copy</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder='Label, e.g. "MacBook Pro"'
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <Button onClick={handleCreate} disabled={creating} className="shrink-0">
+            {creating && <Loader2 className="animate-spin" />}
+            <Plus /> New key
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {keys.length === 0 && <p className="text-sm text-muted-foreground">No API keys yet.</p>}
+          {keys.map((key) => (
+            <div key={key.id} className="flex items-center gap-3 rounded-[var(--cr-radius-md)] border border-[var(--cr-rule-strong)] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{key.label}</div>
+                <div className="text-xs text-muted-foreground">{formatRelativeDate(key.lastUsedAt)}</div>
+              </div>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRevoke(key.id)}
+                    >
+                      <X />
+                      <span className="sr-only">Revoke</span>
+                    </Button>
+                  }
+                />
+                <TooltipContent>Revoke this key</TooltipContent>
+              </Tooltip>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassword, initialWebhooks, initialApiKeys }) {
   const [, startLogoutTransition] = useTransition();
   const [active, setActive] = useState('account');
 
@@ -255,6 +367,7 @@ export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassw
             )}
             {active === 'password' && <PasswordSection hasPassword={hasPassword} />}
             {active === 'webhooks' && <WebhooksSection initialWebhooks={initialWebhooks} />}
+            {active === 'api-keys' && <ApiKeysSection initialKeys={initialApiKeys} />}
           </div>
         </div>
       </main>
