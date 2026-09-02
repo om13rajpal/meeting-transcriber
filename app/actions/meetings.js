@@ -176,9 +176,14 @@ async function sendNotifications(meeting) {
 // sweep in backend/server.js to notice. That sweep still exists as a
 // backstop for failures the browser never finds out about (the backend
 // process dying mid-job after already accepting the file).
-export async function markMeetingFailed(id, message) {
-  const { userId } = await verifySession();
-  const meeting = await findOwnedMeeting(id, userId);
+//
+// The auth-agnostic core, mirroring how mintUploadToken() in
+// app/lib/uploadTokens.js splits from createUploadToken() - callers
+// resolve `userId` through whichever auth mechanism they use (session
+// cookie here, API key in the Route Handler below) and this does the
+// actual status/notification work exactly once.
+export async function markMeetingFailedCore({ meetingId, userId, message }) {
+  const meeting = await findOwnedMeeting(meetingId, userId);
   if (!meeting || meeting.status !== 'processing') {
     return { ok: false };
   }
@@ -188,6 +193,11 @@ export async function markMeetingFailed(id, message) {
   await meeting.save();
   await sendNotifications(meeting);
   return { ok: true };
+}
+
+export async function markMeetingFailed(id, message) {
+  const { userId } = await verifySession();
+  return markMeetingFailedCore({ meetingId: id, userId, message });
 }
 
 // Manual retry for when the automatic notification on completion/failure
