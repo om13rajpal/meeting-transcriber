@@ -33,4 +33,6 @@ serde_json = "1"
 # both here is safe cross-platform.
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 dirs = "5"
+cpal = "0.15"
+crossbeam-channel = "0.5"
 

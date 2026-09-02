@@ -1,4 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod capture;
+
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::fs;
