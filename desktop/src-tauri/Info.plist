@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Without this key, macOS never shows the microphone permission prompt
+	     at all and CoreAudio (which cpal uses to open the input device)
+	     silently delivers empty/zeroed buffers instead of failing - no
+	     error, no crash, just recorded silence on the mic track. This is
+	     what caused system audio (gated by the separate Screen Recording
+	     TCC permission) to record fine while the mic track came back empty. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Meeting Transcriber records your microphone so your side of a call is included in the transcript.</string>
+</dict>
+</plist>
