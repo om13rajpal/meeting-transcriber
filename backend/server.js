@@ -161,6 +161,13 @@ async function runTranscriptionJob(meeting, filePath) {
     );
     if (!updated) {
       console.log(`Skipping completion for ${meeting._id}: no longer 'processing' (likely cancelled).`);
+      // Cancel already unlinks the file itself, but a plain delete of the
+      // Meeting row (deleteMeetings on the frontend) doesn't touch this
+      // backend's disk at all - and once the document is gone,
+      // sweepOrphanedFiles can never find it again to reclaim it (it only
+      // scans existing Meeting documents). This is the last chance to avoid
+      // leaking the file in that case.
+      await fs.promises.unlink(filePath).catch(() => {});
       return;
     }
     meeting = updated;
@@ -199,7 +206,15 @@ async function runTranscriptionJob(meeting, filePath) {
       console.error(saveError);
       return null;
     });
-    if (!updated) return;
+    if (!updated) {
+      // Same reasoning as the success branch above: if this didn't match
+      // because the Meeting row was deleted outright (not just cancelled -
+      // Cancel already unlinks its own file), sweepOrphanedFiles can never
+      // find this file again, so this is the only remaining chance to clean
+      // it up. A no-op (ENOENT, swallowed below) if Cancel already removed it.
+      await fs.promises.unlink(filePath).catch(() => {});
+      return;
+    }
     await sendNotifications(updated);
   }
 }
@@ -345,7 +360,17 @@ async function main() {
         if (req.pendingUploadPath) {
           await fs.promises.unlink(req.pendingUploadPath).catch(() => {});
         }
-        return res.status(400).json({ error: err.message || 'Upload failed.' });
+        // A MulterError's .message is always one of a small set of safe,
+        // known strings (e.g. "File too large"), fine to show as-is. Any
+        // other error here is a raw fs/OS failure (e.g. ENOSPC, EACCES)
+        // whose .message can embed this server's internal upload directory
+        // path - exactly the internals CLAUDE.md's "never return internals"
+        // rule says can't reach the client, so it's logged, not echoed.
+        if (err instanceof multer.MulterError) {
+          return res.status(400).json({ error: err.message });
+        }
+        console.error('Upload failed:', err);
+        return res.status(500).json({ error: 'Upload failed. Please try again.' });
       }
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
@@ -353,9 +378,17 @@ async function main() {
 
       // The token is a required text field alongside the file in the same
       // multipart form. It's minted by the Next.js app (already behind a
-      // real session) and authorizes exactly one upload for one user.
+      // real session) and authorizes exactly one upload for one user. Must
+      // be a plain string, not just truthy - same reasoning as the
+      // typeof checks in /api/meetings/retry and /cancel below: an object
+      // value here would go straight into the findByIdAndDelete query as a
+      // raw Mongo operator instead of being cast to the schema's String
+      // type. Not reachable through a real multipart upload (busboy only
+      // ever gives string field values here), but guarding it the same way
+      // as the other two token checks costs nothing and keeps this from
+      // being the one inconsistent case if that ever changes.
       const token = req.body.token;
-      if (!token) {
+      if (typeof token !== 'string' || !token) {
         await fs.promises.unlink(req.file.path).catch(() => {});
         return res.status(401).json({ error: 'Missing upload authorization.' });
       }

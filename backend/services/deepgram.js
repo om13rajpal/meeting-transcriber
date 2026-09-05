@@ -50,20 +50,20 @@ async function probeStreams(filePath, streamType) {
 const hasVideoStream = (filePath) => probeStreams(filePath, 'v');
 const hasAudioStream = (filePath) => probeStreams(filePath, 'a');
 
-// The desktop app and extension both record mic + system audio on separate
-// stereo channels (left = mic/"you", right = system audio/"the meeting")
-// specifically so this doesn't have to guess who's speaking from voice
-// characteristics alone - see capture/mod.rs's module doc on the desktop
-// side. This endpoint also serves plain manual uploads from the web
-// dashboard's file picker, though, which have no such convention (an
-// arbitrary stereo file's left/right channels mean nothing in particular) -
-// so rather than a schema flag threaded through the whole upload-token
-// pipeline, this just checks the *actual* channel count of what was
-// uploaded: exactly 2 channels is treated as "our own dual-channel capture
-// convention" (a safe assumption for a meeting-transcription app whose real
-// upload paths are desktop/extension recordings or Zoom-style exports that
-// are typically mono anyway), anything else falls back to the original
-// single-channel diarize-only path untouched.
+// The desktop app records mic + system audio on separate stereo channels
+// (left = mic/"you", right = system audio/"the meeting") specifically so
+// this doesn't have to guess who's speaking from voice characteristics
+// alone - see capture/mod.rs's module doc on the desktop side. This
+// endpoint also serves plain manual uploads from the web dashboard's file
+// picker, though, which have no such convention (an arbitrary stereo
+// file's left/right channels mean nothing in particular) - so rather than
+// a schema flag threaded through the whole upload-token pipeline, this
+// just checks the *actual* channel count of what was uploaded: exactly 2
+// channels is treated as "our own dual-channel capture convention" (a safe
+// assumption for a meeting-transcription app whose real upload paths are
+// desktop recordings or Zoom-style exports that are typically mono
+// anyway), anything else falls back to the original single-channel
+// diarize-only path untouched.
 async function probeAudioChannels(filePath) {
   try {
     const out = await execFileP('ffprobe', [
