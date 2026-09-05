@@ -49,3 +49,4 @@ next-env.d.ts
 # macOS AppleDouble sidecar files (this project lives on an exFAT/APFS
 # external drive that generates them constantly)
 ._*
+.env*
