@@ -23,8 +23,13 @@ export default function AppHeader({ userEmail, avatarUrl, left, className }) {
         <div className="flex min-w-0 items-center gap-4">
           <Link
             href="/"
-            className="shrink-0 rounded-[var(--cr-radius-sm)] outline-none transition-transform duration-[var(--cr-dur-press)] ease-[var(--cr-ease-out)] focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[var(--cr-press-scale)]"
+            className="flex shrink-0 items-center gap-2 rounded-[var(--cr-radius-sm)] outline-none transition-transform duration-[var(--cr-dur-press)] ease-[var(--cr-ease-out)] focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[var(--cr-press-scale)]"
           >
+            {/* White-on-transparent variant, not the gradient app-icon
+                tile - this sits directly on the app's own dark
+                background (always dark, see CLAUDE.md), so it needs no
+                background square of its own. */}
+            <img src="/brand/logo-white.png" alt="" width={20} height={20} className="size-5 shrink-0" />
             <Wordmark size="app" />
           </Link>
           {left}
