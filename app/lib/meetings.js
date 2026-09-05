@@ -59,6 +59,34 @@ export function toSummary(meeting, query) {
   };
 }
 
+// Deliberately separate from toSummary(), which includes a `preview` field
+// containing actual transcript text - exactly what an API-key client must
+// never receive (see CLAUDE.md's "API key auth for machine clients": a key
+// "can't read a transcript"). This mapper is metadata-only.
+export function toApiKeySummary(meeting) {
+  return {
+    id: String(meeting._id),
+    title: meeting.title || meeting.originalName || 'Untitled recording',
+    status: meeting.status || 'complete',
+    createdAt: meeting.createdAt.toISOString(),
+    errorMessage: meeting.errorMessage || null
+  };
+}
+
+// Feeds the desktop app's native "Recent Recordings" view (GET
+// /api/tokens/meetings) - the one read capability an API key has, and
+// deliberately narrow: no search, no tags, capped at `limit`, same
+// ownership/.lean()/.select() shape as listMeetings() above.
+export async function listMeetingsForApiKey(userId, limit = 20) {
+  await connectToDatabase();
+  const meetings = await Meeting.find({ userId })
+    .select('-utterances')
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+  return meetings.map(toApiKeySummary);
+}
+
 export function toDetail(meeting) {
   return {
     id: String(meeting._id),
