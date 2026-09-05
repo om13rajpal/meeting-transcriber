@@ -51,6 +51,11 @@ const APP_URL: &str = "https://transcriber.omrajpal.in";
 #[derive(Serialize)]
 struct SettingsResponse {
     has_api_key: bool,
+    // Exactly one of these is Some once has_api_key is true: the key's
+    // label on a successful live validate, or the validate failure
+    // message (revoked, network error, etc.) otherwise.
+    label: Option<String>,
+    error: Option<String>,
 }
 
 /// Confirms a key is real and not revoked before it's saved to the
@@ -60,7 +65,7 @@ struct SettingsResponse {
 /// extension's Settings does - see app/api/tokens/validate/route.js,
 /// which (unlike /api/tokens/upload) has no side effect, so it's cheap to
 /// call on every Save.
-async fn validate_api_key(api_key: &str) -> Result<(), String> {
+async fn validate_api_key(api_key: &str) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
         .build()
@@ -74,21 +79,23 @@ async fn validate_api_key(api_key: &str) -> Result<(), String> {
         .await
         .map_err(|e| format!("Could not reach {APP_URL} to check the API key: {e}"))?;
 
-    if response.status().is_success() {
-        return Ok(());
-    }
+    let status = response.status();
 
     #[derive(Deserialize)]
-    struct ValidateError {
+    struct ValidateResponse {
+        valid: bool,
+        label: Option<String>,
         error: Option<String>,
     }
-    let message = response
-        .json::<ValidateError>()
+    let body: ValidateResponse = response
+        .json()
         .await
-        .ok()
-        .and_then(|b| b.error)
-        .unwrap_or_else(|| "That API key was rejected by the app.".to_string());
-    Err(message)
+        .map_err(|e| format!("Could not parse the app's response: {e}"))?;
+
+    if status.is_success() && body.valid {
+        return Ok(body.label.unwrap_or_default());
+    }
+    Err(body.error.unwrap_or_else(|| "That API key was rejected by the app.".to_string()))
 }
 
 #[tauri::command]
@@ -109,14 +116,33 @@ async fn save_settings(api_key: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_settings() -> Result<SettingsResponse, String> {
+async fn get_settings() -> Result<SettingsResponse, String> {
     // Only ever report presence, never the raw key - the frontend has no
     // legitimate use for it once it's saved.
-    let has_api_key = Entry::new(SERVICE, KEY_USER)
-        .and_then(|e| e.get_password())
-        .is_ok();
+    let stored_key = Entry::new(SERVICE, KEY_USER).and_then(|e| e.get_password()).ok();
+    let Some(api_key) = stored_key else {
+        return Ok(SettingsResponse {
+            has_api_key: false,
+            label: None,
+            error: None,
+        });
+    };
 
-    Ok(SettingsResponse { has_api_key })
+    // Re-validates live on every Settings open (not just at save time) so
+    // a key revoked from the website since the last launch is caught here
+    // instead of silently failing much later during an actual upload.
+    match validate_api_key(&api_key).await {
+        Ok(label) => Ok(SettingsResponse {
+            has_api_key: true,
+            label: Some(label),
+            error: None,
+        }),
+        Err(message) => Ok(SettingsResponse {
+            has_api_key: true,
+            label: None,
+            error: Some(message),
+        }),
+    }
 }
 
 // NOTE: no automated tests here on purpose. An earlier version of this file
@@ -333,18 +359,14 @@ async fn report_failure(
 /// CLAUDE.md's "never return internals" rule; the raw error still goes to
 /// `eprintln!` for local debugging.
 async fn upload_recording(wav_path: PathBuf, app_handle: AppHandle) {
-    let settings = match get_settings() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("upload skipped: could not read settings: {e}");
-            show_error_dialog(
-                &app_handle,
-                "Could not read the app's settings. Open Settings from the tray menu and save your API key again.",
-            );
-            return;
-        }
-    };
-    if !settings.has_api_key {
+    // Deliberately a plain local keychain presence check, not a call to
+    // the get_settings Tauri command - that command now also does a live
+    // network validate() round trip (see its own doc comment), which
+    // would add unwanted latency and a new network-flakiness failure mode
+    // to every single upload for a check that only needs to know whether
+    // a key is saved at all.
+    let has_api_key = Entry::new(SERVICE, KEY_USER).and_then(|e| e.get_password()).is_ok();
+    if !has_api_key {
         eprintln!("upload skipped: API key not configured");
         show_error_dialog(
             &app_handle,
