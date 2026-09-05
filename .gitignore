@@ -50,3 +50,7 @@ next-env.d.ts
 # external drive that generates them constantly)
 ._*
 .env*
+
+# Built fresh on every deploy by scripts/build-extension-zip.js - never
+# committed, since a committed copy would immediately go stale.
+/public/downloads/
