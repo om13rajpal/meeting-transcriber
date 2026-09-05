@@ -1,15 +1,29 @@
-// Audio capture: microphone plus system audio ("loopback"), mixed into a
-// single mono WAV file.
+// Audio capture: microphone plus system audio ("loopback"), written as a
+// stereo WAV file - mic on the left channel, system audio on the right.
+//
+// This used to be summed into one mono channel, which made Deepgram's
+// diarization guess "which parts are you" purely from voice characteristics -
+// a much harder problem than it needs to be, since system audio can be
+// anything (music, a video, another person's voice) and summing two
+// full-scale signals into one channel can clip/distort both when both are
+// loud at once. Keeping them on separate channels means the backend can ask
+// Deepgram to transcribe each channel independently (`multichannel=true`)
+// and knows deterministically which channel is "you" - diarization then only
+// has to separate *further* speakers within the system-audio channel (a
+// genuine multi-person meeting), which is the case it's actually designed
+// for. See `backend/services/deepgram.js` for the receiving end of this.
 //
 // Every capture source in here hands the mixer the same shape - chunks of mono
 // `f32` samples plus, on its handle, the sample rate it is *actually* producing
 // at. That last part is deliberate: the plan assumed a single hardcoded
 // SAMPLE_RATE would hold for both sides, and it does not. `cpal` negotiates
 // whatever the input device offers (this varies by machine and by whether a
-// headset is plugged in), while ScreenCaptureKit/WASAPI produce the rate we
-// asked them for. `mix_and_write` resamples each source from its reported rate
-// to `OUTPUT_SAMPLE_RATE` instead of trusting a constant, so a mismatch is a
-// no-op cost rather than pitch-shifted, half-speed audio.
+// headset is plugged in). Windows' WASAPI loopback produces the rate we asked
+// it for, but macOS's Core Audio tap has no rate to request at all - it mirrors
+// whatever the system output's current format is, read back after the tap is
+// created rather than assumed. `mix_and_write` resamples each source from its
+// reported rate to `OUTPUT_SAMPLE_RATE` instead of trusting a constant, so a
+// mismatch is a no-op cost rather than pitch-shifted, half-speed audio.
 
 mod mic;
 
@@ -26,7 +40,7 @@ use loopback_windows as loopback;
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 compile_error!(
     "This app captures system audio, which has no cross-platform implementation. \
-     Only macOS (ScreenCaptureKit) and Windows (WASAPI loopback) are supported."
+     Only macOS (Core Audio process taps) and Windows (WASAPI loopback) are supported."
 );
 
 use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
@@ -51,7 +65,16 @@ const STALL_TIMEOUT: Duration = Duration::from_secs(2);
 /// Hard cap on how far one source may run ahead of the other before its oldest
 /// samples are dropped. Two independent audio clocks drift slowly apart over a
 /// long meeting; without this the faster one's backlog grows without bound.
-const MAX_BUFFERED_SAMPLES: usize = 2 * OUTPUT_SAMPLE_RATE as usize;
+///
+/// Must comfortably exceed `start_sources()`'s mic rate-calibration window
+/// (currently ~2.4s): both channels keep filling, undrained, for that whole
+/// window before mixing ever starts, so the very first `drain()` call always
+/// sees a real backlog that size on *both* sources - not drift, just start-up
+/// catch-up. A cap too close to that duration trimmed a real recording's
+/// first couple of seconds on both sides for no reason. 5s leaves solid
+/// headroom over the calibration window while still bounding memory growth
+/// for genuine, sustained drift over the rest of a long meeting.
+const MAX_BUFFERED_SAMPLES: usize = 5 * OUTPUT_SAMPLE_RATE as usize;
 
 /// How long the final drain waits for in-flight buffers after the sources have
 /// been stopped.
@@ -79,8 +102,8 @@ pub struct RecordingHandle {
 /// **Do not call this on a thread whose blocking would freeze the UI.** Tauri
 /// v2 runs non-`async` commands on the main thread, so a command that calls
 /// this directly will hang the whole window. On macOS the first ever recording
-/// blocks inside ScreenCaptureKit for as long as the user takes to answer the
-/// Screen Recording permission prompt - measured at over ten minutes in
+/// blocks inside Core Audio for as long as the user takes to answer the
+/// System Audio Recording permission prompt - measured at over ten minutes in
 /// testing, and unbounded in principle, since the prompt waits forever. Call it
 /// from an `async` command (Tauri runs those off the main thread) or an
 /// explicitly spawned thread.
@@ -100,11 +123,11 @@ pub fn start_recording(output_path: &Path) -> Result<RecordingHandle, String> {
         .map_err(|e| format!("Could not start the recording thread: {e}"))?;
 
     // Deliberately an unbounded `recv()`, not `recv_timeout`. On macOS the
-    // first ever call blocks inside ScreenCaptureKit for as long as the user
-    // takes to answer the Screen Recording prompt, and a timeout here would
-    // not bound that anyway - the timeout branch has to join the session
+    // first ever call blocks inside Core Audio for as long as the user
+    // takes to answer the System Audio Recording prompt, and a timeout here
+    // would not bound that anyway - the timeout branch has to join the session
     // thread regardless, so all a deadline buys is replacing the real error
-    // ("Screen Recording permission is required…") with a misleading
+    // ("System Audio Recording permission is required…") with a misleading
     // "did not start in time". Measured: a 20-second deadline fired on
     // exactly that prompt. The session thread always sends exactly one
     // result before doing anything else, and a panic drops the sender, so
@@ -287,7 +310,7 @@ struct Started {
 /// on the way.
 fn create_writer(output_path: &Path) -> Result<WavWriter<BufWriter<File>>, String> {
     let spec = WavSpec {
-        channels: 1,
+        channels: 2,
         sample_rate: OUTPUT_SAMPLE_RATE,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
@@ -301,26 +324,83 @@ fn start_sources() -> Result<Started, String> {
     let (mic_tx, mic_rx) = unbounded();
     let (system_tx, system_rx) = unbounded();
 
-    // System audio goes first, because it is the source that can block: on
-    // macOS this is the call that waits on the Screen Recording prompt, for as
-    // long as the user takes to answer. Starting the microphone first (as this
-    // did originally) meant its unbounded channel filled at ~192 KB/s for that
-    // entire wait with nothing draining it, since the mixer does not start
-    // until both sources are up.
-    let loopback = loopback::start_system_audio_capture(system_tx)?;
+    // Microphone opens first (system audio used to go first, specifically to
+    // avoid its unbounded channel filling at ~192 KB/s while system audio
+    // blocked on the permission prompt - `AudioHardwareCreateProcessTap`,
+    // unlike ScreenCaptureKit's `SCShareableContent::get()`, does not
+    // actually block this thread on that prompt, so there is no multi-minute
+    // window that risk was ever protecting against here). Order alone does
+    // not fix the real bug below, but there is no remaining reason to prefer
+    // system-audio-first either.
     let mic = mic::start_mic_capture(mic_tx)?;
+    let loopback = loopback::start_system_audio_capture(system_tx)?;
 
-    let mic_rate = mic.sample_rate;
+    // `mic.sample_rate` (what cpal/CoreAudio *declared* when the stream
+    // opened) cannot be trusted here - confirmed across multiple real
+    // recordings, independent of mic/system-audio start order: this Mac's
+    // built-in mic and speakers/output share one hardware clock domain, and
+    // creating the system-audio tap's aggregate device (which wraps the real
+    // output device as a clock anchor - see `loopback_macos.rs`) forces that
+    // shared clock to a different actual rate for the rest of the recording,
+    // silently invalidating whatever cpal negotiated at open time. This never
+    // happened with the older ScreenCaptureKit-based system audio, which
+    // never created a real `AudioObjectID` aggregate device at all.
+    //
+    // So rather than trust the declaration, measure the mic's *actual*
+    // delivery rate directly. Real recordings so far all used a Bluetooth
+    // mic (AirPods), which layers another well-known wrinkle on top of the
+    // clock-domain issue above: opening a Bluetooth headset's *microphone*
+    // forces macOS to hand the whole accessory off from its high-quality
+    // media profile (A2DP - output only) to the low-bandwidth voice profile
+    // (HFP - mono, far lower rate, carries input *and* output together), and
+    // that handoff is not instant. A single fixed-length calibration window
+    // averaged across the handoff (first attempt: 750ms flat) still measured
+    // a transitional, not-yet-settled rate (19306 Hz - not a real HFP rate
+    // like 8000/16000, and still triggered heavy drift-guard drops).
+    //
+    // So this takes several readings and uses only the *last* segment's rate
+    // - by construction, whatever the handoff was doing early on is excluded,
+    // and only the (presumably by-then-settled) most recent delivery rate
+    // counts. `mic_rx` just buffers throughout - nothing is lost, since
+    // nothing starts draining it into a `Source` until after this returns.
+    const CALIBRATION_STEP: Duration = Duration::from_millis(400);
+    const CALIBRATION_STEPS: u32 = 6; // 2.4s total - comfortably past a slow BT handoff.
+    let mut previous = (Duration::ZERO, 0u64);
+    let mut mic_rate = mic.sample_rate;
+    for step in 1..=CALIBRATION_STEPS {
+        std::thread::sleep(CALIBRATION_STEP);
+        let Some(first_frame_at) = *mic.first_frame_at.lock().expect("mutex poisoned") else {
+            continue; // No audio has arrived at all yet - nothing to measure.
+        };
+        let elapsed = first_frame_at.elapsed();
+        let frames = mic.frames_received.load(std::sync::atomic::Ordering::Relaxed);
+        let (prev_elapsed, prev_frames) = previous;
+        let segment_secs = (elapsed - prev_elapsed).as_secs_f64();
+        if segment_secs > 0.0 && frames > prev_frames {
+            let segment_rate = ((frames - prev_frames) as f64 / segment_secs).round() as u32;
+            eprintln!(
+                "mic calibration step {step}/{CALIBRATION_STEPS}: {segment_rate} Hz over this \
+                 segment ({} frames in {segment_secs:.2}s)",
+                frames - prev_frames
+            );
+            mic_rate = segment_rate;
+        }
+        previous = (elapsed, frames);
+    }
+
     let system_rate = loopback.sample_rate;
-    eprintln!("recording: mic at {mic_rate} Hz, system audio at {system_rate} Hz, writing {OUTPUT_SAMPLE_RATE} Hz");
+    eprintln!(
+        "recording: mic at {mic_rate} Hz (cpal declared {} Hz), system audio at {system_rate} Hz, writing {OUTPUT_SAMPLE_RATE} Hz",
+        mic.sample_rate
+    );
 
     Ok(Started {
         sources: Sources {
             mic: Some(mic),
             loopback: Some(loopback),
         },
-        mic: Source::new(mic_rx, mic_rate),
-        system: Source::new(system_rx, system_rate),
+        mic: Source::new("mic", mic_rx, mic_rate),
+        system: Source::new("system audio", system_rx, system_rate),
     })
 }
 
@@ -377,23 +457,51 @@ fn run_session(
 /// samples it has produced but that have not been mixed yet, and when it last
 /// produced anything.
 struct Source {
+    /// Only used in diagnostics (which source a log line is about) - never
+    /// affects mixing behaviour.
+    name: &'static str,
+    /// The rate this source was opened at, kept around only so a drift
+    /// warning can name it - see `drain()`'s drift guard below. This is the
+    /// one thing the whole resampling step trusts and never re-verifies
+    /// against how much audio is actually arriving; see the postmortem on a
+    /// real recording where a source's *reported* rate silently stopped
+    /// matching its *actual* delivery rate (root-caused in `mic.rs`/
+    /// `loopback_macos.rs`'s own history of silent TCC denials, and in the
+    /// `mix_and_write` tests below) for why that trust is worth flagging
+    /// loudly rather than papering over.
+    input_rate: u32,
     rx: Receiver<Vec<f32>>,
     resampler: Resampler,
     pending: VecDeque<f32>,
     last_data_at: Instant,
     closed: bool,
     total_samples: u64,
+    /// How many post-resample samples the drift guard has ever discarded.
+    /// Surfaced in the "recording finished" summary - previously this
+    /// happened in total silence, which is exactly what let a real rate
+    /// mismatch (one source's `pending` backlog growing far faster than the
+    /// other's, because its true delivery rate did not match what it
+    /// reported) go unnoticed until someone had to reverse-engineer it from
+    /// raw sample counts after the fact.
+    dropped_samples: u64,
+    /// Edge-triggers the drift warning so a sustained mismatch logs once,
+    /// not on every 5ms mixing tick.
+    was_dropping: bool,
 }
 
 impl Source {
-    fn new(rx: Receiver<Vec<f32>>, input_rate: u32) -> Self {
+    fn new(name: &'static str, rx: Receiver<Vec<f32>>, input_rate: u32) -> Self {
         Self {
+            name,
+            input_rate,
             rx,
             resampler: Resampler::new(input_rate, OUTPUT_SAMPLE_RATE),
             pending: VecDeque::new(),
             last_data_at: Instant::now(),
             closed: false,
             total_samples: 0,
+            dropped_samples: 0,
+            was_dropping: false,
         }
     }
 
@@ -421,6 +529,20 @@ impl Source {
         if self.pending.len() > MAX_BUFFERED_SAMPLES {
             let excess = self.pending.len() - MAX_BUFFERED_SAMPLES;
             self.pending.drain(..excess);
+            self.dropped_samples += excess as u64;
+            if !self.was_dropping {
+                eprintln!(
+                    "{} audio is running persistently ahead of the other source and is being \
+                     trimmed to bound buffering - check whether its reported rate ({} Hz) actually \
+                     matches what the device is delivering; a stale/wrong rate here silently \
+                     corrupts the whole recording (wrong resampling ratio) well before this guard \
+                     ever engages, this warning is only the first visible symptom",
+                    self.name, self.input_rate
+                );
+                self.was_dropping = true;
+            }
+        } else {
+            self.was_dropping = false;
         }
     }
 
@@ -451,13 +573,16 @@ fn mix_and_write(
         mic.drain();
         system.drain();
 
-        let n = mixable_len(&mic, &system, Instant::now());
-        for _ in 0..n {
-            let m = mic.pending.pop_front().unwrap_or(0.0);
-            let s = system.pending.pop_front().unwrap_or(0.0);
-            let mixed = (m + s).clamp(-1.0, 1.0);
+        let frames = mix_ready_samples(&mut mic, &mut system, Instant::now());
+        let wrote_any = !frames.is_empty();
+        for (mic_sample, system_sample) in frames {
+            // Interleaved stereo: left (mic) then right (system audio) per
+            // frame - the order `hound` (and every WAV reader) expects.
             writer
-                .write_sample((mixed * f32::from(i16::MAX)) as i16)
+                .write_sample(mic_sample)
+                .map_err(|e| format!("Could not write to the recording file: {e}"))?;
+            writer
+                .write_sample(system_sample)
                 .map_err(|e| format!("Could not write to the recording file: {e}"))?;
             written += 1;
         }
@@ -469,7 +594,7 @@ fn mix_and_write(
             }
         }
 
-        if n == 0 {
+        if !wrote_any {
             std::thread::sleep(Duration::from_millis(5));
         }
     }
@@ -479,12 +604,38 @@ fn mix_and_write(
         .map_err(|e| format!("Could not finish the recording file: {e}"))?;
 
     eprintln!(
-        "recording finished: {written} samples written ({:.1}s), mic produced {}, system audio produced {}",
+        "recording finished: {written} samples written ({:.1}s), mic produced {} (dropped {}), system audio produced {} (dropped {})",
         written as f64 / f64::from(OUTPUT_SAMPLE_RATE),
         mic.total_samples,
-        system.total_samples
+        mic.dropped_samples,
+        system.total_samples,
+        system.dropped_samples,
     );
     Ok(output_path)
+}
+
+/// Pairs up everything currently available from both sources into 16-bit PCM
+/// stereo frames `(mic_sample, system_sample)` - exactly what the WAV file
+/// gets written with, one frame per output sample-time. Split out from
+/// `mix_and_write`'s loop so a test can drive the real path against synthetic
+/// sources without a real `WavWriter` or real capture channels.
+///
+/// No summing/clamping between the two any more (see this module's top-level
+/// doc comment for why) - each channel is scaled to `i16` independently, so a
+/// loud mic and loud system audio at the same instant can no longer clip into
+/// each other the way summing them into one channel could.
+fn mix_ready_samples(mic: &mut Source, system: &mut Source, now: Instant) -> Vec<(i16, i16)> {
+    let n = mixable_len(mic, system, now);
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        let m = mic.pending.pop_front().unwrap_or(0.0);
+        let s = system.pending.pop_front().unwrap_or(0.0);
+        out.push((
+            (m.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16,
+            (s.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16,
+        ));
+    }
+    out
 }
 
 /// How many samples can be mixed right now.
@@ -755,7 +906,8 @@ mod tests {
         let full_len = std::fs::metadata(&path).expect("metadata").len();
         blank_out_wav_length_fields(&path);
 
-        // One byte of a two-byte frame, exactly what a kill mid-write leaves.
+        // One byte into a four-byte stereo frame (2 channels x 16-bit),
+        // exactly what a kill mid-write leaves.
         let file = std::fs::OpenOptions::new()
             .write(true)
             .open(&path)
@@ -764,7 +916,10 @@ mod tests {
         drop(file);
 
         assert_eq!(repair_unfinalized_wav(&path), Ok(true));
-        assert_eq!(hound::WavReader::open(&path).expect("reader").len(), 999);
+        // 1000 sample values (500 stereo frames) minus the one truncated
+        // trailing frame (3 of its 4 bytes survived, still not a whole frame)
+        // = 499 frames = 998 sample values.
+        assert_eq!(hound::WavReader::open(&path).expect("reader").len(), 998);
     }
 
     /// `create_writer` runs before either capture source starts, so a crash in
@@ -812,8 +967,8 @@ mod tests {
     fn mixes_the_shorter_backlog_so_sources_stay_in_lockstep() {
         let (_tx_a, rx_a) = unbounded();
         let (_tx_b, rx_b) = unbounded();
-        let mut mic = Source::new(rx_a, OUTPUT_SAMPLE_RATE);
-        let mut system = Source::new(rx_b, OUTPUT_SAMPLE_RATE);
+        let mut mic = Source::new("mic", rx_a, OUTPUT_SAMPLE_RATE);
+        let mut system = Source::new("system audio", rx_b, OUTPUT_SAMPLE_RATE);
         mic.pending.extend([0.1; 100]);
         system.pending.extend([0.2; 30]);
         // Not min(100, 30) == 100: taking the larger side would stretch the
@@ -825,8 +980,8 @@ mod tests {
     fn a_stalled_source_does_not_block_the_healthy_one() {
         let (_tx_a, rx_a) = unbounded();
         let (tx_b, rx_b) = unbounded();
-        let mut mic = Source::new(rx_a, OUTPUT_SAMPLE_RATE);
-        let system = Source::new(rx_b, OUTPUT_SAMPLE_RATE);
+        let mut mic = Source::new("mic", rx_a, OUTPUT_SAMPLE_RATE);
+        let system = Source::new("system audio", rx_b, OUTPUT_SAMPLE_RATE);
         mic.pending.extend([0.1; 100]);
 
         // Freshly started: system audio is merely late, so nothing is written
@@ -843,5 +998,172 @@ mod tests {
         let mut system = system;
         system.drain();
         assert_eq!(mixable_len(&mic, &system, Instant::now()), 100);
+    }
+
+    /// The drift guard used to discard excess backlog in total silence - no
+    /// counter, no log line, nothing. That is exactly what let a real rate
+    /// mismatch (see `mixing_two_real_tones_produces_non_silent_output_with_both_frequencies`
+    /// below and the module-level audit notes) go unnoticed until someone had
+    /// to reverse-engineer it from raw sample counts after the fact. This
+    /// pins down that dropped samples are now counted and a warning fires
+    /// exactly once per sustained drop, not on every 5ms mixing tick.
+    #[test]
+    fn drift_guard_counts_what_it_drops_and_warns_once() {
+        let (_tx, rx) = unbounded();
+        let mut mic = Source::new("mic", rx, OUTPUT_SAMPLE_RATE);
+        mic.pending.extend(vec![0.1; MAX_BUFFERED_SAMPLES + 500]);
+
+        mic.drain();
+        assert_eq!(mic.pending.len(), MAX_BUFFERED_SAMPLES);
+        assert_eq!(mic.dropped_samples, 500);
+        assert!(mic.was_dropping, "should have flagged itself as dropping");
+
+        // Draining again while still over the cap keeps counting, but the
+        // warning itself only needs to fire once per sustained episode - the
+        // edge flag (not asserted directly here, since it is private
+        // bookkeeping) is what a maintainer would check in the eprintln
+        // output, not in this test.
+        mic.pending.extend(vec![0.1; 200]);
+        mic.drain();
+        assert_eq!(mic.dropped_samples, 700);
+
+        // Once the backlog is back under the cap, the flag resets so a
+        // *second* unrelated drift episode would warn again instead of
+        // staying silent forever after the first one.
+        mic.pending.clear();
+        mic.drain();
+        assert!(!mic.was_dropping);
+    }
+
+    /// End-to-end reproduction of the real failing recording's exact rates:
+    /// a 440 Hz tone standing in for the microphone at 24 kHz (its reported
+    /// native rate in that run) and an 880 Hz tone standing in for system
+    /// audio at 48 kHz (its reported native rate). Both run through the real
+    /// `Source` / `Resampler` / `mixable_len` / `mix_ready_samples` path -
+    /// the same code `mix_and_write` uses - with no `WavWriter` or real
+    /// capture device involved.
+    ///
+    /// This passing is what rules the *mixer* out as the cause of the real
+    /// bug ("content is silent/unusable despite plausible, non-zero sample
+    /// counts"): given genuinely correct per-source rates, the mixing and
+    /// resampling code faithfully reproduces both tones. That means the real
+    /// recording's problem has to be upstream of this code - either the
+    /// sources handing the mixer content that is not what it claims to be
+    /// (see `mic.rs`'s and `loopback_macos.rs`'s own documented history of
+    /// silent TCC denials, where a tap/stream reports success but delivers
+    /// zeroed audio), or a source's *reported* rate not matching what it is
+    /// actually delivering (which this test cannot exercise - it always
+    /// feeds the resampler an accurate rate for its input).
+    #[test]
+    fn mixing_two_real_tones_produces_non_silent_output_with_both_frequencies() {
+        let (mic_tx, mic_rx) = unbounded();
+        let (system_tx, system_rx) = unbounded();
+        let mut mic = Source::new("mic", mic_rx, 24_000);
+        let mut system = Source::new("system audio", system_rx, 48_000);
+
+        let seconds = 1.0;
+        let mic_tone = sine_wave(440.0, 24_000, seconds);
+        let system_tone = sine_wave(880.0, 48_000, seconds);
+        // Delivered in small chunks, like real cpal/tap callbacks, so the
+        // resampler's cross-chunk state is actually exercised rather than
+        // resampling one giant buffer in one shot.
+        for chunk in mic_tone.chunks(240) {
+            mic_tx.send(chunk.to_vec()).expect("send");
+        }
+        for chunk in system_tone.chunks(480) {
+            system_tx.send(chunk.to_vec()).expect("send");
+        }
+        drop(mic_tx);
+        drop(system_tx);
+        mic.drain();
+        system.drain();
+
+        let now = Instant::now();
+        let mut mic_out = Vec::new();
+        let mut system_out = Vec::new();
+        loop {
+            let frames = mix_ready_samples(&mut mic, &mut system, now);
+            if frames.is_empty() {
+                break;
+            }
+            for (m, s) in frames {
+                mic_out.push(m);
+                system_out.push(s);
+            }
+        }
+
+        assert!(!mic_out.is_empty(), "two real tones produced no output at all");
+
+        let mic_peak = mic_out.iter().map(|s| s.unsigned_abs()).max().unwrap_or(0);
+        let system_peak = system_out.iter().map(|s| s.unsigned_abs()).max().unwrap_or(0);
+        assert!(mic_peak > 5000, "mic channel should have real amplitude, got peak {mic_peak}");
+        assert!(
+            system_peak > 5000,
+            "system channel should have real amplitude, got peak {system_peak}"
+        );
+
+        // Each source tone should be recoverable from its *own* channel, not
+        // drowned out or replaced by noise/silence - a coarse correlation
+        // check against each pure tone, not a full FFT.
+        let mic_out_f32: Vec<f32> = mic_out.iter().map(|&s| f32::from(s)).collect();
+        let system_out_f32: Vec<f32> = system_out.iter().map(|&s| f32::from(s)).collect();
+        let mic_ref = sine_wave(440.0, OUTPUT_SAMPLE_RATE, seconds);
+        let system_ref = sine_wave(880.0, OUTPUT_SAMPLE_RATE, seconds);
+        let mic_corr = correlation(&mic_out_f32, &mic_ref);
+        let system_corr = correlation(&system_out_f32, &system_ref);
+        assert!(
+            mic_corr > 0.5,
+            "mic channel's 440 Hz tone should be present, correlation {mic_corr:.3}"
+        );
+        assert!(
+            system_corr > 0.5,
+            "system channel's 880 Hz tone should be present, correlation {system_corr:.3}"
+        );
+
+        // Channel isolation, meaningful now that the two are never summed:
+        // the mic channel must not contain the system tone, and vice versa.
+        let mic_cross = correlation(&mic_out_f32, &system_ref);
+        let system_cross = correlation(&system_out_f32, &mic_ref);
+        assert!(
+            mic_cross.abs() < 0.3,
+            "mic channel should not contain the system tone, cross-correlation {mic_cross:.3}"
+        );
+        assert!(
+            system_cross.abs() < 0.3,
+            "system channel should not contain the mic tone, cross-correlation {system_cross:.3}"
+        );
+    }
+
+    fn sine_wave(freq_hz: f64, rate: u32, seconds: f64) -> Vec<f32> {
+        let n = (f64::from(rate) * seconds) as usize;
+        (0..n)
+            .map(|i| {
+                let t = i as f64 / f64::from(rate);
+                (2.0 * std::f64::consts::PI * freq_hz * t).sin() as f32 * 0.5
+            })
+            .collect()
+    }
+
+    /// Zero-lag Pearson correlation, used only to check that a known tone is
+    /// still present in the mixed output - proportionate for a hand-written
+    /// linear resampler feeding speech-oriented audio, not a claim of
+    /// spectral precision.
+    fn correlation(a: &[f32], b: &[f32]) -> f64 {
+        let n = a.len().min(b.len());
+        let a = &a[..n];
+        let b = &b[..n];
+        let mean_a = a.iter().map(|&x| f64::from(x)).sum::<f64>() / n as f64;
+        let mean_b = b.iter().map(|&x| f64::from(x)).sum::<f64>() / n as f64;
+        let mut num = 0.0;
+        let mut den_a = 0.0;
+        let mut den_b = 0.0;
+        for i in 0..n {
+            let da = f64::from(a[i]) - mean_a;
+            let db = f64::from(b[i]) - mean_b;
+            num += da * db;
+            den_a += da * da;
+            den_b += db * db;
+        }
+        num / (den_a.sqrt() * den_b.sqrt())
     }
 }

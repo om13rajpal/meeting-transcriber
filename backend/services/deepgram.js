@@ -50,20 +50,53 @@ async function probeStreams(filePath, streamType) {
 const hasVideoStream = (filePath) => probeStreams(filePath, 'v');
 const hasAudioStream = (filePath) => probeStreams(filePath, 'a');
 
-// Always normalize to mono 16kHz mp3, whether the source was video or audio.
-// This gives Deepgram one consistent, well-supported input regardless of the
-// original container/codec, and shrinks large uncompressed uploads before
-// they're sent over the network.
-async function normalizeAudio(inputPath) {
+// The desktop app and extension both record mic + system audio on separate
+// stereo channels (left = mic/"you", right = system audio/"the meeting")
+// specifically so this doesn't have to guess who's speaking from voice
+// characteristics alone - see capture/mod.rs's module doc on the desktop
+// side. This endpoint also serves plain manual uploads from the web
+// dashboard's file picker, though, which have no such convention (an
+// arbitrary stereo file's left/right channels mean nothing in particular) -
+// so rather than a schema flag threaded through the whole upload-token
+// pipeline, this just checks the *actual* channel count of what was
+// uploaded: exactly 2 channels is treated as "our own dual-channel capture
+// convention" (a safe assumption for a meeting-transcription app whose real
+// upload paths are desktop/extension recordings or Zoom-style exports that
+// are typically mono anyway), anything else falls back to the original
+// single-channel diarize-only path untouched.
+async function probeAudioChannels(filePath) {
+  try {
+    const out = await execFileP('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'a:0',
+      '-show_entries', 'stream=channels',
+      '-of', 'csv=p=0',
+      filePath
+    ]);
+    const channels = parseInt(out.trim(), 10);
+    return Number.isFinite(channels) ? channels : null;
+  } catch {
+    return null;
+  }
+}
+
+// Normalizes to 16kHz mp3, whether the source was video or audio, giving
+// Deepgram one consistent, well-supported input regardless of the original
+// container/codec and shrinking large uncompressed uploads before they're
+// sent over the network. `channels` is passed through rather than always
+// forced to mono - collapsing a dual-channel mic/system-audio recording to
+// mono here would silently undo the separation the whole point of this
+// change is to preserve (see probeAudioChannels above).
+async function normalizeAudio(inputPath, channels) {
   const outputPath = `${inputPath}.norm.mp3`;
   await execFileP('ffmpeg', [
     '-y',
     '-i', inputPath,
     '-vn',
-    '-ac', '1',
+    '-ac', String(channels),
     '-ar', '16000',
     '-codec:a', 'libmp3lame',
-    '-b:a', '64k',
+    '-b:a', channels === 2 ? '96k' : '64k',
     '-loglevel', 'error',
     '-nostats',
     outputPath
@@ -148,7 +181,14 @@ async function transcribeFile(uploadedPath) {
       throw Object.assign(new Error('This file has no audio track to transcribe.'), { clientSafe: true });
     }
 
-    normalizedPath = await normalizeAudio(uploadedPath);
+    // Exactly 2 channels means this is our own dual-channel mic/system-audio
+    // convention (see probeAudioChannels above) - anything else (mono, or an
+    // unrelated multi-channel file) uses the original single-channel path
+    // untouched.
+    const sourceChannels = await probeAudioChannels(uploadedPath);
+    const isDualChannel = sourceChannels === 2;
+
+    normalizedPath = await normalizeAudio(uploadedPath, isDualChannel ? 2 : 1);
 
     const { size } = await fsp.stat(normalizedPath);
     if (size > DEEPGRAM_MAX_PAYLOAD_BYTES) {
@@ -157,7 +197,7 @@ async function transcribeFile(uploadedPath) {
 
     const audioBuffer = await fsp.readFile(normalizedPath);
 
-    const dgUrl = `https://api.deepgram.com/v1/listen?${new URLSearchParams({
+    const dgParams = {
       model: 'nova-3',
       language: 'multi',
       smart_format: 'true',
@@ -165,7 +205,20 @@ async function transcribeFile(uploadedPath) {
       diarize: 'true',
       utterances: 'true',
       mip_opt_out: 'true'
-    })}`;
+    };
+    // multichannel=true is what makes Deepgram transcribe (and diarize) each
+    // channel independently instead of guessing "who's speaking" acoustically
+    // across a single mixed channel - see this file's module notes and
+    // desktop/src-tauri/src/capture/mod.rs's module doc for the full
+    // reasoning. Combining it with diarize=true is supported and documented
+    // (developers.deepgram.com/docs/multichannel-vs-diarization): each
+    // channel gets its own speaker numbering, which is why the utterance
+    // mapping below re-keys speaker ids by channel rather than trusting them
+    // to already be globally unique.
+    if (isDualChannel) {
+      dgParams.multichannel = 'true';
+    }
+    const dgUrl = `https://api.deepgram.com/v1/listen?${new URLSearchParams(dgParams)}`;
 
     const dgResp = await transcribeWithRetry(
       dgUrl,
@@ -174,14 +227,56 @@ async function transcribeFile(uploadedPath) {
     );
 
     const data = await dgResp.json();
-    const alt = data?.results?.channels?.[0]?.alternatives?.[0];
-    const transcript = alt?.transcript || '';
-    const utterances = (data?.results?.utterances || []).map((u) => ({
-      speaker: u.speaker,
-      start: u.start,
-      end: u.end,
-      transcript: u.transcript
-    }));
+
+    let transcript;
+    let utterances;
+    if (isDualChannel) {
+      // Deepgram's own speaker numbering restarts at 0 within *each* channel
+      // (confirmed: "the speaker property will return speaker: 0 for both"
+      // when there's one speaker per channel) - channel 0 speaker 0 and
+      // channel 1 speaker 0 are different people despite the identical
+      // number. Folding the channel into the id keeps every speaker globally
+      // unique without a schema change (Meeting.utterances[].speaker is a
+      // plain Number): channel 0 (mic/"you") speakers land at 0, 1, 2, ...
+      // and channel 1 (system audio) speakers land at 1000, 1001, 1002, ...
+      // - so far apart that a single channel would need over a thousand
+      // distinct diarized speakers to ever collide with the other channel.
+      utterances = (data?.results?.utterances || [])
+        .map((u) => {
+          // Deepgram's streaming endpoint documents `channel_index` as a
+          // two-element array (`[current, total]`); the pre-recorded
+          // endpoint's own `utterances[].channel` field shape for a
+          // multichannel request isn't pinned down in their docs, so this
+          // accepts either a plain number or that array shape rather than
+          // guessing one and risking `NaN` (an array times a number coerces
+          // to `NaN` in JS unless handled explicitly) silently corrupting
+          // every speaker id.
+          const channel = Array.isArray(u.channel) ? u.channel[0] : u.channel;
+          return {
+            speaker: (Number.isFinite(channel) ? channel : 0) * 1000 + (u.speaker ?? 0),
+            start: u.start,
+            end: u.end,
+            transcript: u.transcript
+          };
+        })
+        // Deepgram documents multichannel utterances as "chronologically
+        // ordered by channel" - i.e. grouped by channel, not necessarily
+        // interleaved in real conversation order across channels. Sorting by
+        // start time here is what actually produces a natural, readable
+        // "who said what when" transcript instead of "everything you said,
+        // then everything the meeting said".
+        .sort((a, b) => a.start - b.start);
+      transcript = utterances.map((u) => u.transcript).filter(Boolean).join(' ');
+    } else {
+      const alt = data?.results?.channels?.[0]?.alternatives?.[0];
+      transcript = alt?.transcript || '';
+      utterances = (data?.results?.utterances || []).map((u) => ({
+        speaker: u.speaker,
+        start: u.start,
+        end: u.end,
+        transcript: u.transcript
+      }));
+    }
 
     const durationSeconds = data?.metadata?.duration ?? null;
     const costUsd = durationSeconds != null
