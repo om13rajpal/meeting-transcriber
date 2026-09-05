@@ -766,14 +766,19 @@ completed real sign-in to confirm end to end.
 
 Every mutation in this app so far has been a Server Action behind
 `verifySession()`, which only works from a browser that's holding this
-app's own session cookie. That's a real wall for the two follow-on
-clients this feature exists for - a desktop app (a native process, no
-browser) and a Chrome extension (a background script, not a page this
-app rendered) - neither can call a Server Action at all: Server Actions
+app's own session cookie. That's a real wall for the follow-on client
+this feature exists for - the desktop app (a native process, no
+browser) - which can't call a Server Action at all: Server Actions
 are POSTs to an encrypted, browser-session-bound action id, not a stable
-HTTP API a native Rust process or an extension can target. See
+HTTP API a native Rust process can target. See
 `docs/superpowers/specs/2026-09-02-desktop-extension-capture-design.md`'s
-"Authentication for machine clients" for the design this implements.
+"Authentication for machine clients" for the design this implements -
+that spec (and its "Chrome extension design" section) predates the
+Chrome extension's removal - the extension was scrapped entirely once
+the desktop app's own capture pipeline (see the "Desktop app" sections
+below) covered the same ground reliably - but the API-key mechanism it
+describes is unchanged and still exactly what the desktop app uses
+today.
 
 The fix is a second, additive-only auth mechanism - a long-lived personal
 API key, the same shape as a GitHub PAT - that machine clients use
@@ -808,8 +813,8 @@ business logic the browser path already exercises:
   `app/api/tokens/mark-failed/route.js` - justified under the Route
   Handler rule below as "a request initiated by something outside this
   app": not a browser POSTing this app's own form/fetch, but a native
-  client or extension authenticating with a bearer credential instead of
-  a session cookie, which a Server Action structurally cannot accept.
+  client authenticating with a bearer credential instead of a session
+  cookie, which a Server Action structurally cannot accept.
   Each one's entire job is resolving `userId` from the API key, then
   delegating to the exact same core logic the browser session path
   already uses - `mintUploadToken()` (`app/lib/uploadTokens.js`) and
@@ -822,7 +827,7 @@ business logic the browser path already exercises:
   placement is load-bearing, not incidental. `app/api/tokens/validate/route.js`
   follows the same auth mechanism (`authenticateApiKey`) with no side
   effect of its own - used to confirm a key is real before saving it in
-  the desktop app/extension Settings UI. `app/api/tokens/meetings/route.js`
+  the desktop app's Settings UI. `app/api/tokens/meetings/route.js`
   is the one read-capable exception described above: `authenticateApiKey`
   resolves `userId`, then `listMeetingsForApiKey(userId)`
   (`app/lib/meetings.js`) returns each meeting through `toApiKeySummary()`
@@ -876,6 +881,182 @@ delegate wrapper (`createUploadToken()` in `app/actions/transcribe.js`,
 belongs in the `'use server'` file - it has no logic worth protecting on
 its own, only an auth check and a one-line delegation.
 
+## Desktop app: system audio capture (Core Audio Process Taps, not ScreenCaptureKit)
+
+The desktop app's macOS system-audio ("loopback") capture
+(`desktop/src-tauri/src/capture/loopback_macos.rs`) went through a full
+rewrite, from ScreenCaptureKit to Apple's Core Audio Process Taps
+(`AudioHardwareCreateProcessTap` + `CATapDescription`, macOS 14.2+). The
+reason is permission scope, not a technical limitation of
+ScreenCaptureKit itself: ScreenCaptureKit has no audio-only stream, so
+capturing system audio through it means also standing up a real (if
+tiny and thrown-away) video stream alongside it - and that video
+component is exactly why macOS gated the whole thing behind the broad
+"Screen & System Audio Recording" permission. A process tap captures
+system output audio directly, with no video component at all, so macOS
+gates it behind the separate, narrower "System Audio Recording Only"
+permission instead (the same one apps like Wispr Flow use) - its own
+section in System Settings -> Privacy & Security -> Screen & System
+Audio Recording, distinct from the list of apps that can record the
+screen. This also dropped the Swift-toolchain build requirement the
+ScreenCaptureKit crate had (building its Swift bridge via `swift
+build`).
+
+The sequence (mirroring Apple's own reference implementation,
+[AudioCap](https://github.com/insidegui/AudioCap), ported from Swift to
+the `objc2-core-audio` bindings): build a `CATapDescription` for every
+process's output *except* this app's own, create the tap (the
+permission gate and, on a first run, the prompt trigger), wrap it in a
+private aggregate device that also references a real output device
+purely as a clock/timing anchor (a tap has no clock or IO cycle of its
+own), then read audio via an IOProc block on that aggregate device like
+any other Core Audio input device. Every Core Audio function/struct used
+here was read directly out of the pinned `objc2-core-audio`/
+`objc2-core-audio-types`/`objc2-core-foundation` 0.3.2 crate sources,
+not guessed from Apple's Swift-facing documentation (which describes a
+different calling convention than what these bindings expose) - see
+`loopback_macos.rs`'s module doc comment for the exact property
+selectors and dictionary keys.
+
+A tap also has no sample rate to request the way ScreenCaptureKit's
+`SCStreamConfiguration.with_sample_rate` did - it mirrors whatever the
+tapped output's current format is, so the rate has to be read back from
+the tap after creation (`kAudioTapPropertyFormat`) rather than assumed.
+This matters directly for the mixer below, which resamples every source
+against its own reported rate instead of trusting a shared constant.
+
+## Desktop app: microphone reliability
+
+Two separate, real bugs, both root-caused against live recordings rather
+than guessed at:
+
+**The mic's reported sample rate cannot be trusted.** A real recording
+made with a Bluetooth headset (AirPods) came back with unusable audio
+despite plausible, non-zero sample counts. Root cause, confirmed across
+multiple recordings independent of start order: this Mac's built-in mic
+and speakers/output share one hardware clock domain, and creating the
+system-audio tap's aggregate device (which wraps the real output device
+as a clock anchor - see above) forces that shared clock to a different
+actual rate for the rest of the recording, silently invalidating
+whatever `cpal`/CoreAudio negotiated when the mic stream opened. This
+never happened with the old ScreenCaptureKit-based system audio, which
+never created a real `AudioObjectID` aggregate device at all. On top of
+that, opening a Bluetooth headset's *microphone* specifically (as
+opposed to just its speaker) forces macOS to hand the whole accessory
+off from its high-quality media profile (A2DP, output only) to the
+low-bandwidth voice profile (HFP - mono, far lower rate, carries input
+*and* output together), and that handoff is not instant - a first
+attempt at a fixed 750ms calibration window measured a transitional,
+not-yet-settled rate (19306 Hz, not a real HFP rate like 8000/16000).
+
+The fix (`desktop/src-tauri/src/capture/mic.rs`,
+`desktop/src-tauri/src/capture/mod.rs`) is two-pronged: prefer the
+built-in mic over whatever `cpal` considers the current default input
+device, found via raw Core Audio (`kAudioDevicePropertyTransportType ==
+kAudioDeviceTransportTypeBuiltIn`, since transport type is not something
+`cpal`'s cross-platform API exposes at all) rather than trusting
+`cpal::default_input_device()` - falling back to the system default only
+if no built-in input device exists (e.g. a Mac desktop with no built-in
+mic). And rather than trust the rate `cpal`/CoreAudio *declares* when the
+stream opens, empirically measure the mic's actual delivery rate:
+`start_sources()` takes six 400ms readings (2.4s total, comfortably past
+a slow Bluetooth handoff) and uses only the *last* segment's rate, so
+whatever the handoff was doing early on is excluded by construction. The
+built-in mic's input volume is also forced to maximum
+(`set_input_volume_max`, best-effort - some digital/USB mics fix gain in
+hardware and are left alone) so an unattended meeting recording never
+comes out unusably quiet because of whatever the system volume happened
+to be set to.
+
+**The microphone stayed "in use" (macOS's own mic-in-use menu-bar
+indicator) even after a recording fully stopped**, with the tray
+correctly showing "Start Recording" and nothing actually running. Root
+cause: `cpal` 0.15.3's macOS backend calls `add_disconnect_listener()`
+for any input device *other* than `cpal`'s own notion of the default
+input device - which is exactly what the built-in-mic fix above made
+this app always use. That function clones the stream's own
+`Arc<Mutex<StreamInner>>` into a closure it stores *inside that same
+`StreamInner`* - a genuine reference cycle. `Arc` uses reference
+counting, not a cycle collector, so the strong count can never reach
+zero once that closure exists, and the `AudioUnit`'s `Drop` (which
+actually calls `AudioUnitUninitialize`/`AudioComponentInstanceDispose`
+and releases the device) never runs, no matter how many times this
+app's own code drops its `MicCapture`. Fixed by upgrading to `cpal`
+0.18.2, which rearchitected the disconnect manager to hold a
+`Weak<Mutex<StreamInner>>` instead of a strong clone and gave `Stream`
+an explicit `Drop` impl it didn't have before - confirmed by reading
+both versions' actual source in the local registry cache, not assumed
+from a changelog. The upgrade also broke a few APIs this app depends on
+(`Device::name()` became a `Display` impl, `SampleRate` a plain `u32`
+type alias, `build_input_stream` taking `StreamConfig` by value).
+
+## Desktop app: stereo recording is what makes Deepgram diarization work
+
+The desktop app's WAV output changed from a single mixed mono channel to
+a **stereo file**: microphone on the left channel, system audio on the
+right (`desktop/src-tauri/src/capture/mod.rs`). This was not a quality
+tweak, it was a correctness fix - summing mic and system audio into one
+mono channel made Deepgram's diarization guess "which parts are you"
+purely from voice characteristics, which is a much harder problem than
+it needs to be (system audio can be anything - music, a video, another
+person's voice - and summing two full-scale signals into one channel can
+also clip/distort both when both are loud at once). In a real test this
+failed badly: Deepgram returned **zero speaker segments** despite
+correct audio content. Keeping the two sources on separate channels
+means the backend can ask Deepgram to transcribe each channel
+independently and knows deterministically which channel is "you" -
+diarization then only has to separate *further* speakers within the
+system-audio channel (a genuine multi-person meeting), which is the case
+it's actually designed for.
+
+`backend/services/deepgram.js` is the receiving end: rather than thread
+a schema flag through the whole upload-token pipeline, `transcribeFile()`
+just checks the *actual* channel count of what was uploaded via
+`ffprobe` - exactly 2 channels is treated as "this is our own
+dual-channel capture convention" (a safe assumption for a
+meeting-transcription app whose real upload paths are desktop recordings
+or typically-mono Zoom-style exports), anything else (including every
+plain manual dashboard upload) falls back to the original,
+completely-unaffected single-channel diarize-only path. For a
+dual-channel file, `normalizeAudio()` preserves both channels (rather
+than always forcing mono) and the Deepgram request adds
+`multichannel=true` alongside the existing `diarize=true` (the two are
+documented as supported together). Deepgram numbers speakers
+independently *within* each channel - "speaker: 0" on channel 0 and
+"speaker: 0" on channel 1 are different people despite the identical
+number - so the response mapping re-keys every speaker id as
+`channel*1000 + speaker` (channel 0/mic speakers land at 0, 1, 2, ...;
+channel 1/system-audio speakers land at 1000, 1001, 1002, ...) before
+storing it in `Meeting.utterances[].speaker` (a plain Number, no schema
+change needed). Deepgram documents multichannel utterances as grouped by
+channel, not interleaved in real conversation order, so the merged
+utterances are explicitly sorted by `start` time afterward to produce a
+natural, readable "who said what when" transcript.
+
+## Desktop app: tray-only on macOS (Dock icon and window close)
+
+The desktop app was designed to be tray-only, but wasn't actually
+configured as one on macOS: `tauri.conf.json`'s `windows[].visible:
+false` only hides the *window* at launch, not the Dock icon, so it
+showed a normal Dock icon whose click did nothing useful once its window
+was closed. Fixed with `LSUIElement` in a custom `Info.plist`
+(`desktop/src-tauri/Info.plist` - read by the OS before any of the app's
+own code runs, so there's no Dock-icon flash at launch) plus
+`app.set_activation_policy(tauri::ActivationPolicy::Accessory)` in
+`lib.rs`'s `setup()` as a defensive backup for anything that late
+`Info.plist` read might miss.
+
+There was also no window-close handler at all, so Tauri's default
+behavior - destroying the window on its close button - ran instead.
+Once destroyed, `get_webview_window("main")` returns `None` forever
+after, which silently no-oped every later "Settings"/"Recent Recordings"
+tray click's `if let Some(window) = ...` - exactly the "worked the first
+time, does nothing on every later attempt" shape of report this
+produced. Fixed by registering a `CloseRequested` handler that calls
+`api.prevent_close()` and hides the window instead of letting it be
+destroyed, which keeps the same window (and its in-memory state/scroll
+position) alive for the tray to reopen.
+
 ## Stack (frontend)
 
 - Next.js 16 (App Router), React 19, JavaScript (no TypeScript).
@@ -888,9 +1069,9 @@ its own, only an auth check and a one-line delegation.
   plain GET it initiates - see "Sign in with Google"), and
   `app/api/tokens/upload/route.js`, `app/api/tokens/mark-failed/route.js`,
   `app/api/tokens/validate/route.js`, and `app/api/tokens/meetings/route.js`
-  (an authenticated Bearer-token POST/GET from a desktop app or Chrome
-  extension, not a browser - see "API key auth for machine clients"
-  above). Don't add a Route Handler for anything else without the same
+  (an authenticated Bearer-token POST/GET from the desktop app, not a
+  browser - see "API key auth for machine clients" above). Don't add a
+  Route Handler for anything else without the same
   justification; everything that isn't "a request initiated by something
   outside this app" belongs in a Server Action or a Server Component
   instead.
