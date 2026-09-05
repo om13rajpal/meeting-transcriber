@@ -945,6 +945,42 @@ pub fn run() {
                 }
             }
 
+            // This is a tray-only app (see the "tray-only app" comment near
+            // `RecordingSlot` above) - it was never actually configured to
+            // behave like one on macOS, though. Without this, the app shows
+            // a normal Dock icon despite `tauri.conf.json`'s `visible: false`
+            // only hiding the *window*, and clicking that Dock icon while no
+            // window is open does nothing (macOS's default "reopen" handling
+            // has no window to bring forward) - exactly the "visible in the
+            // Dock but clicking it does nothing" symptom this fixes.
+            // `Info.plist`'s `LSUIElement` key (see that file) does the same
+            // thing at the OS level, before this code even runs - both are
+            // set for belt-and-suspenders: LSUIElement is what actually
+            // prevents the brief Dock-icon flash a call this late in startup
+            // cannot avoid on its own.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // A tray-only app's window should never actually be destroyed by
+            // its own close button - there was no handler for this at all
+            // before, so Tauri's default behaviour (destroy the window) ran
+            // instead. Once destroyed, `get_webview_window("main")` returns
+            // `None` forever after, silently no-opping every later "Settings"/
+            // "Recent Recordings" tray click's `if let Some(window) = ...` -
+            // which is exactly the "I click it and nothing shows up" report,
+            // and why it only started happening *after* closing the window
+            // once. Hiding instead keeps the same window (and its in-memory
+            // state/scroll position/etc.) alive for the tray to reopen.
+            if let Some(window) = app.get_webview_window("main") {
+                let window_to_hide = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_to_hide.hide();
+                    }
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

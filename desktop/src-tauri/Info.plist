@@ -20,5 +20,14 @@
 	     audio came back silent while the mic track recorded fine. -->
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Meeting Transcriber records system audio so the other side of a call is included in the transcript.</string>
+	<!-- This app is tray-only by design (see the "tray-only app" comment
+	     near RecordingSlot in lib.rs) but was never actually configured to
+	     be one - without this key, macOS gives it a normal Dock icon whose
+	     click does nothing useful once its window is closed. Set here
+	     (read by the OS before any of this app's own code runs, so there is
+	     no Dock-icon flash at launch) and mirrored in lib.rs's
+	     set_activation_policy(Accessory) call as a defensive backup. -->
+	<key>LSUIElement</key>
+	<true/>
 </dict>
 </plist>
