@@ -1,7 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { getSettings, saveSettings } from '../../lib/storage';
+import { APP_URL, getSettings, saveSettings } from '../../lib/storage';
 
 // Declared as `optional_host_permissions` in wxt.config.ts and requested here,
 // from a real click. Deliberately the broad pattern rather than just the app's
@@ -13,20 +13,33 @@ import { getSettings, saveSettings } from '../../lib/storage';
 const UPLOAD_HOST_PERMISSION = 'https://*/*';
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const [appUrl, setAppUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // True once a microphone grant is still needed, so the UI can offer a
+  // direct link into Chrome's own settings as a fallback - a user who
+  // clicked "Block" in the tab this opens (see handleSave) needs a way
+  // back in, not another paragraph of instructions.
+  const [micBlocked, setMicBlocked] = useState(false);
+
+  // chrome://settings pages can't be opened via a plain <a href> (Chrome
+  // blocks navigating a regular link to its own settings UI), but
+  // chrome.tabs.create() can - this is a normal, permitted extension
+  // capability that needs no extra manifest permission, unlike reading other
+  // tabs' contents.
+  function openMicSettings() {
+    chrome.tabs.create({ url: 'chrome://settings/content/microphone' });
+  }
 
   useEffect(() => {
     getSettings().then((s) => {
-      setAppUrl(s.appUrl);
       setApiKey(s.apiKey);
     });
   }, []);
 
   async function handleSave() {
     setProblem(null);
+    setMicBlocked(false);
     setSaving(true);
     try {
       // chrome.permissions.request() only works from a real user gesture, so
@@ -48,26 +61,57 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         return;
       }
 
-      await saveSettings(appUrl.trim(), apiKey.trim());
-
-      // Prime the microphone permission from here, the one visible surface
-      // this extension has. Recording itself runs in an offscreen document,
-      // which has no visible UI, and Chrome cannot show a permission prompt
-      // from one - its getUserMedia({ audio: true }) just rejects with
-      // NotAllowedError. Granting once here persists for the extension's
-      // origin in this profile, so the offscreen document's later calls
-      // succeed silently. The track itself isn't wanted for anything, so it's
-      // stopped the moment the prompt resolves.
+      // Confirm the key is real and not revoked before saving anything -
+      // without this, a typo'd or stale key only surfaces much later, when
+      // an actual recording's upload silently fails past the point the user
+      // would think to check. See app/api/tokens/validate/route.js - unlike
+      // /api/tokens/upload, it has no side effect (mints no token, creates
+      // no Meeting row), so it's cheap to call on every Save.
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((t) => t.stop());
+        const response = await fetch(`${APP_URL}/api/tokens/validate`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}` }
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || !body.valid) {
+          setProblem(body.error || 'That API key was rejected by the app - double check it.');
+          return;
+        }
       } catch {
-        // Settings are already saved at this point (they're valid regardless);
-        // staying on this screen is just how the message gets seen. Clicking
-        // Save again retries, which is why this isn't a one-shot flow.
+        setProblem(`Could not reach ${APP_URL} to check the API key - check your network connection.`);
+        return;
+      }
+
+      await saveSettings(apiKey);
+
+      // Chrome gives a side panel no UX affordance to show a getUserMedia
+      // prompt at all - the call just rejects immediately as though the
+      // user declined, and no per-site entry ever appears in
+      // chrome://settings/content/microphone, allowed or blocked (confirmed
+      // against real Chromium extension bug reports, not assumed - this
+      // used to call getUserMedia() directly from here, which is exactly
+      // what silently failed). The documented workaround is a real, full
+      // browser tab, which does have that affordance -
+      // entrypoints/permission/App.tsx requests it there instead; the grant
+      // it produces applies to this extension's own origin, which is what
+      // the offscreen document's later getUserMedia() call during an actual
+      // recording relies on.
+      //
+      // Reading `micGranted` from storage rather than
+      // navigator.permissions.query('microphone') - that query reads from
+      // the exact content-settings store the comment above says never gets
+      // an entry for this grant, so it can never report 'granted' here and
+      // would otherwise reopen the permission tab forever even after the
+      // user grants access. permission/App.tsx sets this flag itself right
+      // after its own getUserMedia() call actually succeeds.
+      const { micGranted } = await getSettings();
+
+      if (!micGranted) {
+        setMicBlocked(true);
         setProblem(
-          'Saved, but microphone access was blocked - recordings will fail until you allow it. Click Save again to retry, or allow the microphone for this extension in Chrome site settings.'
+          'Saved. One more step: a new tab just opened to ask for microphone access - grant it there, then come back and click Save again.'
         );
+        chrome.tabs.create({ url: chrome.runtime.getURL('permission.html') });
         return;
       }
 
@@ -81,12 +125,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
     <div className="flex flex-col gap-3 p-4">
       <h2 className="text-sm font-medium">Settings</h2>
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-muted-foreground">App URL</label>
-        <Input value={appUrl} onChange={(e: ChangeEvent<HTMLInputElement>) => setAppUrl(e.target.value)} placeholder="https://your-app.vercel.app" />
-      </div>
-      <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground">API Key</label>
-        <Input type="password" value={apiKey} onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)} placeholder="mtk_..." />
+        <Input type="password" value={apiKey} onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value.trim())} placeholder="mtk_..." />
         <p className="text-xs text-muted-foreground">Generate one in the app under Settings → API Keys.</p>
       </div>
       <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
@@ -94,6 +134,16 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         Saving asks Chrome for network access to your app and for microphone access, both needed before a recording can be captured and uploaded.
       </p>
       {problem && <p className="text-xs text-destructive">{problem}</p>}
+      {micBlocked && (
+        <>
+          <Button variant="outline" onClick={openMicSettings}>
+            Open Chrome microphone settings
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Only needed if the new tab's own prompt was denied - use this to reset it.
+          </p>
+        </>
+      )}
     </div>
   );
 }

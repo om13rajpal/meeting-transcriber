@@ -222,5 +222,22 @@ export default defineBackground(() => {
     })();
   });
 
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  // Deliberately NOT chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick:
+  // true }) - that declarative behavior opens the panel without ever firing
+  // action.onClicked (confirmed against real Chromium extension bug reports:
+  // "openPanelOnActionClick: true covers action.onClicked's behavior" - it's
+  // documented, not a guess), and action.onClicked is specifically what
+  // Chrome recognizes as "the user invoked the extension" for granting
+  // activeTab. Without a real onClicked firing, this extension's activeTab
+  // grant for tabCapture.getMediaStreamId() never actually happens no matter
+  // how carefully the user clicks things - which is exactly the bug this
+  // replaces. sidePanel.open() has its own documented constraint: it must be
+  // called synchronously inside the click handler, never after an await, or
+  // Chrome silently drops it since the user-gesture context has expired by
+  // the time the microtask queue runs.
+  chrome.action.onClicked.addListener((tab) => {
+    if (tab.id !== undefined) {
+      chrome.sidePanel.open({ tabId: tab.id });
+    }
+  });
 });

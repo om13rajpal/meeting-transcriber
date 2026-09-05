@@ -1,3 +1,5 @@
+import { APP_URL } from '../../lib/storage';
+
 let recorder: MediaRecorder | null = null;
 let tabStream: MediaStream | null = null;
 let micStream: MediaStream | null = null;
@@ -166,10 +168,10 @@ function captureErrorMessage(error: unknown) {
 }
 
 async function uploadRecording(blob: Blob) {
-  const { appUrl, apiKey } = await chrome.storage.local.get(['appUrl', 'apiKey']);
-  if (!appUrl || !apiKey) {
+  const { apiKey } = await chrome.storage.local.get(['apiKey']);
+  if (!apiKey) {
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No App URL or API key set - open Settings.' + IN_MEMORY_NOTE });
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No API key set - open Settings.' + IN_MEMORY_NOTE });
     return;
   }
 
@@ -177,14 +179,14 @@ async function uploadRecording(blob: Blob) {
 
   let tokenResponse: Response;
   try {
-    tokenResponse = await fetch(`${appUrl}/api/tokens/upload`, {
+    tokenResponse = await fetch(`${APP_URL}/api/tokens/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileName: `Meeting ${new Date().toLocaleString('en-US')}.webm` })
     });
   } catch {
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Could not reach the app - check your App URL and network connection.' + IN_MEMORY_NOTE });
+    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: `Could not reach ${APP_URL} - check your network connection.` + IN_MEMORY_NOTE });
     return;
   }
 
@@ -222,7 +224,7 @@ async function uploadRecording(blob: Blob) {
     // backend's 30-minute stale-job sweep notices, instead of failing
     // promptly the way the web dashboard's own upload failures already
     // do. See docs/superpowers/plans/2026-09-02-api-key-auth.md Task 6.
-    await fetch(`${appUrl}/api/tokens/mark-failed`, {
+    await fetch(`${APP_URL}/api/tokens/mark-failed`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       // Optional-chained so a malformed (but parseable) mint response can't

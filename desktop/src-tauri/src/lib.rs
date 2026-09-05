@@ -20,8 +20,7 @@ fn greet(name: &str) -> String {
 
 // Service/user names under which the API key is stored in the OS keychain
 // (Keychain Access on macOS, Credential Manager on Windows). The key itself
-// is never written to disk in plaintext - only the App URL goes to the JSON
-// config file below.
+// is never written to disk in plaintext.
 const SERVICE: &str = "meeting-transcriber";
 const KEY_USER: &str = "api-key";
 
@@ -38,76 +37,109 @@ const KEY_USER: &str = "api-key";
 const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const JSON_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-#[derive(Serialize, Deserialize)]
-struct StoredConfig {
-    app_url: String,
-}
-
-fn config_path() -> std::path::PathBuf {
-    let mut dir = dirs::config_dir().expect("config dir not found");
-    dir.push("meeting-transcriber");
-    fs::create_dir_all(&dir).ok();
-    dir.push("config.json");
-    dir
-}
+// This app only ever talks to one deployment - a single-user, self-hosted
+// app (see the root CLAUDE.md) - so the App URL is a fixed constant, not a
+// Settings field the user has to fill in and could mistype. Update this
+// one line (and rebuild) if the app's domain ever changes; that's simpler
+// and less error-prone for a solo deployment than a settings field nobody
+// needs to touch in practice. Since this was the only thing the on-disk
+// config file (previously written by save_settings) ever held, that file
+// and its JSON plumbing are gone too - the API key in the OS keychain is
+// now the only thing Settings persists.
+const APP_URL: &str = "https://transcriber.omrajpal.in";
 
 #[derive(Serialize)]
 struct SettingsResponse {
-    app_url: String,
     has_api_key: bool,
 }
 
-#[tauri::command]
-fn save_settings(app_url: String, api_key: String) -> Result<(), String> {
-    let config = StoredConfig { app_url };
-    let json = serde_json::to_string(&config).map_err(|e| e.to_string())?;
-    fs::write(config_path(), json).map_err(|e| e.to_string())?;
+/// Confirms a key is real and not revoked before it's saved to the
+/// keychain - without this, a typo'd or stale key only surfaces much
+/// later, when an actual recording's upload silently fails past the point
+/// the user would think to check. Mirrors the same check the Chrome
+/// extension's Settings does - see app/api/tokens/validate/route.js,
+/// which (unlike /api/tokens/upload) has no side effect, so it's cheap to
+/// call on every Save.
+async fn validate_api_key(api_key: &str) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
 
-    // Only touch the keychain entry if a new key was actually entered - an
-    // empty field means "keep whatever's already saved", not "clear it".
-    if !api_key.is_empty() {
-        let entry = Entry::new(SERVICE, KEY_USER).map_err(|e| e.to_string())?;
-        entry.set_password(&api_key).map_err(|e| e.to_string())?;
+    let response = client
+        .post(format!("{APP_URL}/api/tokens/validate"))
+        .bearer_auth(api_key)
+        .timeout(JSON_REQUEST_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach {APP_URL} to check the API key: {e}"))?;
+
+    if response.status().is_success() {
+        return Ok(());
     }
+
+    #[derive(Deserialize)]
+    struct ValidateError {
+        error: Option<String>,
+    }
+    let message = response
+        .json::<ValidateError>()
+        .await
+        .ok()
+        .and_then(|b| b.error)
+        .unwrap_or_else(|| "That API key was rejected by the app.".to_string());
+    Err(message)
+}
+
+#[tauri::command]
+async fn save_settings(api_key: String) -> Result<(), String> {
+    let api_key = api_key.trim().to_string();
+
+    // An empty field means "keep whatever's already saved", not "clear
+    // it" - nothing to validate or write in that case.
+    if api_key.is_empty() {
+        return Ok(());
+    }
+
+    validate_api_key(&api_key).await?;
+
+    let entry = Entry::new(SERVICE, KEY_USER).map_err(|e| e.to_string())?;
+    entry.set_password(&api_key).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 fn get_settings() -> Result<SettingsResponse, String> {
-    let app_url = fs::read_to_string(config_path())
-        .ok()
-        .and_then(|s| serde_json::from_str::<StoredConfig>(&s).ok())
-        .map(|c| c.app_url)
-        .unwrap_or_default();
-
     // Only ever report presence, never the raw key - the frontend has no
     // legitimate use for it once it's saved.
     let has_api_key = Entry::new(SERVICE, KEY_USER)
         .and_then(|e| e.get_password())
         .is_ok();
 
-    Ok(SettingsResponse { app_url, has_api_key })
+    Ok(SettingsResponse { has_api_key })
 }
 
 // NOTE: no automated tests here on purpose. An earlier version of this file
 // had a #[cfg(test)] module that exercised save_settings/get_settings and
 // Entry::new(SERVICE, KEY_USER) directly - but that means it wrote to the
-// exact same production Keychain service/username and the exact same real
-// dirs::config_dir() config file the real running app uses, with no
-// cleanup. This project has no CI (see CLAUDE.md - manual verification is
-// the standard here), so that module would only ever run if a developer
-// typed `cargo test` by hand - and if they ever did that on a machine where
-// a real API key/App URL had already been saved through the actual app, it
-// would silently clobber that real saved credential and config with test
-// fixture values. Giving the tests distinct test-only identifiers would
-// require adding test-only path-override plumbing into config_path() in
-// production code purely to make that possible, which is exactly the kind
-// of speculative complexity this codebase avoids elsewhere. The real
-// verification for this file (a genuine macOS Keychain round-trip via
-// `cargo test` against a scratch value, independently confirmed with the
-// `security` CLI, plus a real dirs::config_dir() config file read back with
-// `cat`) was done manually once and is documented in
-// .superpowers/sdd/2026-09-02-desktop-app-capture/task-3-report.md instead.
+// exact same production Keychain service/username the real running app
+// uses, with no cleanup. This project has no CI (see CLAUDE.md - manual
+// verification is the standard here), so that module would only ever run
+// if a developer typed `cargo test` by hand - and if they ever did that on
+// a machine where a real API key had already been saved through the actual
+// app, it would silently clobber that real saved credential with a test
+// fixture value. Giving the tests a distinct test-only keychain identifier
+// would require test-only plumbing into production code purely to make
+// that possible, which is exactly the kind of speculative complexity this
+// codebase avoids elsewhere. The real verification for this file (a
+// genuine macOS Keychain round-trip via `cargo test` against a scratch
+// value, independently confirmed with the `security` CLI) was done
+// manually once and is documented in
+// .superpowers/sdd/2026-09-02-desktop-app-capture/task-3-report.md
+// instead. (That report predates APP_URL becoming a hardcoded constant and
+// save_settings() validating the key against it - the config-file
+// round-trip it also describes no longer applies, since there's no config
+// file left to round-trip.)
 
 // The tray toggle's view of the current recording, held for the life of
 // the app in Tauri's managed state.
@@ -283,34 +315,51 @@ async fn report_failure(
 }
 
 /// Uploads a finished recording through the API-key-auth flow: mint an
-/// upload token against the configured App URL, then post the file
+/// upload token against APP_URL, then post the file
 /// straight to the backend's `/api/transcribe`, matching the shape
 /// `backend/server.js`'s `multer.single('file')` + `req.body.token`
 /// expects. Mirrors the browser dashboard's direct-to-backend upload (see
 /// CLAUDE.md's "Upload token flow"), just from Rust instead of
 /// `XMLHttpRequest`.
 ///
-/// Takes no `AppHandle` - nothing here needs one today (settings come from
-/// the plain `get_settings()`/keychain calls below, not app state or a
-/// window). Adding one back speculatively for a hypothetical future native
-/// notification isn't this task's job; Task 8 can add it when it actually
-/// needs it.
-async fn upload_recording(wav_path: PathBuf) {
+/// Takes an `AppHandle` so every failure branch below that happens before a
+/// `Meeting` row exists (i.e. before `/api/tokens/upload` succeeds) can show
+/// a native error dialog - see the identical reasoning on the
+/// recording-*start* failure path above `show_error_dialog`'s call in
+/// `toggle_recording`: this is the one failure class that never reaches a
+/// Meeting row and so has no other notification path (no email, no
+/// webhook) at all. Messages shown here are deliberately generic/user-safe,
+/// never the raw `e` (which can carry filesystem/network internals) - see
+/// CLAUDE.md's "never return internals" rule; the raw error still goes to
+/// `eprintln!` for local debugging.
+async fn upload_recording(wav_path: PathBuf, app_handle: AppHandle) {
     let settings = match get_settings() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("upload skipped: could not read settings: {e}");
+            show_error_dialog(
+                &app_handle,
+                "Could not read the app's settings. Open Settings from the tray menu and save your API key again.",
+            );
             return;
         }
     };
-    if settings.app_url.is_empty() || !settings.has_api_key {
-        eprintln!("upload skipped: App URL or API key not configured");
+    if !settings.has_api_key {
+        eprintln!("upload skipped: API key not configured");
+        show_error_dialog(
+            &app_handle,
+            "Recording finished, but no API key is configured. Open Settings from the tray menu and add one so this recording (saved locally) can upload.",
+        );
         return;
     }
     let api_key = match Entry::new(SERVICE, KEY_USER).and_then(|e| e.get_password()) {
         Ok(k) => k,
         Err(e) => {
             eprintln!("upload skipped: could not read the API key from the keychain: {e}");
+            show_error_dialog(
+                &app_handle,
+                "Could not read your API key from the system keychain. Open Settings from the tray menu and save your API key again.",
+            );
             return;
         }
     };
@@ -337,7 +386,7 @@ async fn upload_recording(wav_path: PathBuf) {
     );
 
     let token_response = match client
-        .post(format!("{}/api/tokens/upload", settings.app_url))
+        .post(format!("{APP_URL}/api/tokens/upload"))
         .bearer_auth(&api_key)
         // Small JSON call, should fail fast - see `JSON_REQUEST_TIMEOUT`'s
         // doc comment. The multipart upload further down deliberately does
@@ -350,12 +399,20 @@ async fn upload_recording(wav_path: PathBuf) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("could not reach app to mint upload token: {e}");
+            show_error_dialog(
+                &app_handle,
+                "Could not reach the app to upload your recording. Check your internet connection - the recording is saved locally and will retry on the next launch.",
+            );
             return; // wav_path stays on disk - see Task 8 for the retry path
         }
     };
 
     if !token_response.status().is_success() {
         eprintln!("token mint failed: {}", token_response.status());
+        show_error_dialog(
+            &app_handle,
+            "The app rejected the upload request. Check that your API key is still valid in Settings - the recording is saved locally and will retry on the next launch.",
+        );
         return;
     }
 
@@ -363,6 +420,10 @@ async fn upload_recording(wav_path: PathBuf) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("could not parse token response: {e}");
+            show_error_dialog(
+                &app_handle,
+                "Received an unexpected response from the app. The recording is saved locally and will retry on the next launch.",
+            );
             return;
         }
     };
@@ -373,7 +434,7 @@ async fn upload_recording(wav_path: PathBuf) {
             eprintln!("could not read recording file: {e}");
             report_failure(
                 &client,
-                &settings.app_url,
+                APP_URL,
                 &api_key,
                 &result.meeting.id,
                 "Could not read the local recording file.",
@@ -401,7 +462,7 @@ async fn upload_recording(wav_path: PathBuf) {
             eprintln!("upload failed: {}", r.status());
             report_failure(
                 &client,
-                &settings.app_url,
+                APP_URL,
                 &api_key,
                 &result.meeting.id,
                 &format!("Upload failed with status {}.", r.status()),
@@ -412,7 +473,7 @@ async fn upload_recording(wav_path: PathBuf) {
             eprintln!("upload network error: {e}");
             report_failure(
                 &client,
-                &settings.app_url,
+                APP_URL,
                 &api_key,
                 &result.meeting.id,
                 "Network error during upload from the desktop app.",
@@ -638,7 +699,7 @@ pub fn run() {
                                     match result {
                                         Ok(wav_path) => {
                                             tauri::async_runtime::spawn(async move {
-                                                upload_recording(wav_path).await;
+                                                upload_recording(wav_path, app_handle).await;
                                             });
                                         }
                                         Err(e) => {
@@ -664,57 +725,33 @@ pub fn run() {
                             let _ = window.show();
                             let _ = window.set_focus();
                         } else {
-                            match get_settings() {
-                                Ok(settings) if settings.app_url.is_empty() => {
-                                    // A real case, not a misconfiguration: a
-                                    // user who hasn't been through Settings
-                                    // yet.
-                                    eprintln!(
-                                        "cannot open dashboard: App URL not configured yet"
-                                    );
-                                    show_error_dialog(
+                            // APP_URL is a compile-time constant, not a
+                            // user-entered Settings value, so a parse
+                            // failure here would be a genuine bug in this
+                            // app rather than something the user could
+                            // "fix in Settings" - kept as a real Result
+                            // match anyway (not `.expect()`), matching this
+                            // codebase's no-panics-on-a-failure-path rule,
+                            // but the error text says so plainly rather
+                            // than pointing at a Settings field that no
+                            // longer exists.
+                            match APP_URL.parse() {
+                                Ok(url) => {
+                                    if let Err(e) = tauri::WebviewWindowBuilder::new(
                                         app,
-                                        "Set an App URL in Settings before opening the dashboard.",
-                                    );
+                                        "dashboard",
+                                        tauri::WebviewUrl::External(url),
+                                    )
+                                    .title("Meeting Transcriber")
+                                    .inner_size(1200.0, 800.0)
+                                    .build()
+                                    {
+                                        eprintln!("failed to open dashboard window: {e}");
+                                    }
                                 }
-                                Ok(settings) => match settings.app_url.parse() {
-                                    Ok(url) => {
-                                        if let Err(e) = tauri::WebviewWindowBuilder::new(
-                                            app,
-                                            "dashboard",
-                                            tauri::WebviewUrl::External(url),
-                                        )
-                                        .title("Meeting Transcriber")
-                                        .inner_size(1200.0, 800.0)
-                                        .build()
-                                        {
-                                            eprintln!("failed to open dashboard window: {e}");
-                                        }
-                                    }
-                                    Err(e) => {
-                                        // Also a real, reachable case (a
-                                        // malformed value saved outside the
-                                        // Settings dialog's own validation, or
-                                        // a future regression in it) - fail
-                                        // the same clear, non-panicking way as
-                                        // every other failure path here rather
-                                        // than the brief's original
-                                        // `.expect(...)`.
-                                        eprintln!(
-                                            "cannot open dashboard: invalid App URL {:?}: {e}",
-                                            settings.app_url
-                                        );
-                                        show_error_dialog(
-                                            app,
-                                            "The saved App URL isn't valid. Fix it in Settings.",
-                                        );
-                                    }
-                                },
                                 Err(e) => {
-                                    eprintln!(
-                                        "cannot open dashboard: could not read settings: {e}"
-                                    );
-                                    show_error_dialog(app, "Could not read the saved settings.");
+                                    eprintln!("cannot open dashboard: invalid APP_URL constant {APP_URL:?}: {e}");
+                                    show_error_dialog(app, "Internal error: the app's URL is misconfigured.");
                                 }
                             }
                         }
@@ -753,8 +790,9 @@ pub fn run() {
                                         "recovering leftover recording from a previous crash: {}",
                                         path.display()
                                     );
+                                    let app_handle = app.handle().clone();
                                     tauri::async_runtime::spawn(async move {
-                                        upload_recording(path).await;
+                                        upload_recording(path, app_handle).await;
                                     });
                                 }
                                 Ok(false) => {
