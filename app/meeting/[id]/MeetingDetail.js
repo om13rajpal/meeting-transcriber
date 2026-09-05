@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Copy, Download, Share2, Trash2, X, Loader2, Users, Tag, Plus, Mail, Webhook as WebhookIcon } from 'lucide-react';
@@ -161,6 +162,11 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
     if (matchIndex === -1) return;
 
     hasJumpedRef.current = true;
+    // Forces the tab whose DOM actually holds the scroll target (groupRefs
+    // is only populated by the "speakers" tab) - hasJumpedRef above already
+    // guarantees this branch runs at most once per page load, so this isn't
+    // the repeated-cascading-renders case the lint rule is guarding against.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveTab('speakers');
     requestAnimationFrame(() => {
       groupRefs.current[matchIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -414,7 +420,7 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
               variant="ghost"
               size="sm"
               className="text-muted-foreground"
-              render={<a href="/" />}
+              render={<Link href="/" />}
               nativeButton={false}
             >
               &larr; Back to meetings

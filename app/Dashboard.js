@@ -68,9 +68,12 @@ function formatDate(iso) {
   // eye, but a genuine character-for-character mismatch to React. Collapse
   // every space-like character to a normal space so server and client
   // produce byte-identical output regardless of which ICU version ran.
+  // `\s` (not a literal character class of copy-pasted Unicode spaces,
+  // which can silently lose the exact character - e.g. U+202F - being
+  // targeted) already matches every Unicode space separator JS recognizes.
   return date
     .toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-    .replace(/[  -   　]/g, ' ');
+    .replace(/\s/g, ' ');
 }
 
 function formatCost(costUsd) {
