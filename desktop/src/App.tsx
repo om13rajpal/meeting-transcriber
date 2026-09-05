@@ -17,6 +17,7 @@ interface SettingsResponse {
   has_api_key: boolean;
   label: string | null;
   error: string | null;
+  unreachable: boolean;
 }
 
 interface MeetingSummary {
@@ -86,7 +87,12 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
       {current?.has_api_key && current.label && (
         <p className="text-xs text-emerald-500">Connected as: {current.label}</p>
       )}
-      {current?.has_api_key && current.error && (
+      {current?.has_api_key && current.error && current.unreachable && (
+        <p className="text-xs text-muted-foreground">
+          Could not verify your API key right now ({current.error}) - it may still be valid.
+        </p>
+      )}
+      {current?.has_api_key && current.error && !current.unreachable && (
         <p className="text-xs text-destructive">
           This API key was rejected: {current.error}. Add a new one above.
         </p>
@@ -140,7 +146,17 @@ function RecordingsSection({
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") load();
     }, 10000);
-    return () => clearInterval(interval);
+    // Refreshes immediately on un-hiding the window too, rather than
+    // waiting for the next 10s tick - otherwise re-showing the window
+    // right after it was hidden could display up to 10s of stale data.
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") load();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasApiKey]);
 
@@ -208,7 +224,12 @@ function App() {
   const [hasApiKey, setHasApiKey] = useState(false);
 
   useEffect(() => {
-    invoke<SettingsResponse>("get_settings").then((s) => setHasApiKey(s.has_api_key));
+    // Deliberately the fast local-only check, not get_settings() - that
+    // one does a live network validate now, and gating the Recordings
+    // section on it created a real race right after launch: clicking
+    // Recordings before that network call resolved would wrongly show
+    // "add an API key first" even with one already saved.
+    invoke<boolean>("has_api_key_stored").then(setHasApiKey);
     const unlisten = listen<Section>("navigate", (event) => setSection(event.payload));
     return () => {
       unlisten.then((f) => f());

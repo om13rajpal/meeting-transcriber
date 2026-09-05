@@ -56,6 +56,11 @@ struct SettingsResponse {
     // message (revoked, network error, etc.) otherwise.
     label: Option<String>,
     error: Option<String>,
+    // True when `error` is present because the app couldn't be reached at
+    // all (a network hiccup) rather than because the server actually
+    // rejected the key - the frontend shows a softer message for this
+    // case instead of implying the key itself is bad.
+    unreachable: bool,
 }
 
 /// Confirms a key is real and not revoked before it's saved to the
@@ -65,19 +70,33 @@ struct SettingsResponse {
 /// extension's Settings does - see app/api/tokens/validate/route.js,
 /// which (unlike /api/tokens/upload) has no side effect, so it's cheap to
 /// call on every Save.
-async fn validate_api_key(api_key: &str) -> Result<String, String> {
+/// Distinguishes "the server told us this key is bad" from "we couldn't
+/// even ask" - collapsing both into one error string (as an earlier
+/// version of this function did) meant a plain network hiccup rendered
+/// identically to an actually-revoked key, telling the user their good
+/// key was rejected when the real problem was connectivity.
+enum ValidateOutcome {
+    Valid(String),
+    Rejected(String),
+    Unreachable(String),
+}
+
+async fn validate_api_key(api_key: &str) -> ValidateOutcome {
     let client = reqwest::Client::builder()
         .connect_timeout(HTTP_CONNECT_TIMEOUT)
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    let response = client
+    let response = match client
         .post(format!("{APP_URL}/api/tokens/validate"))
         .bearer_auth(api_key)
         .timeout(JSON_REQUEST_TIMEOUT)
         .send()
         .await
-        .map_err(|e| format!("Could not reach {APP_URL} to check the API key: {e}"))?;
+    {
+        Ok(r) => r,
+        Err(e) => return ValidateOutcome::Unreachable(format!("Could not reach {APP_URL} to check the API key: {e}")),
+    };
 
     let status = response.status();
 
@@ -87,15 +106,15 @@ async fn validate_api_key(api_key: &str) -> Result<String, String> {
         label: Option<String>,
         error: Option<String>,
     }
-    let body: ValidateResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("Could not parse the app's response: {e}"))?;
+    let body: ValidateResponse = match response.json().await {
+        Ok(b) => b,
+        Err(e) => return ValidateOutcome::Unreachable(format!("Could not parse the app's response: {e}")),
+    };
 
     if status.is_success() && body.valid {
-        return Ok(body.label.unwrap_or_default());
+        return ValidateOutcome::Valid(body.label.unwrap_or_default());
     }
-    Err(body.error.unwrap_or_else(|| "That API key was rejected by the app.".to_string()))
+    ValidateOutcome::Rejected(body.error.unwrap_or_else(|| "That API key was rejected by the app.".to_string()))
 }
 
 /// Raw shape of `GET /api/tokens/meetings` - see
@@ -185,11 +204,29 @@ async fn save_settings(api_key: String) -> Result<(), String> {
         return Ok(());
     }
 
-    validate_api_key(&api_key).await?;
+    match validate_api_key(&api_key).await {
+        ValidateOutcome::Valid(_) => {}
+        ValidateOutcome::Rejected(message) => return Err(message),
+        ValidateOutcome::Unreachable(message) => return Err(message),
+    }
 
     let entry = Entry::new(SERVICE, KEY_USER).map_err(|e| e.to_string())?;
     entry.set_password(&api_key).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Fast, local-only, no-network check of whether a key is saved at all -
+/// deliberately separate from `get_settings()`'s live validate. Used to
+/// gate the frontend's "Recent Recordings" section, which only needs to
+/// know whether to attempt a fetch at all; `fetch_recent_meetings` itself
+/// already surfaces a real error inline if the stored key turns out to be
+/// invalid. Reusing the networked `get_settings()` for this would reopen
+/// the same race the App() mount effect used to have: right after launch,
+/// clicking "Recent Recordings" before that network call resolves would
+/// wrongly show "add an API key first" even though one is already saved.
+#[tauri::command]
+fn has_api_key_stored() -> bool {
+    Entry::new(SERVICE, KEY_USER).and_then(|e| e.get_password()).is_ok()
 }
 
 #[tauri::command]
@@ -202,6 +239,7 @@ async fn get_settings() -> Result<SettingsResponse, String> {
             has_api_key: false,
             label: None,
             error: None,
+            unreachable: false,
         });
     };
 
@@ -209,15 +247,23 @@ async fn get_settings() -> Result<SettingsResponse, String> {
     // a key revoked from the website since the last launch is caught here
     // instead of silently failing much later during an actual upload.
     match validate_api_key(&api_key).await {
-        Ok(label) => Ok(SettingsResponse {
+        ValidateOutcome::Valid(label) => Ok(SettingsResponse {
             has_api_key: true,
             label: Some(label),
             error: None,
+            unreachable: false,
         }),
-        Err(message) => Ok(SettingsResponse {
+        ValidateOutcome::Rejected(message) => Ok(SettingsResponse {
             has_api_key: true,
             label: None,
             error: Some(message),
+            unreachable: false,
+        }),
+        ValidateOutcome::Unreachable(message) => Ok(SettingsResponse {
+            has_api_key: true,
+            label: None,
+            error: Some(message),
+            unreachable: true,
         }),
     }
 }
@@ -592,6 +638,7 @@ pub fn run() {
             greet,
             save_settings,
             get_settings,
+            has_api_key_stored,
             fetch_recent_meetings
         ])
         .setup(|app| {
