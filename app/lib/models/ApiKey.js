@@ -1,9 +1,9 @@
 import 'server-only';
 import mongoose from 'mongoose';
 
-// A long-lived credential for a non-browser client (the desktop app, the
-// Chrome extension) to mint upload tokens without a browser session
-// cookie. Deliberately long-lived, unlike UploadToken - see
+// A long-lived credential for a non-browser client (the desktop app) to
+// mint upload tokens without a browser session cookie. Deliberately
+// long-lived, unlike UploadToken - see
 // "Authentication for machine clients" in the design spec for why that's
 // still a bounded, low-blast-radius grant: it can only ever do what a
 // logged-in browser tab can already do (start one transcription job at a

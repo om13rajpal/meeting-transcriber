@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/db';
 import { authenticateApiKey } from '@/app/lib/apiKeys';
 
-// Lets the desktop app and Chrome extension confirm a key is real and not
-// revoked at the moment it's entered in Settings, instead of the user only
+// Lets the desktop app confirm a key is real and not revoked at the
+// moment it's entered in Settings, instead of the user only
 // finding out it was wrong later when an upload silently fails somewhere
 // past where they'd notice. Deliberately has no other effect - unlike
 // /api/tokens/upload, this never mints a token or creates a Meeting row,

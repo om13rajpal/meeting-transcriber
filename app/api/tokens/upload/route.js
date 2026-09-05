@@ -4,8 +4,8 @@ import { connectToDatabase } from '@/app/lib/db';
 import { authenticateApiKey } from '@/app/lib/apiKeys';
 import { mintUploadToken } from '@/app/lib/uploadTokens';
 
-// The one entry point for a non-browser client (desktop app, Chrome
-// extension) to mint an upload token. A Route Handler, not a Server
+// The one entry point for a non-browser client (the desktop app) to
+// mint an upload token. A Route Handler, not a Server
 // Action, because this is "a request initiated by something outside
 // this app" in the sense CLAUDE.md's Route Handler rule means - not a
 // browser POSTing this app's own form/fetch, but a native client

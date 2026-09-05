@@ -3,7 +3,7 @@
 import { useActionState, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Copy, Check, Download, Puzzle, ArrowLeft } from 'lucide-react';
+import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Copy, Check, ArrowLeft } from 'lucide-react';
 import { logout, updatePassword } from '@/app/actions/auth';
 import { saveWebhooks, createApiKey, revokeApiKey } from '@/app/actions/settings';
 import AppHeader from '@/components/brand/AppHeader';
@@ -34,8 +34,7 @@ const SECTIONS = [
   { id: 'account', label: 'Account', icon: User },
   { id: 'password', label: 'Password', icon: KeyRound },
   { id: 'webhooks', label: 'Webhooks', icon: WebhookIcon },
-  { id: 'api-keys', label: 'API Keys', icon: Laptop },
-  { id: 'extension', label: 'Chrome Extension', icon: Puzzle }
+  { id: 'api-keys', label: 'API Keys', icon: Laptop }
 ];
 
 function SectionNav({ active, onSelect }) {
@@ -284,8 +283,8 @@ function ApiKeysSection({ initialKeys }) {
       <CardHeader>
         <CardTitle>API Keys</CardTitle>
         <CardDescription>
-          Used by the desktop app and Chrome extension to upload recordings without you logging in
-          separately on each device. Each key can start transcription jobs on your behalf, nothing more.
+          Used by the desktop app to upload recordings without you logging in separately on each
+          device. Each key can start transcription jobs on your behalf, nothing more.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -349,44 +348,6 @@ function ApiKeysSection({ initialKeys }) {
   );
 }
 
-// The zip is rebuilt fresh from source on every deploy (see the root
-// package.json's build script -> scripts/build-extension-zip.js), so this
-// is never a stale artifact - static, no state/actions needed here.
-function ExtensionSection({ onGoToApiKeys }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Chrome Extension</CardTitle>
-        <CardDescription>
-          Captures a Meet/Teams call's tab audio plus your mic, right from a browser side panel - no
-          desktop app needed. Not on the Chrome Web Store yet, so it installs as an unpacked extension.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <Button render={<a href="/downloads/meeting-transcriber-extension.zip" download />} nativeButton={false}>
-          <Download /> Download extension.zip
-        </Button>
-        <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
-          <li>Unzip the downloaded file.</li>
-          <li>
-            Open <span className="font-mono text-foreground">chrome://extensions</span> and turn on{' '}
-            <span className="text-foreground">Developer mode</span> (top right).
-          </li>
-          <li>
-            Click <span className="text-foreground">Load unpacked</span> and select the unzipped folder.
-          </li>
-          <li>
-            Open the extension&apos;s side panel, paste an API key from the{' '}
-            <button type="button" className="cursor-pointer underline underline-offset-2" onClick={onGoToApiKeys}>
-              API Keys
-            </button>{' '}
-            section above, and save.
-          </li>
-        </ol>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassword, initialWebhooks, initialApiKeys }) {
   const [, startLogoutTransition] = useTransition();
@@ -423,7 +384,6 @@ export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassw
             {active === 'password' && <PasswordSection hasPassword={hasPassword} />}
             {active === 'webhooks' && <WebhooksSection initialWebhooks={initialWebhooks} />}
             {active === 'api-keys' && <ApiKeysSection initialKeys={initialApiKeys} />}
-            {active === 'extension' && <ExtensionSection onGoToApiKeys={() => setActive('api-keys')} />}
           </div>
         </div>
       </main>
