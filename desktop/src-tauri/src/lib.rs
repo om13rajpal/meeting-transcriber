@@ -98,6 +98,83 @@ async fn validate_api_key(api_key: &str) -> Result<String, String> {
     Err(body.error.unwrap_or_else(|| "That API key was rejected by the app.".to_string()))
 }
 
+/// Raw shape of `GET /api/tokens/meetings` - see
+/// `app/api/tokens/meetings/route.js`. `rename_all = "camelCase"` matters
+/// here (matches `TokenResult`'s existing reasoning above): the JSON has
+/// `createdAt`/`errorMessage`, not `created_at`/`error_message`.
+#[derive(Deserialize)]
+struct MeetingsApiResponse {
+    meetings: Vec<ApiMeetingItem>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ApiMeetingItem {
+    id: String,
+    title: String,
+    status: String,
+    created_at: String,
+    error_message: Option<String>,
+}
+
+/// Sent to the frontend - snake_case field names, matching
+/// `SettingsResponse`'s existing convention of not renaming outgoing
+/// structs to camelCase (the frontend reads `has_api_key` as-is today).
+#[derive(Serialize)]
+struct MeetingSummary {
+    id: String,
+    title: String,
+    status: String,
+    created_at: String,
+    error_message: Option<String>,
+    // Built here, not on the frontend, so the frontend never needs to
+    // know APP_URL - same reasoning as APP_URL being a Rust-only constant
+    // everywhere else in this file.
+    meeting_url: String,
+}
+
+#[tauri::command]
+async fn fetch_recent_meetings() -> Result<Vec<MeetingSummary>, String> {
+    let api_key = Entry::new(SERVICE, KEY_USER)
+        .and_then(|e| e.get_password())
+        .map_err(|_| "No API key configured.".to_string())?;
+
+    let client = reqwest::Client::builder()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let response = client
+        .get(format!("{APP_URL}/api/tokens/meetings"))
+        .bearer_auth(&api_key)
+        .timeout(JSON_REQUEST_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach {APP_URL}: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("The app rejected the request ({}).", response.status()));
+    }
+
+    let body: MeetingsApiResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Could not parse the app's response: {e}"))?;
+
+    Ok(body
+        .meetings
+        .into_iter()
+        .map(|m| MeetingSummary {
+            meeting_url: format!("{APP_URL}/meeting/{}", m.id),
+            id: m.id,
+            title: m.title,
+            status: m.status,
+            created_at: m.created_at,
+            error_message: m.error_message,
+        })
+        .collect())
+}
+
 #[tauri::command]
 async fn save_settings(api_key: String) -> Result<(), String> {
     let api_key = api_key.trim().to_string();
@@ -514,7 +591,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             save_settings,
-            get_settings
+            get_settings,
+            fetch_recent_meetings
         ])
         .setup(|app| {
             let toggle_item = MenuItem::with_id(
