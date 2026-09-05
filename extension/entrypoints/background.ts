@@ -83,8 +83,29 @@ async function ensureOffscreenDocument() {
     // Same reasoning as above: chrome.offscreen.CreateParameters['reasons']
     // is a template-literal union over the Reason enum, so the literal
     // array is already assignable without an `as` cast.
-    reasons: ['USER_MEDIA'],
-    justification: 'Records tab audio and microphone for meeting transcription.',
+    //
+    // 'AUDIO_PLAYBACK' is required in addition to 'USER_MEDIA', not optional
+    // decoration: offscreen/main.ts's startCapture() connects the captured
+    // tab audio to `audioContext.destination` (to restore the sound tabCapture
+    // otherwise silences for the user - see the comment there), which is real
+    // audio playback happening inside this document. An offscreen document is
+    // never the target of a user gesture of its own (it's created
+    // programmatically, not navigated to; a click in the side panel is a
+    // separate document and Chrome does not propagate user-activation across
+    // documents via chrome.runtime.sendMessage) - so under Chrome's autoplay
+    // policy an offscreen document playing audio without declaring
+    // 'AUDIO_PLAYBACK' risks its AudioContext staying 'suspended' rather than
+    // transitioning to 'running'. A suspended AudioContext halts the entire
+    // graph, not just speaker output - the same graph also feeds
+    // `createMediaStreamDestination()`, i.e. the recording. That would produce
+    // exactly the failure mode this audit was asked to check for: the
+    // recording "succeeds" mechanically (MediaRecorder still emits chunks,
+    // the upload still completes) while the captured audio is silent, with no
+    // exception anywhere to reveal it. Declaring 'AUDIO_PLAYBACK' is Chrome's
+    // documented way to exempt an offscreen document's audio from the gesture
+    // requirement.
+    reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
+    justification: 'Records tab audio and microphone for meeting transcription, and plays the captured tab audio back to the user (tabCapture otherwise silences it).',
   });
 }
 
