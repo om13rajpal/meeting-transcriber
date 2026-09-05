@@ -37,7 +37,14 @@ try {
   run('npm install --ignore-scripts', EXTENSION_DIR);
 
   console.log('[build-extension-zip] Building extension...');
-  run('npm run build', EXTENSION_DIR);
+  // Invokes wxt's own entry point directly via `node`, not `npm run build`
+  // (which resolves the `wxt` command through node_modules/.bin's symlink)
+  // - Vercel's build sandbox failed to resolve that symlink both here and
+  // for the postinstall hook above, even though the exact same install
+  // works fine locally. Going straight to the real file sidesteps needing
+  // to understand why that symlink resolution differs there; this way has
+  // no symlink to resolve at all.
+  run('node node_modules/wxt/bin/wxt.mjs build', EXTENSION_DIR);
 
   if (!fs.existsSync(EXTENSION_OUTPUT_DIR)) {
     throw new Error(`Expected extension build output at ${EXTENSION_OUTPUT_DIR}, but it doesn't exist.`);
