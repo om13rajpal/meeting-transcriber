@@ -1,0 +1,18 @@
+# Vercel's CLI only reads this root-level file, not nested .gitignore
+# files (extension/.gitignore, backend/.gitignore,
+# desktop/src-tauri/.gitignore all exist and are correct for git, but
+# Vercel doesn't look at them) - without this file, `vercel --prod`
+# bundles every one of these into the deploy upload. Confirmed the actual
+# cause of a 1.3GB upload and a resulting "fetch failed" deploy error:
+# desktop/src-tauri/target alone was 3.5GB, extension/node_modules 4GB,
+# none of which this website deploy needs at all.
+node_modules
+extension/node_modules
+extension/.output
+extension/.wxt
+backend/node_modules
+backend/uploads
+desktop/src-tauri/target
+desktop/dist
+desktop/node_modules
+.git

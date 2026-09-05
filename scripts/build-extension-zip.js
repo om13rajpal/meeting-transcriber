@@ -36,6 +36,21 @@ try {
   // depending on a step this build never actually needed.
   run('npm install --ignore-scripts', EXTENSION_DIR);
 
+  // Diagnostic only, temporary: two prior fixes based on reasonable-looking
+  // theories (symlink resolution) were both wrong - the actual error was
+  // "Cannot find module .../extension/node_modules/wxt/bin/wxt.mjs", a
+  // missing file, not an unresolved symlink. Rather than guess a third
+  // time, print exactly what's actually on disk after install so the next
+  // deploy's build log gives a real answer instead of another guess.
+  console.log('[build-extension-zip] Diagnostic: contents of extension/node_modules (top-level, first 40)');
+  run('ls node_modules | head -40', EXTENSION_DIR);
+  console.log('[build-extension-zip] Diagnostic: does node_modules/wxt exist?');
+  run('ls -la node_modules/wxt 2>&1 || echo "NOT FOUND"', EXTENSION_DIR);
+  console.log('[build-extension-zip] Diagnostic: does node_modules/wxt/bin exist?');
+  run('ls -la node_modules/wxt/bin 2>&1 || echo "NOT FOUND"', EXTENSION_DIR);
+  console.log('[build-extension-zip] Diagnostic: npm ls wxt');
+  run('npm ls wxt 2>&1 || true', EXTENSION_DIR);
+
   console.log('[build-extension-zip] Building extension...');
   // Invokes wxt's own entry point directly via `node`, not `npm run build`
   // (which resolves the `wxt` command through node_modules/.bin's symlink)
