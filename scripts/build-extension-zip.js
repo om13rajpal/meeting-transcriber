@@ -26,39 +26,26 @@ function run(command, cwd) {
 
 try {
   console.log('[build-extension-zip] Installing extension dependencies...');
-  // --ignore-scripts: the extension's own postinstall (`wxt prepare`)
-  // generates TypeScript types for editor/tsc support only - `wxt build`
-  // doesn't need it (verified locally: a build from a --ignore-scripts
-  // install produces an identical .output). Skipping it sidesteps a real
-  // failure seen on Vercel's build sandbox, where that hook exited 127
-  // ("command not found") even though the exact same install works fine
-  // locally - rather than chase that environment mismatch, this avoids
-  // depending on a step this build never actually needed.
-  run('npm install --ignore-scripts', EXTENSION_DIR);
-
-  // Diagnostic only, temporary: two prior fixes based on reasonable-looking
-  // theories (symlink resolution) were both wrong - the actual error was
-  // "Cannot find module .../extension/node_modules/wxt/bin/wxt.mjs", a
-  // missing file, not an unresolved symlink. Rather than guess a third
-  // time, print exactly what's actually on disk after install so the next
-  // deploy's build log gives a real answer instead of another guess.
-  console.log('[build-extension-zip] Diagnostic: contents of extension/node_modules (top-level, first 40)');
-  run('ls node_modules | head -40', EXTENSION_DIR);
-  console.log('[build-extension-zip] Diagnostic: does node_modules/wxt exist?');
-  run('ls -la node_modules/wxt 2>&1 || echo "NOT FOUND"', EXTENSION_DIR);
-  console.log('[build-extension-zip] Diagnostic: does node_modules/wxt/bin exist?');
-  run('ls -la node_modules/wxt/bin 2>&1 || echo "NOT FOUND"', EXTENSION_DIR);
-  console.log('[build-extension-zip] Diagnostic: npm ls wxt');
-  run('npm ls wxt 2>&1 || true', EXTENSION_DIR);
+  // The actual, confirmed root cause of every earlier failure here: this
+  // script runs as part of the website's `next build`, and Vercel's build
+  // sets NODE_ENV=production for that - which this child `npm install`
+  // inherits. `wxt` (and everything else this build needs) is a
+  // devDependency, and npm silently skips devDependencies entirely under
+  // NODE_ENV=production unless told otherwise. Reproduced exactly locally
+  // (`NODE_ENV=production npm install` here installs 53 packages instead
+  // of the real ~460, and node_modules/wxt genuinely doesn't exist
+  // afterward) before landing on --include=dev as the fix, rather than
+  // guessing again - two earlier "fixes" here (--ignore-scripts alone,
+  // then invoking wxt's entry file directly) both patched symptoms of
+  // this same root cause without ever addressing it.
+  //
+  // --ignore-scripts is still worth keeping alongside it: the extension's
+  // own postinstall (`wxt prepare`) only generates editor/tsc types that
+  // a production `wxt build` never reads, so there's no reason to pay for
+  // running it here.
+  run('npm install --ignore-scripts --include=dev', EXTENSION_DIR);
 
   console.log('[build-extension-zip] Building extension...');
-  // Invokes wxt's own entry point directly via `node`, not `npm run build`
-  // (which resolves the `wxt` command through node_modules/.bin's symlink)
-  // - Vercel's build sandbox failed to resolve that symlink both here and
-  // for the postinstall hook above, even though the exact same install
-  // works fine locally. Going straight to the real file sidesteps needing
-  // to understand why that symlink resolution differs there; this way has
-  // no symlink to resolve at all.
   run('node node_modules/wxt/bin/wxt.mjs build', EXTENSION_DIR);
 
   if (!fs.existsSync(EXTENSION_OUTPUT_DIR)) {
