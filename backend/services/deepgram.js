@@ -128,7 +128,11 @@ async function transcribeWithRetry(url, headers, body) {
 // Runs the full uploaded-file -> transcript pipeline: probe for
 // video/audio streams, normalize to mono 16kHz mp3, guard against
 // Deepgram's payload size limit, call Deepgram, and parse the response.
-// Always cleans up the uploaded and normalized temp files, even on failure.
+// Always cleans up the normalized intermediate file, even on failure - but
+// deliberately leaves `uploadedPath` itself alone regardless of outcome.
+// That file's lifecycle (delete on success, keep on failure for Retry,
+// delete on an explicit Cancel) is the caller's call (see server.js's
+// runTranscriptionJob and Meeting.pendingFilePath), not this function's.
 async function transcribeFile(uploadedPath) {
   let normalizedPath = null;
 
@@ -194,10 +198,9 @@ async function transcribeFile(uploadedPath) {
       requestId: data?.metadata?.request_id ?? null
     };
   } finally {
-    await Promise.allSettled([
-      fsp.unlink(uploadedPath),
-      normalizedPath ? fsp.unlink(normalizedPath) : Promise.resolve()
-    ]);
+    if (normalizedPath) {
+      await fsp.unlink(normalizedPath).catch(() => {});
+    }
   }
 }
 

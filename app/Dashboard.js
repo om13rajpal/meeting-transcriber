@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { UploadCloud, Search, Trash2, FileAudio, FileVideo, Loader2, X, RotateCw, Tag } from 'lucide-react';
 import { createUploadToken } from '@/app/actions/transcribe';
-import { deleteMeeting, deleteMeetings, addTagToMeetings, markMeetingFailed } from '@/app/actions/meetings';
+import { deleteMeeting, deleteMeetings, addTagToMeetings, markMeetingFailed, retryMeeting, cancelMeeting } from '@/app/actions/meetings';
 import { searchMeetings } from '@/app/actions/search';
 import { highlightText, cn } from '@/lib/utils';
 import AppHeader from '@/components/brand/AppHeader';
@@ -120,6 +120,9 @@ export default function Dashboard({ userEmail, avatarUrl, initialMeetings, usage
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [pendingDeleteIds, setPendingDeleteIds] = useState(null);
+  // Meeting ids with a Retry/Cancel request currently in flight - just
+  // disables the button against a double-click, not a loading spinner.
+  const [actioningIds, setActioningIds] = useState(new Set());
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkTagOpen, setBulkTagOpen] = useState(false);
   const [bulkTagValue, setBulkTagValue] = useState('');
@@ -297,6 +300,41 @@ export default function Dashboard({ userEmail, avatarUrl, initialMeetings, usage
       ids.forEach((id) => next.delete(id));
       return next;
     });
+  }
+
+  async function handleRetry(id) {
+    setActioningIds((prev) => new Set(prev).add(id));
+    const result = await retryMeeting(id);
+    setActioningIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    // Optimistic: the backend responds 202 and keeps working in the
+    // background, same as a fresh upload - flip this row to 'processing'
+    // locally right away so the existing 4s poll-while-processing effect
+    // picks it up, instead of waiting for the next unrelated refresh.
+    setMeetings((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'processing', errorMessage: null } : m)));
+  }
+
+  async function handleCancel(id) {
+    setActioningIds((prev) => new Set(prev).add(id));
+    const result = await cancelMeeting(id);
+    setActioningIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    const refreshed = await searchMeetings(searchQuery);
+    setMeetings(refreshed);
   }
 
   function toggleSelect(id) {
@@ -597,6 +635,50 @@ export default function Dashboard({ userEmail, avatarUrl, initialMeetings, usage
                       </div>
                     )}
                   </div>
+                  {meeting.status === 'processing' && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                            disabled={actioningIds.has(meeting.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancel(meeting.id);
+                            }}
+                          >
+                            <X />
+                            <span className="sr-only">Cancel</span>
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Cancel transcription</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {meeting.status === 'failed' && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                            disabled={actioningIds.has(meeting.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRetry(meeting.id);
+                            }}
+                          >
+                            <RotateCw />
+                            <span className="sr-only">Retry</span>
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Retry transcription</TooltipContent>
+                    </Tooltip>
+                  )}
                   <Tooltip>
                     <TooltipTrigger
                       render={

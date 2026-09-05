@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import Meeting from '@/app/lib/models/Meeting';
+import MeetingActionToken from '@/app/lib/models/MeetingActionToken';
 import {
   findOwnedMeeting,
   findOwnedMeetingLean,
@@ -12,6 +13,69 @@ import {
   markMeetingFailedCore,
   sweepStaleProcessingMeetings
 } from '@/app/lib/meetings';
+
+// Short TTL - minted and consumed by an immediate server-to-server fetch
+// right below, not something a user waits minutes to use like UploadToken.
+const ACTION_TOKEN_TTL_MS = 5 * 60 * 1000;
+
+// Mints a single-use MeetingActionToken and calls the backend's
+// corresponding /api/meetings/:action route with it - the backend has no
+// session mechanism of its own, so this token (minted only after the
+// caller below has already verified the session and ownership) is what
+// proves the request is authorized. Shared by retryMeeting/cancelMeeting
+// since both are otherwise identical shapes.
+async function callBackendMeetingAction(action, meetingId) {
+  const backendUrl = process.env.NEXT_PUBLIC_TRANSCRIBE_BACKEND_URL;
+  if (!backendUrl) {
+    return { error: 'Transcription backend is not configured.' };
+  }
+
+  const tokenDoc = await MeetingActionToken.create({
+    meetingId,
+    action,
+    expiresAt: new Date(Date.now() + ACTION_TOKEN_TTL_MS)
+  });
+
+  try {
+    const response = await fetch(`${backendUrl}/api/meetings/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: tokenDoc._id })
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { error: body.error || `Could not ${action} this recording.` };
+    }
+    return { ok: true };
+  } catch {
+    return { error: 'Could not reach the transcription backend. Please try again.' };
+  }
+}
+
+// Retries a failed meeting whose raw file the backend is still holding
+// onto (Meeting.pendingFilePath - see CLAUDE.md's "Retry and Cancel").
+// Ownership-checked via findOwnedMeeting the same way every other mutation
+// here is, before the backend ever sees a token for it.
+export async function retryMeeting(id) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeetingLean(id, userId);
+  if (!meeting || meeting.status !== 'failed') {
+    return { error: 'Meeting not found or not retryable.' };
+  }
+  return callBackendMeetingAction('retry', meeting._id);
+}
+
+// Cancels a meeting still stuck at 'processing' - deletes the backend's
+// stored file and marks it failed. Only valid while genuinely 'processing';
+// see the backend route for the matching guard.
+export async function cancelMeeting(id) {
+  const { userId } = await verifySession();
+  const meeting = await findOwnedMeetingLean(id, userId);
+  if (!meeting || meeting.status !== 'processing') {
+    return { error: 'Meeting not found or not cancellable.' };
+  }
+  return callBackendMeetingAction('cancel', meeting._id);
+}
 
 // Read-only refetch for the meeting detail page's processing-status polling.
 // Uses the lean path since nothing here mutates the document. Runs the

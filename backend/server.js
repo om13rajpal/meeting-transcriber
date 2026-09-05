@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { connectToDatabase } = require('./db');
 const Meeting = require('./models/Meeting');
 const UploadToken = require('./models/UploadToken');
+const MeetingActionToken = require('./models/MeetingActionToken');
 const { transcribeFile, fetchExactCost } = require('./services/deepgram');
 const { sendMeetingEmail } = require('./services/email');
 const { sendMeetingWebhook } = require('./services/webhook');
@@ -26,6 +27,14 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
 // "Transcribing..." for hours with no way to know it's actually dead.
 const STALE_PROCESSING_MS = 30 * 60 * 1000;
 const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+// How long a failed meeting's raw file is kept around for a possible Retry
+// before the orphaned-file sweep reclaims the disk space. Generous enough
+// to give a user a real chance to notice and retry, bounded so an
+// abandoned recording doesn't sit on Render's limited free-tier disk
+// forever. See sweepOrphanedFiles().
+const ORPHANED_FILE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const ORPHANED_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 
 // Deepgram's own billing data for a request isn't necessarily indexed the
 // instant transcription finishes, so the exact cost (see fetchExactCost())
@@ -102,6 +111,63 @@ async function sendNotifications(meeting) {
   }
 }
 
+// Runs transcribeFile() against `filePath` for `meeting` and records the
+// outcome, exactly the way /api/transcribe always has - shared with
+// /api/meetings/retry below so there's exactly one implementation of "run
+// the pipeline and update the meeting," not two that could drift.
+// Meeting.pendingFilePath is set *before* transcribeFile() runs (not just
+// on failure) so a process death mid-job still leaves a record of where
+// the file is - the stale-job sweep's own cleanup, and a future Retry
+// attempt on a hung-then-recovered meeting, both depend on that.
+async function runTranscriptionJob(meeting, filePath) {
+  meeting.pendingFilePath = filePath;
+  meeting.pendingFileStoredAt = new Date();
+  await meeting.save();
+
+  try {
+    const result = await transcribeFile(filePath);
+    meeting.isVideo = result.isVideo;
+    meeting.durationSeconds = result.durationSeconds;
+    meeting.transcript = result.transcript;
+    meeting.utterances = result.utterances;
+    meeting.deepgramModel = result.model;
+    meeting.deepgramCostUsd = result.costUsd;
+    meeting.deepgramRequestId = result.requestId;
+    meeting.status = 'complete';
+    // Only cleared on success - a failure deliberately keeps both fields
+    // set so the file survives for a possible Retry (see
+    // /api/meetings/retry and the orphaned-file sweep).
+    meeting.pendingFilePath = undefined;
+    meeting.pendingFileStoredAt = undefined;
+    await meeting.save();
+    await fs.promises.unlink(filePath).catch(() => {});
+    await sendNotifications(meeting);
+
+    // Best-effort: Deepgram's billing data for this exact request is
+    // sometimes already indexed by the time transcription finishes, so
+    // this can upgrade the estimate to the real billed amount right away
+    // instead of waiting for the next sweepPendingCosts() tick. Usually it
+    // isn't ready yet - fetchExactCost() just returns null in that case,
+    // which is fine, since the sweep is what actually guarantees this
+    // eventually happens either way.
+    const exactUsd = await fetchExactCost(result.requestId);
+    if (exactUsd != null) {
+      meeting.deepgramCostUsd = exactUsd;
+      meeting.deepgramCostExact = true;
+      await meeting.save().catch((saveError) => console.error(saveError));
+    }
+  } catch (error) {
+    console.error(error);
+    const isDeepgramError = error.message?.startsWith('Deepgram API error');
+    meeting.status = 'failed';
+    meeting.errorMessage = error.clientSafe || isDeepgramError
+      ? error.message
+      : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
+    await meeting.save().catch((saveError) => console.error(saveError));
+    await sendNotifications(meeting);
+  }
+}
+
 // Marks any 'processing' meeting older than STALE_PROCESSING_MS as failed.
 // Runs once at startup (to clean up whatever was left mid-job by a previous
 // crash or deploy, since nothing else ever revisits those rows) and on a
@@ -120,12 +186,51 @@ async function sweepStaleJobs() {
     for (const meeting of staleMeetings) {
       meeting.status = 'failed';
       meeting.errorMessage = 'Transcription did not finish in time. Please try uploading again.';
+      // Unlike a normal failure (where the file is kept for a possible
+      // Retry - see runTranscriptionJob), a job stuck long enough for this
+      // sweep to fire means whatever process was working on it is long
+      // gone (a crash, a restart) - there's nothing that could still be
+      // reading this file, so it's safe to reclaim immediately rather than
+      // waiting for the separate orphaned-file sweep's 24-hour window.
+      if (meeting.pendingFilePath) {
+        await fs.promises.unlink(meeting.pendingFilePath).catch(() => {});
+        meeting.pendingFilePath = undefined;
+        meeting.pendingFileStoredAt = undefined;
+      }
       await meeting.save();
       await sendNotifications(meeting);
     }
     console.log(`Marked ${staleMeetings.length} stale processing job(s) as failed.`);
   } catch (error) {
     console.error('Stale job sweep failed:', error);
+  }
+}
+
+// Reclaims a failed meeting's stored file once it's been sitting unretried
+// for ORPHANED_FILE_RETENTION_MS - the safety net for a recording nobody
+// ever comes back to Retry or Cancel. Uses pendingFileStoredAt, not
+// createdAt, as the retention clock: createdAt is the *original* upload
+// time, which would make this sweep reclaim a file seconds after a much
+// later Retry re-stored it.
+async function sweepOrphanedFiles() {
+  const cutoff = new Date(Date.now() - ORPHANED_FILE_RETENTION_MS);
+  try {
+    const orphaned = await Meeting.find({
+      pendingFilePath: { $ne: null },
+      status: { $ne: 'processing' },
+      pendingFileStoredAt: { $lt: cutoff }
+    });
+    if (!orphaned.length) return;
+
+    for (const meeting of orphaned) {
+      await fs.promises.unlink(meeting.pendingFilePath).catch(() => {});
+      meeting.pendingFilePath = undefined;
+      meeting.pendingFileStoredAt = undefined;
+      await meeting.save();
+    }
+    console.log(`Reclaimed ${orphaned.length} orphaned recording file(s).`);
+  } catch (error) {
+    console.error('Orphaned file sweep failed:', error);
   }
 }
 
@@ -168,12 +273,22 @@ async function main() {
   await sweepPendingCosts();
   setInterval(sweepPendingCosts, COST_SWEEP_INTERVAL_MS).unref();
 
+  await sweepOrphanedFiles();
+  setInterval(sweepOrphanedFiles, ORPHANED_FILE_SWEEP_INTERVAL_MS).unref();
+
   const app = express();
 
   app.use(cors({
     origin: allowedOrigins.length ? allowedOrigins : false,
     methods: ['POST', 'GET', 'OPTIONS']
   }));
+
+  // Only used by /api/meetings/retry and /api/meetings/cancel below - both
+  // are small, token-authenticated, server-to-server calls from the
+  // Next.js app (never the browser), so this doesn't interact with the
+  // multipart /api/transcribe route at all (express.json() only parses
+  // requests with an application/json Content-Type).
+  app.use(express.json());
 
   app.get('/', (req, res) => {
     res.status(200).json({ ok: true });
@@ -256,43 +371,89 @@ async function main() {
       // regardless of whether the client is still connected.
       res.status(202).json({ id: String(meeting._id) });
 
-      try {
-        const result = await transcribeFile(req.file.path);
-        meeting.isVideo = result.isVideo;
-        meeting.durationSeconds = result.durationSeconds;
-        meeting.transcript = result.transcript;
-        meeting.utterances = result.utterances;
-        meeting.deepgramModel = result.model;
-        meeting.deepgramCostUsd = result.costUsd;
-        meeting.deepgramRequestId = result.requestId;
-        meeting.status = 'complete';
-        await meeting.save();
-        await sendNotifications(meeting);
-
-        // Best-effort: Deepgram's billing data for this exact request is
-        // sometimes already indexed by the time transcription finishes, so
-        // this can upgrade the estimate to the real billed amount right
-        // away instead of waiting for the next sweepPendingCosts() tick.
-        // Usually it isn't ready yet - fetchExactCost() just returns null
-        // in that case, which is fine, since the sweep is what actually
-        // guarantees this eventually happens either way.
-        const exactUsd = await fetchExactCost(result.requestId);
-        if (exactUsd != null) {
-          meeting.deepgramCostUsd = exactUsd;
-          meeting.deepgramCostExact = true;
-          await meeting.save().catch((saveError) => console.error(saveError));
-        }
-      } catch (error) {
-        console.error(error);
-        const isDeepgramError = error.message?.startsWith('Deepgram API error');
-        meeting.status = 'failed';
-        meeting.errorMessage = error.clientSafe || isDeepgramError
-          ? error.message
-          : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
-        await meeting.save().catch((saveError) => console.error(saveError));
-        await sendNotifications(meeting);
-      }
+      await runTranscriptionJob(meeting, req.file.path);
     });
+  });
+
+  // Re-runs the pipeline against a meeting's already-stored file (see
+  // Meeting.pendingFilePath / runTranscriptionJob above) - the point of
+  // keeping that file around at all. Token-authenticated (MeetingActionToken)
+  // rather than session-authenticated: this backend has no session
+  // mechanism of its own, and retryMeeting() in app/actions/meetings.js
+  // already verified the session and ownership before minting one.
+  app.post('/api/meetings/retry', async (req, res) => {
+    const token = req.body?.token;
+    if (!token) {
+      return res.status(400).json({ error: 'Missing token.' });
+    }
+
+    const tokenDoc = await MeetingActionToken.findOneAndDelete({ _id: token, action: 'retry' }).catch(() => null);
+    if (!tokenDoc) {
+      return res.status(401).json({ error: 'This retry request has expired. Please try again.' });
+    }
+
+    const meeting = await Meeting.findById(tokenDoc.meetingId).catch(() => null);
+    if (!meeting) {
+      return res.status(404).json({ error: 'This meeting was deleted.' });
+    }
+    if (meeting.status !== 'failed' || !meeting.pendingFilePath) {
+      return res.status(409).json({ error: 'This recording has nothing to retry.' });
+    }
+
+    const fileExists = await fs.promises.access(meeting.pendingFilePath).then(() => true).catch(() => false);
+    if (!fileExists) {
+      // The backend restarted (Render free-tier spin-down, a deploy) since
+      // this meeting failed, and its local disk doesn't survive that - a
+      // known, accepted limitation of keeping the file locally rather than
+      // in persistent storage. Nothing to retry with; say so plainly
+      // rather than trying and failing again with a confusing error.
+      meeting.pendingFilePath = undefined;
+      meeting.pendingFileStoredAt = undefined;
+      await meeting.save().catch(() => {});
+      return res.status(410).json({ error: 'The original recording is no longer available on the server. Please upload it again.' });
+    }
+
+    meeting.status = 'processing';
+    meeting.errorMessage = undefined;
+    await meeting.save();
+    res.status(202).json({ id: String(meeting._id) });
+
+    await runTranscriptionJob(meeting, meeting.pendingFilePath);
+  });
+
+  // Deletes a meeting's stored file and marks it failed. Deliberately does
+  // NOT call sendNotifications() the way every other status-flip in this
+  // file does - the user just took this action themselves, so an "upload
+  // failed" email/webhook right afterward would be redundant, not
+  // informative.
+  app.post('/api/meetings/cancel', async (req, res) => {
+    const token = req.body?.token;
+    if (!token) {
+      return res.status(400).json({ error: 'Missing token.' });
+    }
+
+    const tokenDoc = await MeetingActionToken.findOneAndDelete({ _id: token, action: 'cancel' }).catch(() => null);
+    if (!tokenDoc) {
+      return res.status(401).json({ error: 'This cancel request has expired. Please try again.' });
+    }
+
+    const meeting = await Meeting.findById(tokenDoc.meetingId).catch(() => null);
+    if (!meeting) {
+      return res.status(404).json({ error: 'This meeting was deleted.' });
+    }
+    if (meeting.status !== 'processing') {
+      return res.status(409).json({ error: 'This recording is not in progress.' });
+    }
+
+    if (meeting.pendingFilePath) {
+      await fs.promises.unlink(meeting.pendingFilePath).catch(() => {});
+    }
+    meeting.status = 'failed';
+    meeting.errorMessage = 'Cancelled by user.';
+    meeting.pendingFilePath = undefined;
+    meeting.pendingFileStoredAt = undefined;
+    await meeting.save();
+    res.status(200).json({ ok: true });
   });
 
   app.listen(PORT, () => {

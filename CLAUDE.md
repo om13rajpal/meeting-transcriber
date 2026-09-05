@@ -139,6 +139,92 @@ nothing ever runs the code that would set `status: 'failed'` in that case.
 left behind) plus on a `STALE_SWEEP_INTERVAL_MS` (5 minute) interval, so a
 hang doesn't need a restart to be noticed either.
 
+**`sweepStaleJobs()` only runs while the backend process is actually
+awake**, which on Render's free tier (15-minute spin-down) it very often
+isn't - and nothing about reloading or polling the dashboard wakes it,
+since the frontend's Server Actions talk to MongoDB directly and never
+touch the backend at all. `sweepStaleProcessingMeetings(userId)`
+(`app/lib/meetings.js`) is the same 30-minute-stale check run from the
+frontend side instead - Vercel/MongoDB are always reachable regardless of
+whether the backend is asleep. It's called at the top of `listMeetings()`
+and in the `getMeeting` Server Action, the two places already documented
+above as polling while a `'processing'` row exists. Both constants are
+named `STALE_PROCESSING_MS` (backend and frontend copies) on purpose -
+kept at the same 30 minutes so there's only one definition of "stale" for
+this field, not two that could drift.
+
+A dedicated `GET /health` route on the backend exists specifically so an
+external uptime/keep-alive pinger (this app uses cron-job.org) has a
+stable, memorable path - point it there, not at `/`, and make sure the
+monitor's own request timeout comfortably exceeds a Render cold start
+(which can take 20+ seconds) or the monitor will report the job as
+failing every time it happens to land during a sleep window.
+
+## Retry and Cancel
+
+A `'processing'` row can be **Cancel**led from the dashboard; a
+`'failed'` one can be **Retry**'d - both shown as a small icon button next
+to Delete in `app/Dashboard.js`, only for the matching status. This only
+works because the backend now keeps the raw uploaded file around for a
+while instead of always deleting it once transcription finishes:
+
+- **`Meeting.pendingFilePath`** / **`pendingFileStoredAt`**: set by
+  `runTranscriptionJob()` in `backend/server.js` right before it calls
+  `transcribeFile()`, for every job (not just failures) - so a process
+  death mid-job still leaves a record of where the file is. Cleared only
+  on success (the file is deleted right after) or an explicit Cancel. A
+  failure leaves both fields set, on purpose - that's what makes Retry
+  possible. Backend-only fields, never exposed through
+  `toSummary`/`toDetail`/`toApiKeySummary` - they're a local filesystem
+  path, not user-facing data.
+- **`transcribeFile()`** (`backend/services/deepgram.js`) no longer
+  deletes the uploaded file itself - only the transient ffmpeg-normalized
+  intermediate copy. Whether the original survives is entirely the
+  caller's decision now (see `pendingFilePath` above).
+- **`MeetingActionToken`** (`app/lib/models/MeetingActionToken.js`,
+  `backend/models/MeetingActionToken.js` - schema-identical, same rule as
+  `UploadToken`): a one-time, 5-minute token scoped to one meeting and one
+  action (`'retry'` or `'cancel'`). Minted by `retryMeeting(id)`/
+  `cancelMeeting(id)` (`app/actions/meetings.js`, after the normal
+  `verifySession()` + ownership check every mutation here already does),
+  then used for a small server-to-server `fetch()` straight from the
+  Server Action to the backend - no browser involvement, since retry/
+  cancel never move the file itself, just tell the backend (which already
+  has it) to act. This is the same reasoning as `UploadToken`, just for a
+  tiny request instead of a large file transfer, and is why this isn't a
+  static shared secret between the two services - a leaked token is
+  single-use and scoped to one meeting, not standing access.
+- **`POST /api/meetings/retry`**: re-runs `runTranscriptionJob()` against
+  `pendingFilePath`. If the file's gone - the backend restarted since the
+  failure (a Render free-tier spin-down or a deploy; **this backend has no
+  persistent disk**, a known, accepted limitation, not a bug) - it returns
+  a clear "no longer available, please upload it again" error instead of
+  retrying into a confusing second failure.
+- **`POST /api/meetings/cancel`**: deletes the stored file and marks the
+  meeting `'failed'` with `"Cancelled by user."`. Deliberately does **not**
+  call `sendNotifications()` the way every other status-flip in this file
+  does - the user just took this action themselves, so an "upload failed"
+  email/webhook immediately afterward would be redundant, not informative.
+- **`sweepOrphanedFiles()`** (`backend/server.js`, same recurring-interval
+  pattern as the other sweeps): reclaims a failed meeting's file once it's
+  sat unretried for `ORPHANED_FILE_RETENTION_MS` (24 hours) - the backstop
+  for a recording nobody ever comes back to Retry or Cancel, so an
+  abandoned file doesn't sit on Render's limited disk forever. Keyed off
+  `pendingFileStoredAt`, not `createdAt` - `createdAt` is the *original*
+  upload time, which would make this sweep reclaim a file seconds after a
+  much later Retry re-stored it. `sweepStaleJobs()` also unlinks the file
+  immediately (no 24-hour wait) when it marks a hung job failed, since a
+  job stuck long enough for that sweep to fire means whatever process was
+  using the file is long gone - nothing could still be reading it.
+
+Verified for real, end to end, against a local backend + a live browser
+session (not just read from the code): Retry re-ran the full ffmpeg +
+Deepgram pipeline against a stored file and reached `'complete'`, with the
+file deleted afterward; Cancel deleted the stored file and set
+`'failed'`/`"Cancelled by user."`; and Retry against a meeting whose file
+had already been removed (simulating a backend restart) returned the
+honest "no longer available" error instead of a confusing second failure.
+
 ## Email notifications
 
 A meeting sends an email (via Resend) the moment its `status` leaves
@@ -846,7 +932,7 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - `app/lib/db.js`: mongoose connection.
 - `app/lib/models/User.js`, `Meeting.js`, `Session.js`, `UploadToken.js`,
   `PasswordResetToken.js`, `ApiKey.js` (see "API key auth for machine
-  clients").
+  clients"), `MeetingActionToken.js` (see "Retry and Cancel").
 - `app/lib/email.js`: `sendMeetingEmail()` and `sendPasswordResetEmail()`,
   the frontend half of email - see "Email notifications" and "Password
   reset".
@@ -908,8 +994,10 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
   "Multi-file upload") and the webhook settings dialog.
 - `components/ui/`: shadcn components. Edit sparingly; prefer composing
   them from a page over changing the primitives.
-- `backend/server.js`: the whole Express app (health check + `/api/transcribe`),
-  plus `sweepStaleJobs()` and `sweepPendingCosts()` (see "Cost tracking").
+- `backend/server.js`: the whole Express app (health checks, `/api/transcribe`,
+  `/api/meetings/retry`, `/api/meetings/cancel`), `runTranscriptionJob()`
+  (see "Retry and Cancel"), plus `sweepStaleJobs()`, `sweepOrphanedFiles()`,
+  and `sweepPendingCosts()` (see "Cost tracking").
 - `backend/services/deepgram.js`: extraction + `transcribeWithRetry` +
   `fetchExactCost()` (see "Cost tracking"), kept byte-for-byte equivalent in
   spirit to how it worked before the split.

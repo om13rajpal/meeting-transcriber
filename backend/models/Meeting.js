@@ -69,6 +69,17 @@ const meetingSchema = new mongoose.Schema({
   // in-flight request.
   status: { type: String, enum: ['processing', 'complete', 'failed'], default: 'complete' },
   errorMessage: String,
+  // Set while the raw uploaded file is preserved on this backend's local
+  // disk - present only between "we accepted this upload" and "we're done
+  // with the file" (success, an explicit Cancel, or the orphaned-file
+  // sweep reclaiming it after a retention window). Never exposed to the
+  // frontend - see app/lib/models/Meeting.js's matching field.
+  pendingFilePath: String,
+  // Set alongside pendingFilePath every time the file is (re)stored - the
+  // orphaned-file sweep's retention clock, since createdAt reflects the
+  // *original* upload time even after a much later Retry re-stores the
+  // same file.
+  pendingFileStoredAt: Date,
   createdAt: { type: Date, default: Date.now }
 });
 

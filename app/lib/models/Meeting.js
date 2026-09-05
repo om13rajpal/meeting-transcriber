@@ -88,6 +88,18 @@ const meetingSchema = new mongoose.Schema({
   // with rows created before this field existed.
   status: { type: String, enum: ['processing', 'complete', 'failed'], default: 'complete' },
   errorMessage: String,
+  // Set by the backend while the raw uploaded file is preserved on its
+  // local disk - present only between "we accepted this upload" and
+  // "we're done with the file" (success, an explicit Cancel, or the
+  // backend's orphaned-file sweep reclaiming it after a retention window).
+  // A backend filesystem path, never exposed via toSummary/toDetail/
+  // toApiKeySummary - see "Retry and Cancel" in CLAUDE.md.
+  pendingFilePath: String,
+  // Set alongside pendingFilePath every time the file is (re)stored - the
+  // orphaned-file sweep's retention clock, since createdAt reflects the
+  // *original* upload time even after a much later Retry re-stores the
+  // same file.
+  pendingFileStoredAt: Date,
   createdAt: { type: Date, default: Date.now }
 });
 
