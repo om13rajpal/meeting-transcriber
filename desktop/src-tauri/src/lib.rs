@@ -296,7 +296,7 @@ async fn get_settings() -> Result<SettingsResponse, String> {
 // Plain `Option<capture::RecordingHandle>` (as the plan sketched) is not
 // enough on its own: `capture::start_recording` can block for minutes (see
 // its doc comment in capture/mod.rs - on a fresh machine it waits on the
-// macOS Screen Recording permission prompt, with no cancellation path), so
+// macOS System Audio Recording permission prompt, with no cancellation path), so
 // it has to run on a spawned thread rather than inside the menu event
 // handler. That leaves a real window - between the click and the spawned
 // thread reporting back - where the state is neither "idle" nor "holding a
@@ -730,7 +730,7 @@ pub fn run() {
                                 let app_handle = app.clone();
                                 let toggle_handle = toggle_item.clone();
                                 // capture::start_recording can block for
-                                // minutes (an unanswered Screen Recording
+                                // minutes (an unanswered System Audio Recording
                                 // permission prompt on first run) - calling
                                 // it here on the main thread, where this
                                 // whole event handler runs, would freeze the

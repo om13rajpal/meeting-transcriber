@@ -10,5 +10,15 @@
 	     TCC permission) to record fine while the mic track came back empty. -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Meeting Transcriber records your microphone so your side of a call is included in the transcript.</string>
+	<!-- Same failure mode as NSMicrophoneUsageDescription above, for the
+	     Core Audio process tap (capture/loopback_macos.rs) instead of the
+	     microphone: without this key, TCC refuses kTCCServiceAudioCapture
+	     outright ("Refusing authorization request for service
+	     kTCCServiceAudioCapture ... without NSAudioCaptureUsageDescription
+	     key" in the system log) - AudioHardwareCreateProcessTap still
+	     reports success, the tap just never receives real audio, so system
+	     audio came back silent while the mic track recorded fine. -->
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Meeting Transcriber records system audio so the other side of a call is included in the transcript.</string>
 </dict>
 </plist>

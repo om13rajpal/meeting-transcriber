@@ -54,14 +54,25 @@ chrono = "0.4"
 # gets its own binding, gated so the other platform's dependency never even
 # resolves. See src/capture/loopback_macos.rs / loopback_windows.rs for the
 # API notes taken from each crate's real source.
+#
+# macOS: Core Audio Process Taps (AudioHardwareCreateProcessTap +
+# CATapDescription, macOS 14.2+), not ScreenCaptureKit. ScreenCaptureKit has
+# no audio-only stream - it always requires a real (if thrown-away) video
+# component, which is exactly why macOS gated it behind the intrusive
+# "Screen & System Audio Recording" permission. A process tap captures
+# system output audio directly with no video component at all, so macOS
+# gates it behind the separate, narrower "System Audio Recording Only"
+# permission instead - the same one apps like Wispr Flow use. This also
+# drops the Swift-bridge build requirement the old screencapturekit-based
+# implementation had.
 [target.'cfg(target_os = "macos")'.dependencies]
-# 9.x builds a small Swift bridge with `swift build` during `cargo build`, so
-# a Swift toolchain (Xcode or the Command Line Tools) is a hard build
-# requirement on macOS. Audio capture itself needs no `macos_*` feature - the
-# bridge's deployment target is already 13.0 and `captures_audio` /
-# `sample_rate` / `channel_count` / `excludes_current_process_audio` are all
-# ungated - so we deliberately enable none of them.
-screencapturekit = "9.0"
+block2 = "0.6.2"
+dispatch2 = "0.3.1"
+objc2 = "0.6.4"
+objc2-core-audio = { version = "0.3.2", features = ["AudioHardware", "block2", "dispatch2", "objc2-core-audio-types", "objc2-foundation"] }
+objc2-core-audio-types = "0.3.2"
+objc2-core-foundation = { version = "0.3.2", features = ["CFString", "CFArray", "CFDictionary", "CFBase"] }
+objc2-foundation = { version = "0.3.2", features = ["NSArray", "NSObject", "NSString", "NSUUID", "NSValue"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wasapi = "0.24"
