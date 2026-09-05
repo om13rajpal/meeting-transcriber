@@ -126,20 +126,44 @@ async function runTranscriptionJob(meeting, filePath) {
 
   try {
     const result = await transcribeFile(filePath);
-    meeting.isVideo = result.isVideo;
-    meeting.durationSeconds = result.durationSeconds;
-    meeting.transcript = result.transcript;
-    meeting.utterances = result.utterances;
-    meeting.deepgramModel = result.model;
-    meeting.deepgramCostUsd = result.costUsd;
-    meeting.deepgramRequestId = result.requestId;
-    meeting.status = 'complete';
-    // Only cleared on success - a failure deliberately keeps both fields
-    // set so the file survives for a possible Retry (see
-    // /api/meetings/retry and the orphaned-file sweep).
-    meeting.pendingFilePath = undefined;
-    meeting.pendingFileStoredAt = undefined;
-    await meeting.save();
+
+    // Guarded by { status: 'processing' } rather than a plain meeting.save()
+    // - if /api/meetings/cancel flipped this meeting to 'failed' while this
+    // job was still running (a real, possible race: Cancel's own unlink
+    // doesn't actually interrupt the in-flight ffmpeg/Deepgram call), this
+    // update matches nothing and `updated` comes back null, so the
+    // completion is simply dropped instead of resurrecting a job the user
+    // explicitly cancelled.
+    const updated = await Meeting.findOneAndUpdate(
+      { _id: meeting._id, status: 'processing' },
+      {
+        $set: {
+          isVideo: result.isVideo,
+          durationSeconds: result.durationSeconds,
+          transcript: result.transcript,
+          utterances: result.utterances,
+          deepgramModel: result.model,
+          deepgramCostUsd: result.costUsd,
+          deepgramRequestId: result.requestId,
+          status: 'complete'
+        },
+        // Only cleared on success - a failure deliberately keeps both
+        // fields set so the file survives for a possible Retry (see
+        // /api/meetings/retry and the orphaned-file sweep). A plain
+        // `field: undefined` in a findOneAndUpdate object is silently
+        // dropped, not applied - confirmed directly against this app's
+        // own Mongoose version, not assumed - so this needs a real
+        // $unset, unlike the equivalent `meeting.field = undefined`
+        // pattern that works on a live document's own .save().
+        $unset: { pendingFilePath: '', pendingFileStoredAt: '' }
+      },
+      { new: true }
+    );
+    if (!updated) {
+      console.log(`Skipping completion for ${meeting._id}: no longer 'processing' (likely cancelled).`);
+      return;
+    }
+    meeting = updated;
     await fs.promises.unlink(filePath).catch(() => {});
     await sendNotifications(meeting);
 
@@ -159,12 +183,24 @@ async function runTranscriptionJob(meeting, filePath) {
   } catch (error) {
     console.error(error);
     const isDeepgramError = error.message?.startsWith('Deepgram API error');
-    meeting.status = 'failed';
-    meeting.errorMessage = error.clientSafe || isDeepgramError
-      ? error.message
-      : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.';
-    await meeting.save().catch((saveError) => console.error(saveError));
-    await sendNotifications(meeting);
+    // Same race guard as the success path above - don't overwrite a
+    // meeting that was already cancelled (or otherwise moved on) while
+    // this job was failing.
+    const updated = await Meeting.findOneAndUpdate(
+      { _id: meeting._id, status: 'processing' },
+      {
+        status: 'failed',
+        errorMessage: error.clientSafe || isDeepgramError
+          ? error.message
+          : 'Could not process this file. It may be corrupted, empty, or in an unsupported format.'
+      },
+      { new: true }
+    ).catch((saveError) => {
+      console.error(saveError);
+      return null;
+    });
+    if (!updated) return;
+    await sendNotifications(updated);
   }
 }
 
@@ -382,8 +418,15 @@ async function main() {
   // mechanism of its own, and retryMeeting() in app/actions/meetings.js
   // already verified the session and ownership before minting one.
   app.post('/api/meetings/retry', async (req, res) => {
+    // Must be a plain string, not just truthy - {_id: token} below goes
+    // straight into a Mongoose query, and an object value there (e.g.
+    // {"token": {"$ne": null}} in the JSON body) is interpreted as a raw
+    // query operator, not cast to the schema's String type. Without this
+    // check that would match and consume an arbitrary live token instead
+    // of the one this specific caller was issued - a real, confirmed
+    // NoSQL injection, not a theoretical one.
     const token = req.body?.token;
-    if (!token) {
+    if (typeof token !== 'string' || !token) {
       return res.status(400).json({ error: 'Missing token.' });
     }
 
@@ -427,8 +470,15 @@ async function main() {
   // failed" email/webhook right afterward would be redundant, not
   // informative.
   app.post('/api/meetings/cancel', async (req, res) => {
+    // Must be a plain string, not just truthy - {_id: token} below goes
+    // straight into a Mongoose query, and an object value there (e.g.
+    // {"token": {"$ne": null}} in the JSON body) is interpreted as a raw
+    // query operator, not cast to the schema's String type. Without this
+    // check that would match and consume an arbitrary live token instead
+    // of the one this specific caller was issued - a real, confirmed
+    // NoSQL injection, not a theoretical one.
     const token = req.body?.token;
-    if (!token) {
+    if (typeof token !== 'string' || !token) {
       return res.status(400).json({ error: 'Missing token.' });
     }
 
