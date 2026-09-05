@@ -26,7 +26,15 @@ function run(command, cwd) {
 
 try {
   console.log('[build-extension-zip] Installing extension dependencies...');
-  run('npm install', EXTENSION_DIR);
+  // --ignore-scripts: the extension's own postinstall (`wxt prepare`)
+  // generates TypeScript types for editor/tsc support only - `wxt build`
+  // doesn't need it (verified locally: a build from a --ignore-scripts
+  // install produces an identical .output). Skipping it sidesteps a real
+  // failure seen on Vercel's build sandbox, where that hook exited 127
+  // ("command not found") even though the exact same install works fine
+  // locally - rather than chase that environment mismatch, this avoids
+  // depending on a step this build never actually needed.
+  run('npm install --ignore-scripts', EXTENSION_DIR);
 
   console.log('[build-extension-zip] Building extension...');
   run('npm run build', EXTENSION_DIR);
