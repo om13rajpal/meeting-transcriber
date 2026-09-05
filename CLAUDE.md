@@ -618,7 +618,9 @@ business logic the browser path already exercises:
   time, or report one upload as failed), never act as a general-purpose
   account credential (it can't read a transcript, change a password, or
   touch anything `UploadToken`/`markMeetingFailedCore` don't already
-  reach).
+  reach). One deliberate exception: `GET /api/tokens/meetings` (see
+  below) gives a key read access to its own user's meeting *status*
+  metadata only - never transcript content.
 - **`app/lib/apiKeys.js`** (`server-only`) holds `hashApiKey()` (the
   shared SHA-256 hex-digest function - previously defined three times,
   once per call site, which had already let the surrounding auth-check
@@ -629,7 +631,7 @@ business logic the browser path already exercises:
   returns the `ApiKey` document (or `null` for any invalid/missing
   case) - the one mechanism both routes below now share, so this
   particular drift can't recur.
-- **Two new Route Handlers**, `app/api/tokens/upload/route.js` and
+- **Route Handlers**, `app/api/tokens/upload/route.js` and
   `app/api/tokens/mark-failed/route.js` - justified under the Route
   Handler rule below as "a request initiated by something outside this
   app": not a browser POSTing this app's own form/fetch, but a native
@@ -644,7 +646,18 @@ business logic the browser path already exercises:
   no matter which auth mechanism got you there. Both core functions live
   in `server-only` lib files, never in a `'use server'` actions file -
   see "Server Actions vs. auth-agnostic core logic" below for why that
-  placement is load-bearing, not incidental.
+  placement is load-bearing, not incidental. `app/api/tokens/validate/route.js`
+  follows the same auth mechanism (`authenticateApiKey`) with no side
+  effect of its own - used to confirm a key is real before saving it in
+  the desktop app/extension Settings UI. `app/api/tokens/meetings/route.js`
+  is the one read-capable exception described above: `authenticateApiKey`
+  resolves `userId`, then `listMeetingsForApiKey(userId)`
+  (`app/lib/meetings.js`) returns each meeting through `toApiKeySummary()`
+  - a mapper kept deliberately separate from `toSummary()`, since
+  `toSummary()`'s `preview` field carries real transcript text and this
+  route must never return that. Feeds the desktop app's native "Recent
+  Recordings" list (see `docs/superpowers/specs/2026-09-05-desktop-native-recordings-view-design.md`) -
+  reading the actual transcript still happens on the website.
 - **Settings UI**: an "API Keys" section in `/settings`
   (`ApiKeysSection` in `app/settings/SettingsView.js`), following the
   same section-nav pattern as the existing Webhooks settings. Lets the
@@ -884,7 +897,8 @@ sparse-unique field; clear it with `= undefined`, not `= null`.
 - `app/api/auth/google/route.js`, `app/api/auth/google/callback/route.js`:
   the OAuth Route Handlers - see "Sign in with Google" for why these are
   Route Handlers.
-- `app/api/tokens/upload/route.js`, `app/api/tokens/mark-failed/route.js`:
+- `app/api/tokens/upload/route.js`, `app/api/tokens/mark-failed/route.js`,
+  `app/api/tokens/validate/route.js`, `app/api/tokens/meetings/route.js`:
   the API-key Route Handlers for machine clients - see "API key auth for
   machine clients".
 - `app/OAuthButtons.js`: the "Continue with Google" button, a shared
