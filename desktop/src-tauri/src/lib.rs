@@ -671,6 +671,16 @@ pub fn run() {
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                // Menu bar icons on macOS are expected to be monochrome
+                // "template" images that macOS recolors itself (black on
+                // a light menu bar, white on a dark one / behind
+                // wallpaper) - without this, the icon renders in its own
+                // full color, which looks out of place next to every
+                // other menu bar icon. The source icon already has a real
+                // alpha-channel silhouette (verified: it's not just a
+                // fully-opaque square), so this doesn't need a separate
+                // dedicated tray-only asset to look right.
+                .icon_as_template(true)
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
                     "toggle_recording" => {
