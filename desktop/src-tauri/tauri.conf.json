@@ -13,9 +13,9 @@
     "windows": [
       {
         "label": "main",
-        "title": "Meeting Transcriber Settings",
+        "title": "Meeting Transcriber",
         "width": 420,
-        "height": 480,
+        "height": 560,
         "visible": false
       }
     ],

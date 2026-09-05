@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 #[tauri::command]
@@ -602,10 +602,10 @@ pub fn run() {
                 true,
                 None::<&str>,
             )?;
-            let open_dashboard_item = MenuItem::with_id(
+            let show_recordings_item = MenuItem::with_id(
                 app,
-                "open_dashboard",
-                "Open Dashboard",
+                "show_recordings",
+                "Recent Recordings",
                 true,
                 None::<&str>,
             )?;
@@ -616,7 +616,7 @@ pub fn run() {
                 app,
                 &[
                     &toggle_item,
-                    &open_dashboard_item,
+                    &show_recordings_item,
                     &settings_item,
                     &quit_item,
                 ],
@@ -811,55 +811,18 @@ pub fn run() {
                             }
                         }
                     }
-                    "open_dashboard" => {
-                        // Reuse an already-open dashboard window rather than
-                        // creating a second one - `WebviewWindowBuilder::build`
-                        // errors on a duplicate label, and a user clicking the
-                        // tray item twice almost certainly means "bring it to
-                        // front", not "open it again". No `RecordingSlot`-style
-                        // state machine is needed here (unlike
-                        // "toggle_recording" above): opening a window is a
-                        // single synchronous, idempotent call with no
-                        // in-between state to race against.
-                        if let Some(window) = app.get_webview_window("dashboard") {
+                    "show_recordings" => {
+                        if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
-                        } else {
-                            // APP_URL is a compile-time constant, not a
-                            // user-entered Settings value, so a parse
-                            // failure here would be a genuine bug in this
-                            // app rather than something the user could
-                            // "fix in Settings" - kept as a real Result
-                            // match anyway (not `.expect()`), matching this
-                            // codebase's no-panics-on-a-failure-path rule,
-                            // but the error text says so plainly rather
-                            // than pointing at a Settings field that no
-                            // longer exists.
-                            match APP_URL.parse() {
-                                Ok(url) => {
-                                    if let Err(e) = tauri::WebviewWindowBuilder::new(
-                                        app,
-                                        "dashboard",
-                                        tauri::WebviewUrl::External(url),
-                                    )
-                                    .title("Meeting Transcriber")
-                                    .inner_size(1200.0, 800.0)
-                                    .build()
-                                    {
-                                        eprintln!("failed to open dashboard window: {e}");
-                                    }
-                                }
-                                Err(e) => {
-                                    eprintln!("cannot open dashboard: invalid APP_URL constant {APP_URL:?}: {e}");
-                                    show_error_dialog(app, "Internal error: the app's URL is misconfigured.");
-                                }
-                            }
+                            let _ = app.emit("navigate", "recordings");
                         }
                     }
                     "open_settings" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            let _ = app.emit("navigate", "settings");
                         }
                     }
                     "quit" => {
