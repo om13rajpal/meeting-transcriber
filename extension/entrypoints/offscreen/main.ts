@@ -100,16 +100,23 @@ async function startCapture(streamId: string) {
   tabStream = myTabStream;
   micStream = myMicStream;
 
-  // Mix both into one track via the Web Audio API, per the design spec -
-  // a single combined recording is enough for this app's diarization
-  // (Deepgram splits speakers from the mixed audio already, the same
-  // way it already does for a manually-uploaded recording); keeping
-  // the two as fully separate uploaded files would need pipeline
-  // changes this plan deliberately doesn't make.
+  // Mic and tab audio go on separate channels (mic = left, tab/system audio
+  // = right) via a ChannelMergerNode, matching the desktop app's stereo WAV
+  // convention (see desktop/src-tauri/src/capture/mod.rs's module doc) -
+  // this used to sum both into one mono-ish destination directly, which
+  // made Deepgram guess "which parts are you" purely from acoustic voice
+  // characteristics instead of knowing it for certain from which channel
+  // the audio came from. The backend detects a 2-channel upload by its
+  // actual channel count (see backend/services/deepgram.js's
+  // probeAudioChannels) and requests Deepgram's multichannel mode
+  // automatically - no format/MIME change needed here, Opus already
+  // supports stereo natively.
   const audioContext = new AudioContext();
+  const merger = audioContext.createChannelMerger(2);
+  audioContext.createMediaStreamSource(micStream).connect(merger, 0, 0);
+  audioContext.createMediaStreamSource(tabStream).connect(merger, 0, 1);
   const destination = audioContext.createMediaStreamDestination();
-  audioContext.createMediaStreamSource(tabStream).connect(destination);
-  audioContext.createMediaStreamSource(micStream).connect(destination);
+  merger.connect(destination);
   // Also route the tab audio to the real speakers, since capturing it
   // via getUserMedia otherwise silences it for the user mid-meeting.
   audioContext.createMediaStreamSource(tabStream).connect(audioContext.destination);
