@@ -39,14 +39,19 @@ serde_json = "1"
 # itself target_os-gated in the keyring crate's own Cargo.toml, so enabling
 # both here is safe cross-platform.
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
-dirs = "5"
 cpal = "0.18.2"
 crossbeam-channel = "0.5"
 hound = "3.5"
 # For the post-recording upload flow (Task 6): minting an upload token and
 # posting the finished WAV to the backend, both over plain HTTPS.
 reqwest = { version = "0.12", features = ["json", "multipart"] }
-tokio = { version = "1", features = ["full"] }
+# Only `tokio::fs::read`/`tokio::fs::remove_file` are called directly here
+# (see upload_recording in lib.rs) - "full" pulled in process/signal/net/etc.
+# that nothing in this crate uses. Tauri's own async runtime (which is what
+# actually drives `tauri::async_runtime::spawn`) brings in whatever tokio
+# features it needs on its own; this only has to cover this crate's direct
+# calls.
+tokio = { version = "1", features = ["fs"] }
 # Only used to timestamp the recording's output filename.
 chrono = "0.4"
 

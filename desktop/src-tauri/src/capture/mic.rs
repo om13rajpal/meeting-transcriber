@@ -14,6 +14,10 @@ use std::time::Instant;
 /// should continue (e.g. store it in app state), not just call
 /// `start_mic_capture` and discard the result.
 pub struct MicCapture {
+    // Never read - held only so its `Drop` runs when `MicCapture` does (see
+    // the struct doc comment above). Not dead code despite the field never
+    // being accessed; suppress the warning rather than dropping the field.
+    #[allow(dead_code)]
     pub stream: cpal::Stream,
     /// The rate `cpal` actually negotiated with the device, which is NOT
     /// guaranteed to match the loopback source's rate - the mixer in

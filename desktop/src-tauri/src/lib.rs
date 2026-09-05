@@ -13,11 +13,6 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 // Service/user names under which the API key is stored in the OS keychain
 // (Keychain Access on macOS, Credential Manager on Windows). The key itself
 // is never written to disk in plaintext.
@@ -344,6 +339,16 @@ impl RecordingState {
 /// problem with that directory surfaces as the same client-safe error
 /// path as any other `start_recording` failure, instead of a stray panic
 /// on the recording-session thread.
+///
+/// Millisecond, not second, resolution: a whole-second timestamp lets a
+/// quick Start/Stop/Start sequence (a mis-click, or the tray menu firing
+/// twice for one click - both real possibilities, not just a hypothetical)
+/// land two recordings on the exact same filename within that second. The
+/// second one's `create_writer` would then truncate whatever the first
+/// recording's still-in-flight `upload_recording` might be concurrently
+/// reading from disk - silent data loss/corruption with no error anywhere.
+/// Milliseconds shrink that window from "one second" to "one millisecond",
+/// which is not reachable by two separate tray-menu click events.
 fn recording_output_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
@@ -351,7 +356,7 @@ fn recording_output_path(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| format!("Could not resolve the app data directory: {e}"))?;
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Could not create the app data directory: {e}"))?;
-    Ok(dir.join(format!("recording-{}.wav", chrono::Utc::now().timestamp())))
+    Ok(dir.join(format!("recording-{}.wav", chrono::Utc::now().timestamp_millis())))
 }
 
 /// Shows a native alert.
@@ -635,7 +640,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(RecordingState::new())
         .invoke_handler(tauri::generate_handler![
-            greet,
             save_settings,
             get_settings,
             has_api_key_stored,

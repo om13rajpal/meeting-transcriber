@@ -682,8 +682,27 @@ struct Resampler {
 
 impl Resampler {
     fn new(input_rate: u32, output_rate: u32) -> Self {
+        // A `0 Hz` input rate would make `ratio` exactly `0.0`, and
+        // `process`'s loop below only ever terminates by advancing `self.pos`
+        // by `ratio` each iteration - with `ratio == 0.0` it never does, so a
+        // single non-empty chunk hangs this thread in an infinite loop
+        // forever, with no way to even stop the recording (this same thread
+        // is what `stop_recording` joins on). This should never happen from
+        // real hardware, but the rate feeding this is read straight from the
+        // OS with no lower bound of its own (`mic.rs`'s calibration loop,
+        // `loopback_macos.rs`'s tap format, `loopback_windows.rs`'s WASAPI
+        // format), and this project has already seen more than one case of a
+        // capture source reporting something it should not (see this
+        // module's top-level doc comment). Falling back to passthrough
+        // (ratio 1.0) trades a hang for wrong-speed audio on that one
+        // source, which is the worse-is-better outcome here.
+        let ratio = if input_rate == 0 {
+            1.0
+        } else {
+            f64::from(input_rate) / f64::from(output_rate)
+        };
         Self {
-            ratio: f64::from(input_rate) / f64::from(output_rate),
+            ratio,
             pos: 0.0,
             prev: 0.0,
         }
@@ -744,6 +763,18 @@ mod tests {
     #[test]
     fn matching_rates_pass_samples_through_untouched() {
         let out = resample(48_000, 48_000, &[&[0.1, 0.2], &[0.3]]);
+        assert_eq!(out, vec![0.1, 0.2, 0.3]);
+    }
+
+    /// A `0 Hz` reported input rate used to make `ratio` exactly `0.0`, which
+    /// meant `process`'s loop never advanced `self.pos` and hung forever on
+    /// any non-empty chunk - freezing the mixing thread (and with it, the
+    /// entire recording, unstoppably) rather than erroring out. This test
+    /// completing at all is the assertion: a bug here would make it hang,
+    /// not fail. Falling back to passthrough is why the output is untouched.
+    #[test]
+    fn a_zero_input_rate_does_not_hang_and_falls_back_to_passthrough() {
+        let out = resample(0, 48_000, &[&[0.1, 0.2], &[0.3]]);
         assert_eq!(out, vec![0.1, 0.2, 0.3]);
     }
 
