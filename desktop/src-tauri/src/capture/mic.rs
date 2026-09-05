@@ -234,7 +234,7 @@ fn builtin_input_device(host: &cpal::Host) -> Option<(objc2_core_audio::AudioObj
     let device = host
         .input_devices()
         .ok()?
-        .find(|d| d.name().map(|n| n == builtin_name).unwrap_or(false))?;
+        .find(|d| d.to_string() == builtin_name)?;
     Some((builtin_id, device))
 }
 
@@ -382,12 +382,10 @@ pub fn start_mic_capture(tx: Sender<Vec<f32>>) -> Result<MicCapture, String> {
         ));
     }
 
-    let sample_rate = supported.sample_rate().0;
+    let sample_rate = supported.sample_rate();
     let channels = supported.channels() as usize;
     let sample_format = supported.sample_format();
-    let device_name = device
-        .name()
-        .unwrap_or_else(|_| "<unknown device>".to_string());
+    let device_name = device.to_string();
     // Printed unconditionally, not just on suspicion of a mismatch: the only
     // way a *stale* negotiated rate (see `frames_received`/`first_frame_at`
     // below) is distinguishable from a *correct* one is by comparing what was
@@ -405,7 +403,7 @@ pub fn start_mic_capture(tx: Sender<Vec<f32>>) -> Result<MicCapture, String> {
 
     let stream = device
         .build_input_stream(
-            &config,
+            config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
                 // Locked once per callback (not per sample), and only ever
                 // written once - negligible next to the downmix below.
