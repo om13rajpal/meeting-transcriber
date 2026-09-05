@@ -1,4 +1,4 @@
-import { APP_URL } from '../../lib/storage';
+import { APP_URL, setMicGranted } from '../../lib/storage';
 
 let recorder: MediaRecorder | null = null;
 let tabStream: MediaStream | null = null;
@@ -264,6 +264,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true });
       } catch (error) {
         console.error('[offscreen] could not start capture', error);
+        if (error instanceof DOMException && error.name === 'NotAllowedError') {
+          // The stored grant (see permission/App.tsx, read by
+          // Settings.tsx) is now known-stale - a real recording attempt
+          // just proved the OS/browser no longer honors it. Reset it so
+          // this error message's own remediation ("open Settings and
+          // click Save") actually reopens the permission tab next time,
+          // instead of Settings trusting the old flag and closing
+          // immediately with nothing fixed.
+          await setMicGranted(false).catch(() => {});
+        }
         sendResponse({ error: captureErrorMessage(error) });
       }
     })();

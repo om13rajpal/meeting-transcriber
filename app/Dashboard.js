@@ -304,37 +304,46 @@ export default function Dashboard({ userEmail, avatarUrl, initialMeetings, usage
 
   async function handleRetry(id) {
     setActioningIds((prev) => new Set(prev).add(id));
-    const result = await retryMeeting(id);
-    setActioningIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    if (result.error) {
-      toast.error(result.error);
-      return;
+    try {
+      const result = await retryMeeting(id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      // Optimistic: the backend responds 202 and keeps working in the
+      // background, same as a fresh upload - flip this row to 'processing'
+      // locally right away so the existing 4s poll-while-processing effect
+      // picks it up, instead of waiting for the next unrelated refresh.
+      setMeetings((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'processing', errorMessage: null } : m)));
+    } finally {
+      // In a finally, not just after the await, so a thrown (not just a
+      // returned {error}) failure - e.g. a session expiring mid-request -
+      // still releases the button instead of leaving it disabled forever.
+      setActioningIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
-    // Optimistic: the backend responds 202 and keeps working in the
-    // background, same as a fresh upload - flip this row to 'processing'
-    // locally right away so the existing 4s poll-while-processing effect
-    // picks it up, instead of waiting for the next unrelated refresh.
-    setMeetings((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'processing', errorMessage: null } : m)));
   }
 
   async function handleCancel(id) {
     setActioningIds((prev) => new Set(prev).add(id));
-    const result = await cancelMeeting(id);
-    setActioningIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    if (result.error) {
-      toast.error(result.error);
-      return;
+    try {
+      const result = await cancelMeeting(id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      const refreshed = await searchMeetings(searchQuery);
+      setMeetings(refreshed);
+    } finally {
+      setActioningIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
-    const refreshed = await searchMeetings(searchQuery);
-    setMeetings(refreshed);
   }
 
   function toggleSelect(id) {

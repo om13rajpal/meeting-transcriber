@@ -886,8 +886,9 @@ its own, only an auth check and a one-line delegation.
   browser POSTing this app's own form/fetch. That's `app/api/auth/google/route.js`
   and its `callback/route.js` (Google redirects the browser here with a
   plain GET it initiates - see "Sign in with Google"), and
-  `app/api/tokens/upload/route.js` and `app/api/tokens/mark-failed/route.js`
-  (an authenticated Bearer-token POST from a desktop app or Chrome
+  `app/api/tokens/upload/route.js`, `app/api/tokens/mark-failed/route.js`,
+  `app/api/tokens/validate/route.js`, and `app/api/tokens/meetings/route.js`
+  (an authenticated Bearer-token POST/GET from a desktop app or Chrome
   extension, not a browser - see "API key auth for machine clients"
   above). Don't add a Route Handler for anything else without the same
   justification; everything that isn't "a request initiated by something
