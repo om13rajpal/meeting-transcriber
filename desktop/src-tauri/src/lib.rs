@@ -670,16 +670,22 @@ pub fn run() {
             )?;
 
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                // Menu bar icons on macOS are expected to be monochrome
-                // "template" images that macOS recolors itself (black on
-                // a light menu bar, white on a dark one / behind
-                // wallpaper) - without this, the icon renders in its own
-                // full color, which looks out of place next to every
-                // other menu bar icon. The source icon already has a real
-                // alpha-channel silhouette (verified: it's not just a
-                // fully-opaque square), so this doesn't need a separate
-                // dedicated tray-only asset to look right.
+                // Deliberately NOT app.default_window_icon() - that's the
+                // app-icon-style gradient tile (correct for the Dock/window
+                // icon), but it's a fully opaque square with no alpha
+                // channel at all. Menu bar icons on macOS are expected to
+                // be monochrome "template" images that macOS recolors
+                // itself (black on a light menu bar, white on a dark one),
+                // rendered using ONLY the image's alpha channel as a mask -
+                // an opaque-everywhere source has nothing for that mask to
+                // cut out, so it renders as a solid colored/white square
+                // instead of the logo's actual shape. This embeds a
+                // dedicated tray-only asset (the white-on-transparent logo
+                // variant, which has a real alpha silhouette) instead.
+                .icon(
+                    tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
+                        .expect("bundled tray-icon.png should always be a valid PNG"),
+                )
                 .icon_as_template(true)
                 .menu(&menu)
                 .on_menu_event(move |app, event| match event.id().as_ref() {
