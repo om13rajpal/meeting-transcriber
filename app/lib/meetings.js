@@ -7,6 +7,16 @@ import { sendMeetingWebhook } from '@/app/lib/webhook';
 const PREVIEW_LENGTH = 140;
 const SNIPPET_CONTEXT_CHARS = 60;
 
+// Matches backend/server.js's own STALE_PROCESSING_MS exactly on purpose -
+// two different definitions of "stale" for the same status field would be
+// confusing. That sweep only runs while the Render backend process is
+// awake, which it deliberately is not most of the time (free tier,
+// 15-minute spin-down) - reloading or polling the dashboard never wakes it,
+// since Server Actions talk to MongoDB directly and never touch the
+// backend. This is the same check run from here instead, since Vercel/
+// MongoDB are always reachable regardless of the backend's sleep state.
+const STALE_PROCESSING_MS = 30 * 60 * 1000;
+
 // speakerNames arrives as a real Mongoose Map when `meeting` came from a
 // live (non-lean) document - e.g. a mutation Server Action that just called
 // .save() and is handing the result back to the client. It arrives as a
@@ -140,12 +150,34 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Backstop for backend/server.js's own sweepStaleJobs(): that sweep only
+// runs while the Render backend process is awake, which (free tier,
+// 15-minute spin-down) it is often not - and nothing about reloading or
+// polling the dashboard wakes it, since Server Actions talk to MongoDB
+// directly and never touch the backend. MongoDB/Vercel are always
+// reachable regardless of the backend's sleep state, so this runs the
+// identical check from here instead, called wherever a user might
+// actually notice a stuck 'processing' row (see call sites below).
+// Not lean - sendNotifications() needs a real document to call .save() on.
+export async function sweepStaleProcessingMeetings(userId) {
+  await connectToDatabase();
+  const cutoff = new Date(Date.now() - STALE_PROCESSING_MS);
+  const staleMeetings = await Meeting.find({ userId, status: 'processing', createdAt: { $lt: cutoff } });
+  for (const meeting of staleMeetings) {
+    meeting.status = 'failed';
+    meeting.errorMessage = 'Transcription did not finish in time. Please try uploading again.';
+    await meeting.save();
+    await sendNotifications(meeting);
+  }
+}
+
 // Read-only: .lean() skips Mongoose document hydration (faster, and the
 // result has no circular references to begin with), and excluding
 // utterances keeps the list query from pulling potentially large
 // transcript-timing data over the wire for rows that only show a preview.
 export async function listMeetings(userId, query) {
   await connectToDatabase();
+  await sweepStaleProcessingMeetings(userId);
   const filter = { userId };
 
   const q = typeof query === 'string' ? query.trim() : '';

@@ -179,6 +179,13 @@ async function main() {
     res.status(200).json({ ok: true });
   });
 
+  // Dedicated path for external uptime/keep-alive pings (cron-job.org, etc.)
+  // - same trivial response as '/', just a conventional, memorable path to
+  // point a monitor at instead of the bare root.
+  app.get('/health', (req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
   app.post('/api/transcribe', (req, res) => {
     upload.single('file')(req, res, async (err) => {
       if (err) {

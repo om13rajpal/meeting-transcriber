@@ -9,13 +9,18 @@ import {
   findOwnedMeetingLean,
   toDetail,
   sendNotifications,
-  markMeetingFailedCore
+  markMeetingFailedCore,
+  sweepStaleProcessingMeetings
 } from '@/app/lib/meetings';
 
 // Read-only refetch for the meeting detail page's processing-status polling.
-// Uses the lean path since nothing here mutates the document.
+// Uses the lean path since nothing here mutates the document. Runs the
+// same stale-processing backstop listMeetings() does - this is the other
+// place CLAUDE.md documents as polling while a 'processing' row exists,
+// so it needs the same chance to notice a stuck one.
 export async function getMeeting(id) {
   const { userId } = await verifySession();
+  await sweepStaleProcessingMeetings(userId);
   const meeting = await findOwnedMeetingLean(id, userId);
   if (!meeting) {
     return { error: 'Meeting not found.' };
