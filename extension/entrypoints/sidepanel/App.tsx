@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import Settings from './Settings';
+import RecentRecordings from './RecentRecordings';
 
 type State = { activeMeetingTabId: number | null; platform: 'meet' | 'teams' | null; recording: boolean };
 
@@ -13,6 +14,7 @@ export default function App() {
   const [canRetry, setCanRetry] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [interrupted, setInterrupted] = useState(false);
+  const [recordingsRefreshSignal, setRecordingsRefreshSignal] = useState(0);
 
   function refreshRetainedRecording() {
     chrome.storage.session.get<{ hasRetainedRecording?: boolean }>(['hasRetainedRecording']).then((r) => {
@@ -36,6 +38,7 @@ export default function App() {
       if (message.type === 'UPLOAD_STATUS') {
         setUploadStatus(message.status);
         refreshRetainedRecording();
+        setRecordingsRefreshSignal((n) => n + 1);
       }
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -97,6 +100,8 @@ export default function App() {
           )}
         </CardContent>
       </Card>
+
+      <RecentRecordings refreshSignal={recordingsRefreshSignal} />
     </div>
   );
 }

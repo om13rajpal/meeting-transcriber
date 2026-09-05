@@ -12,10 +12,35 @@ import { APP_URL, getSettings, saveSettings } from '../../lib/storage';
 // lost. One prompt at setup time covers both fetches for good.
 const UPLOAD_HOST_PERMISSION = 'https://*/*';
 
+// Shared by the mount-time check and handleSave's own validation, so
+// there's exactly one place that calls /api/tokens/validate and interprets
+// its response - see app/api/tokens/validate/route.js.
+async function validateApiKey(apiKey: string): Promise<{ valid: boolean; label?: string; error?: string }> {
+  try {
+    const response = await fetch(`${APP_URL}/api/tokens/validate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.valid) {
+      return { valid: false, error: body.error || 'That API key was rejected by the app.' };
+    }
+    return { valid: true, label: body.label };
+  } catch {
+    return { valid: false, error: `Could not reach ${APP_URL} to check the API key.` };
+  }
+}
+
 export default function Settings({ onClose }: { onClose: () => void }) {
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // Mirrors the desktop app's own "Connected as: <label>" - re-validates
+  // live on every Settings open (not just at save time), so a key revoked
+  // from the website since the last time this was opened is caught here
+  // instead of only failing much later during an actual recording.
+  const [connectedLabel, setConnectedLabel] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   // True once a microphone grant is still needed, so the UI can offer a
   // direct link into Chrome's own settings as a fallback - a user who
   // clicked "Block" in the tab this opens (see handleSave) needs a way
@@ -34,6 +59,15 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     getSettings().then((s) => {
       setApiKey(s.apiKey);
+      if (s.apiKey) {
+        validateApiKey(s.apiKey).then((result) => {
+          if (result.valid) {
+            setConnectedLabel(result.label || null);
+          } else {
+            setConnectionError(result.error || null);
+          }
+        });
+      }
     });
   }, []);
 
@@ -67,20 +101,14 @@ export default function Settings({ onClose }: { onClose: () => void }) {
       // would think to check. See app/api/tokens/validate/route.js - unlike
       // /api/tokens/upload, it has no side effect (mints no token, creates
       // no Meeting row), so it's cheap to call on every Save.
-      try {
-        const response = await fetch(`${APP_URL}/api/tokens/validate`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}` }
-        });
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok || !body.valid) {
-          setProblem(body.error || 'That API key was rejected by the app - double check it.');
-          return;
-        }
-      } catch {
-        setProblem(`Could not reach ${APP_URL} to check the API key - check your network connection.`);
+      const validation = await validateApiKey(apiKey);
+      if (!validation.valid) {
+        setProblem(validation.error || 'That API key was rejected by the app - double check it.');
+        setConnectedLabel(null);
         return;
       }
+      setConnectedLabel(validation.label || null);
+      setConnectionError(null);
 
       await saveSettings(apiKey);
 
@@ -140,6 +168,12 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         Saving asks Chrome for network access to your app and for microphone access, both needed before a recording can be captured and uploaded.
       </p>
       {problem && <p className="text-xs text-destructive">{problem}</p>}
+      {!problem && connectedLabel && (
+        <p className="text-xs text-emerald-500">Connected as: {connectedLabel}</p>
+      )}
+      {!problem && connectionError && (
+        <p className="text-xs text-destructive">{connectionError}</p>
+      )}
       {micBlocked && (
         <>
           <Button variant="outline" onClick={openMicSettings}>
