@@ -1,3 +1,5 @@
+import { setMicGranted } from '../lib/storage';
+
 type State = {
   activeMeetingTabId: number | null;
   platform: 'meet' | 'teams' | null;
@@ -201,9 +203,39 @@ async function handleMessage(message: any, sender: chrome.runtime.MessageSender)
 
   // Relay upload-lifecycle events from the offscreen document straight
   // through to the side panel, so it doesn't need its own connection
-  // to the offscreen document.
+  // to the offscreen document. Also persisted here (not in the offscreen
+  // document, which has no chrome.storage access at all - see the import
+  // comment in offscreen/main.ts) so reopening the side panel after it was
+  // closed mid-upload shows the last real outcome instead of nothing.
   if (message.type === 'UPLOAD_STATUS') {
+    await chrome.storage.session.set({ lastUploadStatus: message.status });
     chrome.runtime.sendMessage(message).catch(() => {});
+    return;
+  }
+
+  if (message.type === 'CLEAR_UPLOAD_STATUS') {
+    await chrome.storage.session.set({ lastUploadStatus: null });
+    return;
+  }
+
+  if (message.type === 'RETAINED_RECORDING_CHANGED') {
+    await chrome.storage.session.set({ hasRetainedRecording: message.retained });
+    return;
+  }
+
+  // The offscreen document needs the saved API key to upload, but has no
+  // chrome.storage access of its own - this is the one place that can
+  // actually read it for it.
+  if (message.type === 'GET_API_KEY') {
+    const { apiKey } = await chrome.storage.local.get<{ apiKey?: string }>(['apiKey']);
+    return { apiKey: apiKey || null };
+  }
+
+  // Same reasoning: setMicGranted() touches chrome.storage.local, which the
+  // offscreen document can't call directly.
+  if (message.type === 'MIC_ACCESS_DENIED') {
+    await setMicGranted(false).catch(() => {});
+    return;
   }
 }
 

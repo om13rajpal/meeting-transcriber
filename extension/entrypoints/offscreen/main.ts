@@ -1,4 +1,12 @@
-import { APP_URL, setMicGranted } from '../../lib/storage';
+// Only APP_URL - a plain string constant, safe anywhere. setMicGranted and
+// getSettings are NOT imported here on purpose: both touch chrome.storage,
+// and per Chrome's own docs ("The runtime API is the only extensions API
+// supported by offscreen documents"), chrome.storage does not exist in this
+// context at all - calling it here throws "Cannot read properties of
+// undefined (reading 'session'/'local')" immediately. Every storage read/
+// write this file needs instead goes through the background script via
+// chrome.runtime.sendMessage, which IS supported here.
+import { APP_URL } from '../../lib/storage';
 
 let recorder: MediaRecorder | null = null;
 let tabStream: MediaStream | null = null;
@@ -32,23 +40,26 @@ let generation = 0;
 // its own access to this offscreen-document-local variable.
 function retainFailedRecording(blob: Blob) {
   (globalThis as any).__lastFailedRecordingBlob = blob;
-  chrome.storage.session.set({ hasRetainedRecording: true });
+  // The background script persists this to chrome.storage.session - this
+  // document can't touch that API directly (see the import comment above).
+  chrome.runtime.sendMessage({ type: 'RETAINED_RECORDING_CHANGED', retained: true }).catch(() => {});
 }
 
 function clearRetainedRecording() {
   (globalThis as any).__lastFailedRecordingBlob = undefined;
-  chrome.storage.session.set({ hasRetainedRecording: false });
+  chrome.runtime.sendMessage({ type: 'RETAINED_RECORDING_CHANGED', retained: false }).catch(() => {});
 }
 
-// Broadcasts status live to the side panel AND persists it, so reopening
-// the panel after it was closed (extremely likely during a real meeting -
-// nobody keeps the side panel open and focused for the whole call) shows
-// the last real outcome instead of nothing. Before this fix, UPLOAD_STATUS
-// was a pure fire-and-forget broadcast: if no side panel was open at the
-// exact moment it fired, the message was silently dropped forever, with no
-// way to ever learn what happened to that recording.
+// Broadcasts status live to the side panel; the background script (which
+// relays UPLOAD_STATUS to the side panel already) also persists it to
+// chrome.storage.session on receipt, so reopening the panel after it was
+// closed (extremely likely during a real meeting - nobody keeps the side
+// panel open and focused for the whole call) shows the last real outcome
+// instead of nothing. Before this existed, UPLOAD_STATUS was a pure fire-
+// and-forget broadcast: if no side panel was open at the exact moment it
+// fired, the message was silently dropped forever, with no way to ever
+// learn what happened to that recording.
 function postUploadStatus(status: string) {
-  chrome.storage.session.set({ lastUploadStatus: status });
   chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status }).catch(() => {});
 }
 
@@ -67,7 +78,7 @@ async function startCapture(streamId: string) {
   // hasRetainedRecording/the retained blob itself - an earlier failed
   // recording's retry chance shouldn't be lost just because a new,
   // unrelated recording started.
-  chrome.storage.session.set({ lastUploadStatus: null }).catch(() => {});
+  chrome.runtime.sendMessage({ type: 'CLEAR_UPLOAD_STATUS' }).catch(() => {});
 
   // Held as locals until both succeed: if the mic prompt is denied after the
   // tab capture already opened, the tab capture has to be released here or it
@@ -197,7 +208,15 @@ function captureErrorMessage(error: unknown) {
 }
 
 async function uploadRecording(blob: Blob) {
-  const { apiKey } = await chrome.storage.local.get(['apiKey']);
+  // Relayed through the background script, which has real chrome.storage
+  // access - this document doesn't (see the import comment at the top of
+  // this file). This was the original, pre-existing cause of recordings
+  // silently vanishing with nothing on the dashboard and no error shown
+  // anywhere: chrome.storage.local.get() called directly from here threw
+  // immediately, uncaught, inside recorder.onstop - nothing was listening
+  // for that rejection, so it simply never reached the point of even
+  // trying to upload.
+  const { apiKey } = await chrome.runtime.sendMessage({ type: 'GET_API_KEY' });
   if (!apiKey) {
     retainFailedRecording(blob);
     postUploadStatus('No API key set - open Settings.' + IN_MEMORY_NOTE);
@@ -301,8 +320,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           // this error message's own remediation ("open Settings and
           // click Save") actually reopens the permission tab next time,
           // instead of Settings trusting the old flag and closing
-          // immediately with nothing fixed.
-          await setMicGranted(false).catch(() => {});
+          // immediately with nothing fixed. Relayed through the background
+          // script - this document has no chrome.storage access of its own
+          // (setMicGranted() uses chrome.storage.local internally).
+          await chrome.runtime.sendMessage({ type: 'MIC_ACCESS_DENIED' }).catch(() => {});
         }
         sendResponse({ error: captureErrorMessage(error) });
       }
