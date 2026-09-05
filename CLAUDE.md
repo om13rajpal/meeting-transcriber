@@ -16,6 +16,93 @@ Email/password auth only. **No AI chat / OpenAI / ChatGPT feature, do not
 add one.** "Sign in with ChatGPT" is not a real OAuth flow for third-party
 apps.
 
+## Git remotes: pushing to `origin` alone does not deploy anything
+
+This repo's local `origin` remote is `om13rajpal/meeting-transcriber`. That
+is **not** the repo Vercel and Render actually watch for auto-deploy -
+their git integrations are connected to **`omrajpal13274/meeting-transcriber`**,
+which is a *fork* of `om13rajpal/meeting-transcriber`, not the same repo.
+`git push origin main` updates the upstream repo but does **not** touch
+the fork, and the fork does not auto-sync from its upstream on its own.
+
+After pushing to `origin`, the fork has to be explicitly synced before
+Vercel/Render will see the new commits:
+
+```bash
+gh auth switch --user omrajpal13274
+gh repo sync omrajpal13274/meeting-transcriber --source om13rajpal/meeting-transcriber
+gh auth switch --user om13rajpal   # back to the usual account
+```
+
+(`gh auth status` lists several keyring-stored accounts on this machine,
+including `omrajpal13274` - `gh repo sync` needs that account active since
+it's the one with write access to the fork.) Confirm the sync actually
+worked by comparing HEAD commits rather than trusting the command's exit
+code alone:
+
+```bash
+gh api repos/omrajpal13274/meeting-transcriber/commits/main --jq '.sha'
+gh api repos/om13rajpal/meeting-transcriber/commits/main --jq '.sha'
+```
+
+Even after the fork is synced, don't assume Vercel/Render auto-deploy
+fired promptly - this session saw real, repeated delay (minutes, sometimes
+no deploy at all without a manual nudge) rather than the usual
+near-instant webhook trigger. Verify the actual deployed behavior instead
+of trusting elapsed time or exit codes:
+
+- **Vercel**: `vercel ls` (once `vercel link`ed to
+  `om-rajpals-projects/meeting-transcriber`) shows recent deployments and
+  their age. If nothing new shows up after a few minutes, deploy directly
+  rather than keep waiting: `vercel --prod --yes --archive=tgz` (the
+  `--archive=tgz` flag is required on this machine - a plain `vercel
+  --prod` fails with `missing_archive` / "files should NOT have more than
+  15000 items," almost certainly the exFAT-volume AppleDouble sidecar
+  files inflating the file count - see the cargo/Next.js cache notes
+  elsewhere in this file for the same underlying cause).
+- **Render**: there is no CLI or API key configured for this backend on
+  this machine as of this writing - the only way to verify a Render
+  deploy landed is an HTTP check against the live service (e.g. `curl
+  https://meeting-transcriber-i7s9.onrender.com/health`, or checking for
+  a route that only exists in the new code). If a manual nudge is needed
+  and no API access is available, that has to come from the user via the
+  Render dashboard ("Manual Deploy -> Deploy latest commit").
+
+## This repo lives on an exFAT external volume: AppleDouble sidecar files
+
+This project's working directory is on an external drive formatted
+exFAT, not APFS. exFAT has no native support for macOS extended
+attributes/resource forks, so macOS silently writes a shadow `._<name>`
+sidecar file next to many real files to hold that metadata - and these
+sidecars accumulate in build/cache directories over normal use, not just
+from one-off Finder operations. This has caused two distinct real
+failures in this session, both from a tool trying to read its own
+cache/build directory and getting confused by (or overwhelmed by) these
+extra files:
+
+- **Rust/Cargo, building the desktop app in place**: `cargo check`/`cargo
+  build`/`cargo tauri build` can panic reading a `._default.toml`-style
+  sidecar as if it were the real file ("stream did not contain valid
+  UTF-8"). Fix: point `CARGO_TARGET_DIR` at a normal (non-exFAT)
+  filesystem, e.g. `CARGO_TARGET_DIR=/tmp/mt-cargo-target cargo check` /
+  `... npx tauri build`. Do this for every desktop build on this machine,
+  not just when it actually fails.
+- **Next.js dev server, Turbopack's persistent cache**: `npm run dev` can
+  fail outright with `Failed to open database / Loading persistence
+  directory failed / invalid digit found in string` (a Rust-side error
+  from Turbopack's own cache reader, same root cause as above). Fix:
+  `rm -rf .next` and restart - the cache regenerates cleanly, though it
+  can recur after enough file churn and may need repeating.
+- This is also the most likely explanation for `vercel --prod` failing
+  with `missing_archive` / "files should NOT have more than 15000 items"
+  on a plain deploy from this machine - use `--archive=tgz` (see the git
+  remotes section above).
+
+If a build/dev-server/deploy tool on this machine fails with a
+filesystem/parsing error that makes no sense given the actual source
+code, suspect this before anything else - it is an environment quirk of
+this specific machine's disk, not a bug in the project.
+
 ## Why two services: Vercel's serverless payload limit
 
 Vercel Functions (including Server Actions, which are just POST requests
