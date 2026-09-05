@@ -123,7 +123,13 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col gap-3 p-4">
-      <h2 className="text-sm font-medium">Settings</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium">Settings</h2>
+        {/* The only way out of this view used to be a fully successful
+            save (see handleSave's onClose() call below) - closing the
+            side panel and reopening it was the only escape otherwise. */}
+        <Button variant="ghost" size="sm" onClick={onClose}>Back</Button>
+      </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground">API Key</label>
         <Input type="password" value={apiKey} onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value.trim())} placeholder="mtk_..." />

@@ -191,6 +191,14 @@ async function handleMessage(message: any, sender: chrome.runtime.MessageSender)
     return { ok: true };
   }
 
+  if (message.type === 'RETRY_UPLOAD') {
+    // Just a relay, same as OFFSCREEN_STOP below - the offscreen document
+    // is the only place that actually has the retained blob in memory.
+    await ensureOffscreenDocument();
+    chrome.runtime.sendMessage({ type: 'RETRY_UPLOAD' }).catch(() => {});
+    return { ok: true };
+  }
+
   // Relay upload-lifecycle events from the offscreen document straight
   // through to the side panel, so it doesn't need its own connection
   // to the offscreen document.
@@ -235,9 +243,21 @@ export default defineBackground(() => {
   // called synchronously inside the click handler, never after an await, or
   // Chrome silently drops it since the user-gesture context has expired by
   // the time the microtask queue runs.
+  //
+  // { windowId }, not { tabId } - per Chrome's own docs, tabId restricts the
+  // panel to that one tab specifically; switching to any other tab in the
+  // same window then shows Chrome's native "this side panel was opened for
+  // another tab" message instead of the panel, since this extension's
+  // manifest also declares a global `side_panel.default_path`. windowId
+  // opens the same global panel the manifest already declares, scoped to
+  // the window instead of one tab, which is what makes it behave like every
+  // other side panel (visible across tab switches). The activeTab grant
+  // this whole handler exists for is unaffected either way - it's tied to
+  // the onClicked gesture on whichever tab was active, not to how the panel
+  // itself is scoped.
   chrome.action.onClicked.addListener((tab) => {
-    if (tab.id !== undefined) {
-      chrome.sidePanel.open({ tabId: tab.id });
+    if (tab.id !== undefined && tab.windowId !== undefined) {
+      chrome.sidePanel.open({ windowId: tab.windowId });
     }
   });
 });

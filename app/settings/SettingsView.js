@@ -1,8 +1,9 @@
 'use client';
 
 import { useActionState, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Copy, Check, Download, Puzzle } from 'lucide-react';
+import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Copy, Check, Download, Puzzle, ArrowLeft } from 'lucide-react';
 import { logout, updatePassword } from '@/app/actions/auth';
 import { saveWebhooks, createApiKey, revokeApiKey } from '@/app/actions/settings';
 import AppHeader from '@/components/brand/AppHeader';
@@ -402,6 +403,12 @@ export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassw
       <AppHeader userEmail={userEmail} avatarUrl={avatarUrl} />
 
       <main className="mx-auto px-6 py-8" style={{ maxWidth: 'var(--cr-measure-app)' }}>
+        <Link
+          href="/"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <ArrowLeft className="size-4" /> Back to Dashboard
+        </Link>
         <h1 className="font-display mb-6 uppercase" style={{ fontSize: 'var(--cr-type-h2)', fontWeight: 'var(--cr-weight-heavy)' }}>
           Settings
         </h1>

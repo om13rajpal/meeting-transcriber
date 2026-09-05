@@ -10,15 +10,33 @@ export default function App() {
   const [state, setState] = useState<State>({ activeMeetingTabId: null, platform: null, recording: false });
   const [showSettings, setShowSettings] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [interrupted, setInterrupted] = useState(false);
 
+  function refreshRetainedRecording() {
+    chrome.storage.session.get<{ hasRetainedRecording?: boolean }>(['hasRetainedRecording']).then((r) => {
+      setCanRetry(Boolean(r.hasRetainedRecording));
+    });
+  }
+
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_STATE' }, (s) => s && setState(s));
+    // Restores the *last* outcome on every panel open, not just while it
+    // happens to be open live - the panel being closed during an actual
+    // meeting (the normal case) used to mean any status, success or
+    // failure, was broadcast into the void and lost for good.
+    chrome.storage.session.get<{ lastUploadStatus?: string | null }>(['lastUploadStatus']).then((r) => {
+      if (r.lastUploadStatus) setUploadStatus(r.lastUploadStatus);
+    });
+    refreshRetainedRecording();
     const listener = (message: any) => {
       if (message.type === 'STATE_CHANGED') setState(message.state);
       if (message.type === 'RECORDING_INTERRUPTED') setInterrupted(true);
-      if (message.type === 'UPLOAD_STATUS') setUploadStatus(message.status);
+      if (message.type === 'UPLOAD_STATUS') {
+        setUploadStatus(message.status);
+        refreshRetainedRecording();
+      }
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
@@ -45,6 +63,11 @@ export default function App() {
     chrome.runtime.sendMessage({ type: 'STOP_RECORDING' });
   }
 
+  function handleRetry() {
+    setUploadStatus('Retrying upload...');
+    chrome.runtime.sendMessage({ type: 'RETRY_UPLOAD' });
+  }
+
   if (showSettings) return <Settings onClose={() => setShowSettings(false)} />;
 
   return (
@@ -69,6 +92,9 @@ export default function App() {
           )}
           {startError && <p className="text-xs text-destructive">{startError}</p>}
           {uploadStatus && <p className="text-xs text-muted-foreground">{uploadStatus}</p>}
+          {canRetry && !state.recording && (
+            <Button variant="outline" size="sm" onClick={handleRetry}>Retry upload</Button>
+          )}
         </CardContent>
       </Card>
     </div>

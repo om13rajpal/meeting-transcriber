@@ -20,16 +20,36 @@ let combinedStream: MediaStream | null = null;
 let generation = 0;
 
 // The last recording that failed to upload, kept only so the bytes aren't
-// thrown away the instant the network is down. This is a minimal, in-memory-
-// only safety net: it lives in the offscreen document's heap, so reloading the
-// extension, restarting Chrome, or the offscreen document being torn down all
-// discard it, and nothing in the UI can retry from it automatically. A real
-// "kept on disk and offered for retry-upload" flow (persisting to IndexedDB
-// plus a retry button in the side panel) is a separate, larger piece of work
-// this deliberately doesn't attempt. Set on failure paths only - a successfully
-// uploaded recording is left to be garbage-collected.
+// thrown away the instant the network is down. Still an in-memory-only
+// safety net - it lives in the offscreen document's heap, so reloading the
+// extension, restarting Chrome, or the offscreen document being torn down
+// all discard it (a real "kept on disk" flow would need IndexedDB, a much
+// bigger piece of work this doesn't attempt) - but the side panel can now
+// actually trigger a retry against it (see the RETRY_UPLOAD handler below),
+// which it couldn't before: this used to be write-only, nothing ever read
+// it back. `hasRetainedRecording` in chrome.storage.session is what lets
+// the side panel know whether a retry is even possible without it having
+// its own access to this offscreen-document-local variable.
 function retainFailedRecording(blob: Blob) {
   (globalThis as any).__lastFailedRecordingBlob = blob;
+  chrome.storage.session.set({ hasRetainedRecording: true });
+}
+
+function clearRetainedRecording() {
+  (globalThis as any).__lastFailedRecordingBlob = undefined;
+  chrome.storage.session.set({ hasRetainedRecording: false });
+}
+
+// Broadcasts status live to the side panel AND persists it, so reopening
+// the panel after it was closed (extremely likely during a real meeting -
+// nobody keeps the side panel open and focused for the whole call) shows
+// the last real outcome instead of nothing. Before this fix, UPLOAD_STATUS
+// was a pure fire-and-forget broadcast: if no side panel was open at the
+// exact moment it fired, the message was silently dropped forever, with no
+// way to ever learn what happened to that recording.
+function postUploadStatus(status: string) {
+  chrome.storage.session.set({ lastUploadStatus: status });
+  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status }).catch(() => {});
 }
 
 // Appended to every upload-failure status so the message is honest about what
@@ -39,6 +59,15 @@ const IN_MEMORY_NOTE = ' The recording is still in memory in this browser sessio
 async function startCapture(streamId: string) {
   generation += 1;
   const mySession = generation;
+
+  // Clears any stale status from a previous recording's outcome - without
+  // this, reopening the side panel mid-recording could show a leftover
+  // "Uploaded" or "Failed" message that actually describes a completely
+  // different, older recording. Deliberately does NOT touch
+  // hasRetainedRecording/the retained blob itself - an earlier failed
+  // recording's retry chance shouldn't be lost just because a new,
+  // unrelated recording started.
+  chrome.storage.session.set({ lastUploadStatus: null }).catch(() => {});
 
   // Held as locals until both succeed: if the mic prompt is denied after the
   // tab capture already opened, the tab capture has to be released here or it
@@ -133,7 +162,7 @@ async function startCapture(streamId: string) {
     if (blob.size > 0) {
       uploadRecording(blob);
     } else {
-      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No audio was captured - nothing to upload.' });
+      postUploadStatus('No audio was captured - nothing to upload.');
     }
   };
   recorder.start(1000); // 1s timeslices so a crash mid-recording still leaves recent chunks in `myChunks`
@@ -171,11 +200,11 @@ async function uploadRecording(blob: Blob) {
   const { apiKey } = await chrome.storage.local.get(['apiKey']);
   if (!apiKey) {
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'No API key set - open Settings.' + IN_MEMORY_NOTE });
+    postUploadStatus('No API key set - open Settings.' + IN_MEMORY_NOTE);
     return;
   }
 
-  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Requesting upload token...' });
+  postUploadStatus('Requesting upload token...');
 
   let tokenResponse: Response;
   try {
@@ -186,14 +215,14 @@ async function uploadRecording(blob: Blob) {
     });
   } catch {
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: `Could not reach ${APP_URL} - check your network connection.` + IN_MEMORY_NOTE });
+    postUploadStatus(`Could not reach ${APP_URL} - check your network connection.` + IN_MEMORY_NOTE);
     return;
   }
 
   if (!tokenResponse.ok) {
     const body = await tokenResponse.json().catch(() => ({}));
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: (body.error || 'Could not start the upload.') + IN_MEMORY_NOTE });
+    postUploadStatus((body.error || 'Could not start the upload.') + IN_MEMORY_NOTE);
     return;
   }
 
@@ -208,11 +237,11 @@ async function uploadRecording(blob: Blob) {
     ({ token, backendUrl, meeting } = await tokenResponse.json());
   } catch {
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'The app returned an unreadable response to the upload-token request.' + IN_MEMORY_NOTE });
+    postUploadStatus('The app returned an unreadable response to the upload-token request.' + IN_MEMORY_NOTE);
     return;
   }
 
-  chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploading recording...' });
+  postUploadStatus('Uploading recording...');
 
   const form = new FormData();
   form.append('token', token);
@@ -239,14 +268,15 @@ async function uploadRecording(blob: Blob) {
     if (!uploadResponse.ok) {
       await reportFailure(`Upload failed with status ${uploadResponse.status}.`);
       retainFailedRecording(blob);
-      chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Upload failed - the meeting was saved as failed in your dashboard.' + IN_MEMORY_NOTE });
+      postUploadStatus('Upload failed - the meeting was saved as failed in your dashboard.' + IN_MEMORY_NOTE);
       return;
     }
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Uploaded - check the dashboard for transcription progress.' });
+    clearRetainedRecording();
+    postUploadStatus('Uploaded - check the dashboard for transcription progress.');
   } catch {
     await reportFailure('Network error during upload from the Chrome extension.');
     retainFailedRecording(blob);
-    chrome.runtime.sendMessage({ type: 'UPLOAD_STATUS', status: 'Network error during upload - the meeting was saved as failed in your dashboard.' + IN_MEMORY_NOTE });
+    postUploadStatus('Network error during upload - the meeting was saved as failed in your dashboard.' + IN_MEMORY_NOTE);
   }
 }
 
@@ -281,5 +311,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === 'OFFSCREEN_STOP') {
     stopCapture();
+  }
+  if (message.type === 'RETRY_UPLOAD') {
+    const blob = (globalThis as any).__lastFailedRecordingBlob as Blob | undefined;
+    if (!blob) {
+      // Only reachable if the offscreen document was recreated since the
+      // failure (Chrome tore it down, the extension reloaded) - the
+      // storage flag says a retry should be possible, but the actual
+      // bytes lived only in the old document's memory and are gone.
+      clearRetainedRecording();
+      postUploadStatus('Nothing to retry - the recording is no longer available (the extension may have reloaded).');
+      return;
+    }
+    uploadRecording(blob);
   }
 });
