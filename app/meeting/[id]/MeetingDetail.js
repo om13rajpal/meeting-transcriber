@@ -71,6 +71,52 @@ function groupUtterances(utterances) {
   return groups;
 }
 
+// Talk-time/monologue/interruption stats, computed purely from data already
+// on the meeting - no backend or schema change needed. `groups` (consecutive
+// same-speaker utterances already merged elsewhere in this file) is reused
+// for "longest monologue" rather than a single raw utterance, since Deepgram
+// often splits one continuous turn into several utterances at pauses.
+//
+// Interruptions are a real but limited signal: they only ever fire when two
+// utterances from different speakers overlap in time, which a single-channel
+// diarized transcript's utterances never do (they come out strictly
+// sequential). Only the desktop app's dual-channel (mic + system audio)
+// captures can produce genuine overlap - checking each utterance only
+// against the one immediately before it (by start time) is enough to catch
+// that two-channel case without an O(n^2) scan.
+function computeAnalytics(utterances, groups) {
+  if (!utterances.length) return null;
+
+  const talkTimeBySpeaker = new Map();
+  let totalTalkTime = 0;
+  utterances.forEach((u) => {
+    const duration = Math.max(0, u.end - u.start);
+    talkTimeBySpeaker.set(u.speaker, (talkTimeBySpeaker.get(u.speaker) || 0) + duration);
+    totalTalkTime += duration;
+  });
+
+  let longestMonologue = null;
+  groups.forEach((g) => {
+    const duration = g.end - g.start;
+    if (!longestMonologue || duration > longestMonologue.duration) {
+      longestMonologue = { speaker: g.speaker, duration };
+    }
+  });
+
+  const sorted = [...utterances].sort((a, b) => a.start - b.start);
+  const interruptionPairs = new Map(); // "by:of" -> count
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (cur.speaker !== prev.speaker && cur.start < prev.end) {
+      const key = `${cur.speaker}:${prev.speaker}`;
+      interruptionPairs.set(key, (interruptionPairs.get(key) || 0) + 1);
+    }
+  }
+
+  return { talkTimeBySpeaker, totalTalkTime, longestMonologue, interruptionPairs };
+}
+
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
@@ -140,6 +186,10 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
   const lastTranscript = meeting.transcript || '(no speech detected)';
   const speakerNames = meeting.speakerNames || {};
   const currentGroups = useMemo(() => groupUtterances(meeting.utterances || []), [meeting.utterances]);
+  const analytics = useMemo(
+    () => computeAnalytics(meeting.utterances || [], currentGroups),
+    [meeting.utterances, currentGroups]
+  );
   const speakerIds = useMemo(
     () => Array.from(new Set(currentGroups.map((g) => g.speaker))).sort((a, b) => a - b),
     [currentGroups]
@@ -491,6 +541,7 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
               <TabsList>
                 <TabsTrigger value="speakers">Transcript</TabsTrigger>
                 <TabsTrigger value="plain">Plain Text</TabsTrigger>
+                {analytics && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
               </TabsList>
             </Tabs>
             <div className="flex items-center gap-2">
@@ -645,6 +696,64 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
                   <pre className="pr-3 font-mono text-[13px] leading-relaxed whitespace-pre-wrap">{highlightText(lastTranscript, initialQuery)}</pre>
                 </ScrollArea>
               </TabsContent>
+              {analytics && (
+                <TabsContent value="analytics">
+                  <ScrollArea className="h-[60vh]">
+                    <div className="flex flex-col gap-6 pr-3">
+                      <div>
+                        <div className="mb-3 text-xs font-medium text-muted-foreground">Talk time</div>
+                        <div className="flex flex-col gap-3">
+                          {[...analytics.talkTimeBySpeaker.entries()]
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([speaker, seconds]) => {
+                              const pct = analytics.totalTalkTime ? Math.round((seconds / analytics.totalTalkTime) * 100) : 0;
+                              return (
+                                <div key={speaker} className="flex flex-col gap-1">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="font-medium">{speakerLabel(speaker)}</span>
+                                    <span className="text-muted-foreground">{formatTime(seconds)} · {pct}%</span>
+                                  </div>
+                                  <div className="h-2 rounded-full" style={{ background: 'var(--cr-ink-raised)' }}>
+                                    <div
+                                      className="h-2 rounded-full"
+                                      style={{ width: `${pct}%`, background: 'var(--cr-red)' }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+
+                      {analytics.longestMonologue && (
+                        <div>
+                          <div className="mb-1 text-xs font-medium text-muted-foreground">Longest monologue</div>
+                          <p className="text-sm">
+                            {speakerLabel(analytics.longestMonologue.speaker)} talked for{' '}
+                            {formatTime(analytics.longestMonologue.duration)} straight.
+                          </p>
+                        </div>
+                      )}
+
+                      {analytics.interruptionPairs.size > 0 && (
+                        <div>
+                          <div className="mb-1 text-xs font-medium text-muted-foreground">Who talked over whom</div>
+                          <ul className="flex flex-col gap-1 text-sm">
+                            {[...analytics.interruptionPairs.entries()].map(([key, count]) => {
+                              const [by, of] = key.split(':').map(Number);
+                              return (
+                                <li key={key}>
+                                  {speakerLabel(by)} interrupted {speakerLabel(of)} · {count} time{count > 1 ? 's' : ''}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+              )}
             </Tabs>
           </CardContent>
         </Card>
