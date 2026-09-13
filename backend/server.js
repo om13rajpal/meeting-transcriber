@@ -14,6 +14,9 @@ const MeetingActionToken = require('./models/MeetingActionToken');
 const { transcribeFile, fetchExactCost } = require('./services/deepgram');
 const { sendMeetingEmail } = require('./services/email');
 const { sendMeetingWebhook } = require('./services/webhook');
+const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
+const { authenticateMcpToken } = require('./services/mcpAuth');
+const { buildMcpServer } = require('./mcp/server');
 
 const PORT = process.env.PORT || 10000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -334,15 +337,58 @@ async function main() {
     methods: ['POST', 'GET', 'OPTIONS']
   }));
 
-  // Only used by /api/meetings/retry and /api/meetings/cancel below - both
-  // are small, token-authenticated, server-to-server calls from the
-  // Next.js app (never the browser), so this doesn't interact with the
-  // multipart /api/transcribe route at all (express.json() only parses
-  // requests with an application/json Content-Type).
+  // Used by /api/meetings/retry and /api/meetings/cancel below (small,
+  // token-authenticated, server-to-server calls from the Next.js app,
+  // never the browser) and by /mcp's JSON-RPC requests - doesn't interact
+  // with the multipart /api/transcribe route at all (express.json() only
+  // parses requests with an application/json Content-Type).
   app.use(express.json());
 
   app.get('/', (req, res) => {
     res.status(200).json({ ok: true });
+  });
+
+  // Stateless Streamable HTTP MCP endpoint - a fresh McpServer + transport
+  // per request, scoped to whichever user the bearer token resolves to.
+  // No session state kept between requests (sessionIdGenerator: undefined),
+  // which is the documented stateless mode for this transport and is all
+  // this app's four simple, self-contained tools need. Outside
+  // ALLOWED_ORIGINS/CORS on purpose - this is a server-to-server MCP
+  // client, not a browser fetch, same category as the frontend's
+  // /api/tokens/* Route Handlers.
+  app.post('/mcp', async (req, res) => {
+    const mcpToken = await authenticateMcpToken(req).catch((error) => {
+      console.error('MCP auth failed:', error);
+      return null;
+    });
+    if (!mcpToken) {
+      return res.status(401).json({
+        jsonrpc: '2.0',
+        error: { code: -32001, message: 'Invalid or missing MCP token.' },
+        id: null
+      });
+    }
+
+    const server = buildMcpServer(String(mcpToken.userId));
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on('close', () => {
+      transport.close();
+      server.close();
+    });
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error('MCP request failed:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal error.' },
+          id: null
+        });
+      }
+    }
   });
 
   // Dedicated path for external uptime/keep-alive pings (cron-job.org, etc.)
