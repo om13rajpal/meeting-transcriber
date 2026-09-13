@@ -3,9 +3,9 @@
 import { useActionState, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Copy, Check, ArrowLeft } from 'lucide-react';
+import { Plus, X, Loader2, LogOut, KeyRound, Webhook as WebhookIcon, User, ChevronRight, Laptop, Sparkles, Copy, Check, ArrowLeft } from 'lucide-react';
 import { logout, updatePassword } from '@/app/actions/auth';
-import { saveWebhooks, createApiKey, revokeApiKey } from '@/app/actions/settings';
+import { saveWebhooks, createApiKey, revokeApiKey, createMcpToken, revokeMcpToken } from '@/app/actions/settings';
 import AppHeader from '@/components/brand/AppHeader';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,8 @@ const SECTIONS = [
   { id: 'account', label: 'Account', icon: User },
   { id: 'password', label: 'Password', icon: KeyRound },
   { id: 'webhooks', label: 'Webhooks', icon: WebhookIcon },
-  { id: 'api-keys', label: 'API Keys', icon: Laptop }
+  { id: 'api-keys', label: 'API Keys', icon: Laptop },
+  { id: 'mcp', label: 'MCP Access', icon: Sparkles }
 ];
 
 function SectionNav({ active, onSelect }) {
@@ -349,7 +350,122 @@ function ApiKeysSection({ initialKeys }) {
 }
 
 
-export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassword, initialWebhooks, initialApiKeys }) {
+function McpAccessSection({ initialTokens }) {
+  const [tokens, setTokens] = useState(initialTokens);
+  const [label, setLabel] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newRawKey, setNewRawKey] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const result = await createMcpToken(label);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setNewRawKey(result.rawKey);
+      setTokens((prev) => [{ id: result.id, label: result.label, createdAt: new Date().toISOString(), lastUsedAt: null }, ...prev]);
+      setLabel('');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleRevoke(id) {
+    try {
+      const result = await revokeMcpToken(id);
+      if (!result?.ok) {
+        toast.error('Could not revoke this token.');
+        return;
+      }
+      setTokens((prev) => prev.filter((t) => t.id !== id));
+      toast.success('MCP token revoked.');
+    } catch {
+      toast.error('Could not revoke this token.');
+    }
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(newRawKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>MCP Access</CardTitle>
+        <CardDescription>
+          Lets an MCP client (like Claude Desktop) read your meeting transcripts and save a generated
+          summary back to a meeting. Unlike an API key, this token can read your transcript content -
+          only create one for a client you trust.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {newRawKey && (
+          <div
+            className="flex flex-col gap-2 rounded-[var(--cr-radius-md)] p-3"
+            style={{ background: 'var(--cr-ink-raised)', border: '1px solid var(--cr-rule-strong)' }}
+          >
+            <p className="text-sm font-medium">Copy this token now — it won&apos;t be shown again.</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded bg-black/20 px-2 py-1.5 font-mono text-xs">{newRawKey}</code>
+              <Button variant="outline" size="icon-sm" onClick={handleCopy}>
+                {copied ? <Check /> : <Copy />}
+                <span className="sr-only">Copy</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder='Label, e.g. "Claude Desktop"'
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <Button onClick={handleCreate} disabled={creating} className="shrink-0">
+            {creating && <Loader2 className="animate-spin" />}
+            <Plus /> New token
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {tokens.length === 0 && <p className="text-sm text-muted-foreground">No MCP tokens yet.</p>}
+          {tokens.map((token) => (
+            <div key={token.id} className="flex items-center gap-3 rounded-[var(--cr-radius-md)] border border-[var(--cr-rule-strong)] px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{token.label}</div>
+                <div className="text-xs text-muted-foreground">{formatRelativeDate(token.lastUsedAt)}</div>
+              </div>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRevoke(token.id)}
+                    >
+                      <X />
+                      <span className="sr-only">Revoke</span>
+                    </Button>
+                  }
+                />
+                <TooltipContent>Revoke this token</TooltipContent>
+              </Tooltip>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassword, initialWebhooks, initialApiKeys, initialMcpTokens }) {
   const [, startLogoutTransition] = useTransition();
   const [active, setActive] = useState('account');
 
@@ -384,6 +500,7 @@ export default function SettingsView({ userEmail, avatarUrl, hasGoogle, hasPassw
             {active === 'password' && <PasswordSection hasPassword={hasPassword} />}
             {active === 'webhooks' && <WebhooksSection initialWebhooks={initialWebhooks} />}
             {active === 'api-keys' && <ApiKeysSection initialKeys={initialApiKeys} />}
+            {active === 'mcp' && <McpAccessSection initialTokens={initialMcpTokens} />}
           </div>
         </div>
       </main>
