@@ -604,6 +604,13 @@ export default function MeetingDetail({ id, userEmail, avatarUrl, initialMeeting
             </form>
           </div>
 
+          {meeting.summary && (
+            <div className="mx-4 mt-3 rounded-[var(--cr-radius-md)] border border-[var(--cr-rule-strong)] p-3" style={{ background: 'var(--cr-ink-raised)' }}>
+              <div className="mb-1 text-xs font-medium text-muted-foreground">Summary</div>
+              <p className="text-sm whitespace-pre-wrap">{meeting.summary}</p>
+            </div>
+          )}
+
           <CardContent className="px-4 pt-4 pb-4">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsContent value="speakers">

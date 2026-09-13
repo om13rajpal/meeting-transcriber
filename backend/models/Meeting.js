@@ -59,6 +59,12 @@ const meetingSchema = new mongoose.Schema({
   deepgramCostExact: { type: Boolean, default: false },
   deepgramRequestId: String,
   tags: { type: [String], default: [] },
+  // Written only by the MCP server (mcp/server.js's save_summary tool) -
+  // no other backend route writes this. Absent (undefined) on every
+  // meeting until an MCP client generates one - see
+  // app/lib/models/Meeting.js on the frontend for the matching fields.
+  summary: String,
+  summaryGeneratedAt: Date,
   // No `default` here on purpose: a sparse unique index only excludes
   // documents where the field is truly absent, not ones where it's null.
   shareToken: { type: String, index: true, unique: true, sparse: true },

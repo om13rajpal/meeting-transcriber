@@ -74,6 +74,12 @@ const meetingSchema = new mongoose.Schema({
   deepgramCostExact: { type: Boolean, default: false },
   deepgramRequestId: String,
   tags: { type: [String], default: [] },
+  // Written only by the MCP server (backend/mcp/server.js's save_summary
+  // tool) - no website UI writes this directly. Absent (undefined) on
+  // every meeting until an MCP client generates one; MeetingDetail.js
+  // shows nothing when it's unset rather than an empty-state placeholder.
+  summary: String,
+  summaryGeneratedAt: Date,
   // No `default` here on purpose: a sparse unique index only excludes
   // documents where the field is truly absent, not ones where it's null.
   // A default of null would put every un-shared meeting in the index as

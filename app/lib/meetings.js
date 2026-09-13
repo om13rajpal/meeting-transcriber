@@ -123,6 +123,8 @@ export function toDetail(meeting) {
     errorMessage: meeting.errorMessage || null,
     createdAt: meeting.createdAt.toISOString(),
     tags: meeting.tags || [],
+    summary: meeting.summary || null,
+    summaryGeneratedAt: meeting.summaryGeneratedAt ? meeting.summaryGeneratedAt.toISOString() : null,
     deepgramModel: meeting.deepgramModel || null,
     deepgramCostUsd: meeting.deepgramCostUsd ?? null,
     deepgramCostExact: Boolean(meeting.deepgramCostExact),
