@@ -5,6 +5,7 @@ import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import User from '@/app/lib/models/User';
 import ApiKey from '@/app/lib/models/ApiKey';
+import McpToken from '@/app/lib/models/McpToken';
 import { hashToken } from '@/app/lib/apiKeys';
 
 const VALID_FORMATS = ['generic', 'discord', 'slack', 'teams'];
@@ -115,5 +116,34 @@ export async function revokeApiKey(id) {
   const { userId } = await verifySession();
   await connectToDatabase();
   const result = await ApiKey.deleteOne({ _id: id, userId }).catch(() => null);
+  return { ok: Boolean(result?.deletedCount) };
+}
+
+// Mirrors createApiKey() above, but for the separate, wider-scoped
+// McpToken credential - see "New credential: McpToken" in the design
+// spec for why this is a distinct model rather than a capability on
+// ApiKey. The "mcp_" prefix (vs. ApiKey's "mtk_") makes a leaked key's
+// origin identifiable at a glance.
+export async function createMcpToken(label) {
+  const { userId } = await verifySession();
+  await connectToDatabase();
+
+  const trimmedLabel = typeof label === 'string' && label.trim()
+    ? label.trim().slice(0, MAX_LABEL_LENGTH)
+    : 'Unnamed MCP client';
+
+  const rawKey = `mcp_${crypto.randomBytes(32).toString('hex')}`;
+  const keyHash = hashToken(rawKey);
+
+  const token = await McpToken.create({ userId, keyHash, label: trimmedLabel });
+
+  return { rawKey, label: trimmedLabel, id: String(token._id) };
+}
+
+// Ownership-scoped exactly like revokeApiKey() above.
+export async function revokeMcpToken(id) {
+  const { userId } = await verifySession();
+  await connectToDatabase();
+  const result = await McpToken.deleteOne({ _id: id, userId }).catch(() => null);
   return { ok: Boolean(result?.deletedCount) };
 }
