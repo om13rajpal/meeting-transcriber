@@ -5,7 +5,7 @@ import { verifySession } from '@/app/lib/dal';
 import { connectToDatabase } from '@/app/lib/db';
 import User from '@/app/lib/models/User';
 import ApiKey from '@/app/lib/models/ApiKey';
-import { hashApiKey } from '@/app/lib/apiKeys';
+import { hashToken } from '@/app/lib/apiKeys';
 
 const VALID_FORMATS = ['generic', 'discord', 'slack', 'teams'];
 
@@ -97,7 +97,7 @@ export async function createApiKey(label) {
     : 'Unnamed device';
 
   const rawKey = `mtk_${crypto.randomBytes(32).toString('hex')}`;
-  const keyHash = hashApiKey(rawKey);
+  const keyHash = hashToken(rawKey);
 
   const apiKey = await ApiKey.create({ userId, keyHash, label: trimmedLabel });
 

@@ -2,12 +2,13 @@ import 'server-only';
 import crypto from 'crypto';
 import ApiKey from '@/app/lib/models/ApiKey';
 
-// Shared with app/actions/settings.js's createApiKey (which hashes the raw
-// key exactly once, at creation, to store) and both Route Handlers below
-// (which hash an incoming Bearer token to look it up). Previously defined
-// three times with the exact same body - one shared definition means a
-// future change to the hashing scheme only has one place to make it.
-export function hashApiKey(rawKey) {
+// Shared by both createApiKey() and createMcpToken() (app/actions/settings.js,
+// which hash a raw key exactly once, at creation, to store) and the two
+// families of Route Handlers/backend auth that hash an incoming Bearer
+// token to look it up. Previously defined three times with the exact same
+// body - one shared definition means a future change to the hashing
+// scheme only has one place to make it.
+export function hashToken(rawKey) {
   return crypto.createHash('sha256').update(rawKey).digest('hex');
 }
 
@@ -32,7 +33,7 @@ export async function authenticateApiKey(request) {
     return null;
   }
 
-  const keyHash = hashApiKey(rawKey);
+  const keyHash = hashToken(rawKey);
   const apiKey = await ApiKey.findOne({ keyHash });
   if (!apiKey) {
     return null;
